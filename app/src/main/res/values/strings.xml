@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lumen</string>
+    <string name="search_hint">Search anything…</string>
+    <string name="set_default_home">Set as default Home app</string>
+    <string name="search_web">Search the web for “%1$s”</string>
+</resources>
