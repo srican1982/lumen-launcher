@@ -21,23 +21,29 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.alarm.AlarmTones
 import com.lumen.launcher.data.AppInfo
-import com.lumen.launcher.data.DockResolver
 import com.lumen.launcher.data.GestureAction
 import com.lumen.launcher.data.TouchpadHaptics
+import com.lumen.launcher.flow.parseFlowOrder
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.util.AssistantRole
@@ -114,7 +120,7 @@ fun AppActionsSheet(app: AppInfo, state: LauncherUiState, viewModel: LauncherVie
     val pinned = app.key in state.favorites
     val hidden = app.packageName in state.hidden
     val inDock = state.dock.any { it.key == app.key }
-    val dockFull = !inDock && state.dock.size >= DockResolver.MAX
+    val dockFull = !inDock && state.dock.size >= state.dockCapacity
     val self = LocalContext.current.packageName
     BottomMenu(app.label, app.category.label, onDismiss = viewModel::dismissAppActions) {
         MenuRow(if (pinned) "Unpin from home" else "Pin to home") { viewModel.toggleFavorite(app) }
@@ -128,8 +134,9 @@ fun AppActionsSheet(app: AppInfo, state: LauncherUiState, viewModel: LauncherVie
             if (!dockFull || inDock) viewModel.toggleDock(app)
         }
         MenuRow(
-            if (app.key in state.privateApps) "Remove from Private Space" else "Move to Private Space"
+            if (app.key in state.privateApps) "Remove from Locked Space" else "Move to Locked Space"
         ) { viewModel.togglePrivate(app) }
+        MenuRow("Add to folder") { viewModel.openFolderCreator(app.key) }
         MenuRow(if (hidden) "Unhide app" else "Hide app") { viewModel.toggleHidden(app) }
         MenuRow("App info") { viewModel.openAppInfo(app) }
         if (app.packageName != self) {
@@ -160,6 +167,13 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 inactiveTrackColor = Color.White.copy(alpha = 0.12f)
             )
         )
+        MenuRow("Home grid  ·  ${state.gridColumns} columns") { viewModel.cycleGridColumns() }
+        MenuRow("App drawer grid  ·  ${state.drawerColumns} columns") { viewModel.cycleDrawerColumns() }
+        MenuRow("Dock  ·  ${state.dockCapacity} apps") { viewModel.cycleDockCapacity() }
+        MenuRow("App labels  ·  ${if (state.showLabels) "On" else "Off"}") {
+            viewModel.setShowLabels(!state.showLabels)
+        }
+        MenuRow("Create folder") { viewModel.openFolderCreator() }
         if (state.hidden.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -205,6 +219,67 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("Hey Lumen  ·  ${if (state.heyLumen) "On" else "Off"}") {
             viewModel.setHeyLumen(!state.heyLumen)
         }
+        MenuRow("Smart voice  ·  ${if (state.smartVoice) "On" else "Off"}") {
+            viewModel.setSmartVoice(!state.smartVoice)
+        }
+        Text(
+            "When local rules are unsure, Lumen asks Gemini 3 Flash Preview to map your words onto Lumen’s own actions. It only sends the phrase and installed app names. Obvious commands stay on-device.",
+            color = Lumen.Faint,
+            fontSize = 12.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Light,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
+        )
+        var geminiDraft by remember(state.geminiApiKey) { mutableStateOf(state.geminiApiKey) }
+        Text(
+            "Gemini API key",
+            color = Lumen.Muted,
+            fontSize = 12.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.4.sp
+        )
+        BasicTextField(
+            value = geminiDraft,
+            onValueChange = {
+                geminiDraft = it
+                viewModel.setGeminiApiKey(it)
+            },
+            singleLine = true,
+            cursorBrush = SolidColor(Lumen.Accent),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = Lumen.Text,
+                fontSize = 16.sp,
+                fontFamily = Outfit
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .padding(14.dp),
+            decorationBox = { inner ->
+                if (geminiDraft.isBlank()) {
+                    Text(
+                        "Paste key from Google AI Studio",
+                        color = Lumen.Faint,
+                        fontSize = 16.sp,
+                        fontFamily = Outfit
+                    )
+                }
+                inner()
+            }
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Off by default. When on, Lumen listens for “Hey Lumen” while Home is visible, preferring on-device recognition when this phone has it. That still uses the microphone and battery. Voice from the TouchPad, mic, and digital assistant works with this off.",
+            color = Lumen.Faint,
+            fontSize = 12.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Light,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
+        )
         MenuRow("Digital assistant  ·  ${if (AssistantRole.isHeld(LocalContext.current)) "Lumen" else "Set Lumen"}") {
             viewModel.requestDigitalAssistant()
         }
@@ -221,7 +296,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             viewModel.cycleAlarmTone()
         }
         Text(
-            "${AlarmTones.hint(state.alarmTone)}. Tap to hear Aura, Pulse, Dawn, or Bell.",
+            "${AlarmTones.hint(state.alarmTone)}. Tap to hear Aura, Pulse, Dawn, or Bell. Alarms ask for notification permission when you set one.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -252,6 +327,39 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         )
         Spacer(Modifier.height(12.dp))
         Text(
+            "FLOW",
+            color = Lumen.Muted,
+            fontSize = 12.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.4.sp
+        )
+        parseFlowOrder(state.flowOrder).forEach { module ->
+            val enabled = module.name in state.flowEnabled
+            MenuRow("${if (enabled) "On" else "Off"}  ·  ${module.title}") {
+                viewModel.toggleFlowModule(module.name)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    "↑",
+                    color = Lumen.Faint,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { viewModel.moveFlowModule(module.name, -1) }
+                        .padding(horizontal = 14.dp, vertical = 2.dp)
+                )
+                Text(
+                    "↓",
+                    color = Lumen.Faint,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { viewModel.moveFlowModule(module.name, 1) }
+                        .padding(horizontal = 14.dp, vertical = 2.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
             "MAIL",
             color = Lumen.Muted,
             fontSize = 12.sp,
@@ -271,11 +379,18 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             lineHeight = 18.sp,
             modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
         )
-        MenuRow("Missed calls  ·  ${if (state.callLogAccess) "On" else "Allow"}") {
+        val assistant = AssistantRole.isHeld(LocalContext.current)
+        MenuRow(
+            "Phone missed calls  ·  ${when {
+                state.callLogAccess -> "On"
+                assistant -> "Allow"
+                else -> "Needs assistant"
+            }}"
+        ) {
             viewModel.requestCallLogAccess()
         }
         Text(
-            "Phone and WhatsApp missed calls. They leave Flow after you call that number back, or after 3 days.",
+            "WhatsApp missed calls use notification access. Phone call log is only requested if Lumen is the default digital assistant.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -284,7 +399,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
         )
         Text(
-            "Say “Hey Lumen” while Home is on screen.\nHi Bixby works with the phone asleep because Samsung built that into the hardware. Lumen can’t use that wake chip. Set Lumen as your digital assistant to open it from the side key, including the lock screen.",
+            "Hey Lumen is opt-in and only listens while Home is on screen. It is not a hardware wake word like Bixby. Set Lumen as your digital assistant to open Voice from the side key, including the lock screen.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -311,7 +426,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             viewModel.openGesturePicker("triple")
         }
         Text(
-            "Long press  ·  Private Space  ·  fixed",
+            "Long press  ·  Locked Space  ·  fixed",
             color = Lumen.Muted,
             fontSize = 17.sp,
             fontFamily = Outfit,
@@ -335,7 +450,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Tap an empty gesture on the TouchPad to assign it. Long-press is always Private Space.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nLong-press an app to pin, dock, or hide it.",
+            "Tap an empty gesture on the TouchPad to assign it. Long-press is always Locked Space.\nLocked Space hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nLong-press an app to pin, dock, or hide it.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -387,6 +502,84 @@ fun AppPickerSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun FolderSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
+    val folder = state.activeFolder ?: return
+    val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
+    BottomMenu(folder.name, "${apps.size} apps", onDismiss = viewModel::closeSheet) {
+        if (apps.isEmpty()) {
+            Text("Add apps with voice, or edit this folder.", color = Lumen.Faint, fontFamily = Outfit, fontSize = 14.sp)
+        }
+        apps.forEach { app ->
+            MenuRow(app.label) { viewModel.launch(app) }
+        }
+        MenuRow("Edit folder") { viewModel.editFolder(folder) }
+        MenuRow("Delete folder") { viewModel.deleteActiveFolder() }
+    }
+}
+
+@Composable
+fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
+    val existing = state.activeFolder
+    var name by remember(state.activeFolderId, state.folderSeedAppKey) {
+        mutableStateOf(existing?.name ?: "Folder")
+    }
+    var selected by remember(state.activeFolderId, state.folderSeedAppKey) {
+        mutableStateOf(existing?.appKeys?.toSet() ?: setOfNotNull(state.folderSeedAppKey))
+    }
+    BottomMenu(
+        if (existing == null) "New folder" else "Edit folder",
+        "Choose apps for this folder",
+        onDismiss = viewModel::closeSheet
+    ) {
+        BasicTextField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            cursorBrush = SolidColor(Lumen.Accent),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = Lumen.Text,
+                fontSize = 17.sp,
+                fontFamily = Outfit
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .padding(14.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.height(240.dp)) {
+            items(state.visibleApps, key = { it.key }) { app ->
+                val on = app.key in selected
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (on) Color.White.copy(0.12f) else Color.Transparent)
+                        .clickable {
+                            selected = if (on) selected - app.key else selected + app.key
+                        }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (on) "On" else "Off",
+                        color = if (on) Lumen.Accent else Lumen.Faint,
+                        fontSize = 12.sp,
+                        fontFamily = Outfit,
+                        modifier = Modifier.width(36.dp)
+                    )
+                    Text(app.label, color = Lumen.Text, fontFamily = Outfit, fontSize = 16.sp)
+                }
+            }
+        }
+        MenuRow("Save folder  ·  ${selected.size} apps") {
+            viewModel.saveFolder(name, selected)
         }
     }
 }

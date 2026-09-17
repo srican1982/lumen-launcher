@@ -73,7 +73,6 @@ import com.lumen.launcher.data.WeatherCodes
 import com.lumen.launcher.data.WeatherHour
 import com.lumen.launcher.data.WeatherSnapshot
 import com.lumen.launcher.flow.FlowModule
-import com.lumen.launcher.flow.flowOrder
 import com.lumen.launcher.inbox.InboxItem
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
@@ -121,7 +120,11 @@ fun FlowPage(
             inboxAccess = state.inboxAccess,
             onAllowInbox = viewModel::requestInboxAccess,
             hasCallLogPermission = state.callLogAccess,
-            onAllowCallLog = viewModel::requestCallLogAccess
+            onAllowCallLog = viewModel::requestCallLogAccess,
+            flowOrder = state.flowOrder,
+            flowEnabled = state.flowEnabled,
+            onToggleFlow = viewModel::toggleFlowModule,
+            onMoveFlow = viewModel::moveFlowModule
         )
         return
     }
@@ -130,7 +133,7 @@ fun FlowPage(
     val continueApp = state.recentApps.firstOrNull()
     val needNow = state.likelyNext.filter { it.key != continueApp?.key }.take(4)
     val news = state.news.take(2)
-    val modules = flowOrder().filter { module ->
+    val modules = state.flowModules.filter { module ->
         when (module) {
             FlowModule.Alarms -> state.upcomingAlarms.isNotEmpty()
             FlowModule.Next -> state.upcomingEvents.isNotEmpty() || state.nextEvent != null

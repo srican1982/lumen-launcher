@@ -4,11 +4,14 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lumen.launcher.alarm.AlarmTones
 import com.lumen.launcher.alarm.LumenAlarm
+import com.lumen.launcher.flow.defaultFlowEnabled
+import com.lumen.launcher.flow.defaultFlowNames
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -23,6 +26,10 @@ class LauncherPreferences(private val context: Context) {
             launchTimes = decodeLaunchTimes(prefs[LAUNCH_TIMES].orEmpty()),
             hidden = prefs[HIDDEN].orEmpty(),
             iconSizeDp = prefs[ICON_SIZE] ?: 60f,
+            gridColumns = (prefs[GRID_COLUMNS] ?: 4).coerceIn(3, 6),
+            drawerColumns = (prefs[DRAWER_COLUMNS] ?: 4).coerceIn(3, 6),
+            dockCapacity = (prefs[DOCK_CAPACITY] ?: 4).coerceIn(3, 6),
+            showLabels = prefs[SHOW_LABELS] ?: true,
             aliases = decodeAliases(prefs[ALIASES].orEmpty()),
             spaceOverride = prefs[SPACE]?.takeIf { it.isNotBlank() },
             privateApps = prefs[PRIVATE].orEmpty(),
@@ -38,7 +45,12 @@ class LauncherPreferences(private val context: Context) {
             swipeRightAction = prefs[SWIPE_RIGHT].orEmpty(),
             touchpadHaptics = prefs[HAPTICS] ?: TouchpadHaptics.STANDARD,
             tasks = decodeList(prefs[TASKS].orEmpty()),
-            heyLumen = prefs[HEY_LUMEN] ?: true,
+            heyLumen = prefs[HEY_LUMEN] ?: false,
+            smartVoice = prefs[SMART_VOICE] ?: true,
+            geminiApiKey = prefs[GEMINI_API_KEY].orEmpty(),
+            flowEnabled = if (prefs.contains(FLOW_ENABLED)) prefs[FLOW_ENABLED].orEmpty() else defaultFlowEnabled(),
+            flowOrder = if (prefs.contains(FLOW_ORDER)) decodeList(prefs[FLOW_ORDER].orEmpty()) else defaultFlowNames(),
+            folders = decodeFolders(prefs[FOLDERS].orEmpty()),
             workCalendars = prefs[WORK_CALENDARS].orEmpty(),
             personalCalendars = prefs[PERSONAL_CALENDARS].orEmpty(),
             alarms = decodeAlarms(prefs[ALARMS].orEmpty()),
@@ -57,6 +69,32 @@ class LauncherPreferences(private val context: Context) {
 
     suspend fun setIconSize(sizeDp: Float) {
         context.launcherStore.edit { it[ICON_SIZE] = sizeDp.coerceIn(44f, 76f) }
+    }
+
+    suspend fun setGridColumns(columns: Int) {
+        context.launcherStore.edit { it[GRID_COLUMNS] = columns.coerceIn(3, 6) }
+    }
+
+    suspend fun setDrawerColumns(columns: Int) {
+        context.launcherStore.edit { it[DRAWER_COLUMNS] = columns.coerceIn(3, 6) }
+    }
+
+    suspend fun setDockCapacity(count: Int) {
+        context.launcherStore.edit { prefs ->
+            val cap = count.coerceIn(3, 6)
+            prefs[DOCK_CAPACITY] = cap
+            if (prefs.contains(DOCK)) {
+                prefs[DOCK] = encodeList(decodeList(prefs[DOCK].orEmpty()).take(cap))
+            }
+        }
+    }
+
+    suspend fun setShowLabels(show: Boolean) {
+        context.launcherStore.edit { it[SHOW_LABELS] = show }
+    }
+
+    suspend fun setFolders(items: List<HomeFolder>) {
+        context.launcherStore.edit { it[FOLDERS] = encodeFolders(items.take(24)) }
     }
 
     suspend fun recordLaunch(key: String) {
@@ -90,7 +128,10 @@ class LauncherPreferences(private val context: Context) {
     }
 
     suspend fun setDockKeys(keys: List<String>) {
-        context.launcherStore.edit { it[DOCK] = encodeList(keys.distinct().take(4)) }
+        context.launcherStore.edit { prefs ->
+            val cap = (prefs[DOCK_CAPACITY] ?: 4).coerceIn(3, 6)
+            prefs[DOCK] = encodeList(keys.distinct().take(cap))
+        }
     }
 
     suspend fun setTapAction(value: String) {
@@ -137,6 +178,22 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit { it[HEY_LUMEN] = enabled }
     }
 
+    suspend fun setSmartVoice(enabled: Boolean) {
+        context.launcherStore.edit { it[SMART_VOICE] = enabled }
+    }
+
+    suspend fun setGeminiApiKey(key: String) {
+        context.launcherStore.edit { it[GEMINI_API_KEY] = key.trim() }
+    }
+
+    suspend fun setFlowEnabled(names: Set<String>) {
+        context.launcherStore.edit { it[FLOW_ENABLED] = names }
+    }
+
+    suspend fun setFlowOrder(names: List<String>) {
+        context.launcherStore.edit { it[FLOW_ORDER] = encodeList(names.distinct()) }
+    }
+
     suspend fun setCalendarRoles(work: Set<String>, personal: Set<String>) {
         context.launcherStore.edit {
             it[WORK_CALENDARS] = work
@@ -159,6 +216,27 @@ class LauncherPreferences(private val context: Context) {
     suspend fun setSpaceOverride(name: String?) {
         context.launcherStore.edit { prefs ->
             if (name.isNullOrBlank()) prefs.remove(SPACE) else prefs[SPACE] = name
+        }
+    }
+
+    private fun encodeFolders(items: List<HomeFolder>): String =
+        items.joinToString("\u001e") { folder ->
+            listOf(
+                folder.id,
+                folder.name.replace('\u001f', ' ').replace('\u001e', ' '),
+                folder.appKeys.joinToString(",")
+            ).joinToString("\u001f")
+        }
+
+    private fun decodeFolders(raw: String): List<HomeFolder> {
+        if (raw.isBlank()) return emptyList()
+        return raw.split('\u001e').mapNotNull { line ->
+            val parts = line.split('\u001f')
+            if (parts.size < 2) return@mapNotNull null
+            val id = parts[0].ifBlank { return@mapNotNull null }
+            val name = parts[1].ifBlank { "Folder" }
+            val keys = parts.getOrElse(2) { "" }.split(',').map { it.trim() }.filter { it.isNotBlank() }
+            HomeFolder(id, name, keys)
         }
     }
 
@@ -254,6 +332,11 @@ class LauncherPreferences(private val context: Context) {
         val LAUNCH_TIMES = stringPreferencesKey("launch_times")
         val HIDDEN = stringSetPreferencesKey("hidden")
         val ICON_SIZE = floatPreferencesKey("icon_size")
+        val GRID_COLUMNS = intPreferencesKey("grid_columns")
+        val DRAWER_COLUMNS = intPreferencesKey("drawer_columns")
+        val DOCK_CAPACITY = intPreferencesKey("dock_capacity")
+        val SHOW_LABELS = booleanPreferencesKey("show_labels")
+        val FOLDERS = stringPreferencesKey("home_folders")
         val ALIASES = stringPreferencesKey("aliases")
         val SPACE = stringPreferencesKey("space_override")
         val PRIVATE = stringSetPreferencesKey("private_apps")
@@ -270,6 +353,10 @@ class LauncherPreferences(private val context: Context) {
         val HAPTICS = stringPreferencesKey("touchpad_haptics")
         val TASKS = stringPreferencesKey("lumen_tasks")
         val HEY_LUMEN = booleanPreferencesKey("hey_lumen")
+        val SMART_VOICE = booleanPreferencesKey("smart_voice")
+        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        val FLOW_ENABLED = stringSetPreferencesKey("flow_enabled")
+        val FLOW_ORDER = stringPreferencesKey("flow_order")
         val WORK_CALENDARS = stringSetPreferencesKey("work_calendars")
         val PERSONAL_CALENDARS = stringSetPreferencesKey("personal_calendars")
         val ALARMS = stringPreferencesKey("lumen_alarms")
@@ -284,6 +371,10 @@ data class LauncherState(
     val launchTimes: Map<String, Long> = emptyMap(),
     val hidden: Set<String> = emptySet(),
     val iconSizeDp: Float = 60f,
+    val gridColumns: Int = 4,
+    val drawerColumns: Int = 4,
+    val dockCapacity: Int = 4,
+    val showLabels: Boolean = true,
     val aliases: Map<String, String> = emptyMap(),
     val spaceOverride: String? = null,
     val privateApps: Set<String> = emptySet(),
@@ -299,7 +390,12 @@ data class LauncherState(
     val swipeRightAction: String = "",
     val touchpadHaptics: String = TouchpadHaptics.STANDARD,
     val tasks: List<String> = emptyList(),
-    val heyLumen: Boolean = true,
+    val heyLumen: Boolean = false,
+    val smartVoice: Boolean = true,
+    val geminiApiKey: String = "",
+    val flowEnabled: Set<String> = defaultFlowEnabled(),
+    val flowOrder: List<String> = defaultFlowNames(),
+    val folders: List<HomeFolder> = emptyList(),
     val workCalendars: Set<String> = emptySet(),
     val personalCalendars: Set<String> = emptySet(),
     val alarms: List<LumenAlarm> = emptyList(),
@@ -349,7 +445,7 @@ object GestureAction {
         DRAWER -> "App drawer"
         SEARCH -> "Search"
         VOICE -> "Lumen Voice"
-        PRIVATE -> "Private Space"
+        PRIVATE -> "Locked Space"
         NOTIFICATIONS -> "Notifications"
         QUICK_SETTINGS -> "Quick Settings"
         else -> apps.find { it.key == appKey(value) }?.label ?: "App"

@@ -30,7 +30,13 @@ object WakePhrase {
 
     private fun isName(token: String): Boolean {
         if (token in names) return true
-        return token.length >= 4 && names.any { it.startsWith(token) || token.startsWith(it.take(4)) }
+        if (token.length < 5) return false
+        return names.any { name ->
+            name.length >= 5 &&
+                token.first() == name.first() &&
+                kotlin.math.abs(name.length - token.length) <= 1 &&
+                VoiceHearing.editDistance(token, name) <= 1
+        }
     }
 
     private fun normalize(text: String): String =

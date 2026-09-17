@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -67,6 +68,9 @@ import com.lumen.launcher.data.DeviceCalendar
 import com.lumen.launcher.data.PhoneAccount
 import com.lumen.launcher.data.NewsItem
 import com.lumen.launcher.data.NewsTopic
+import com.lumen.launcher.flow.defaultFlowEnabled
+import com.lumen.launcher.flow.defaultFlowNames
+import com.lumen.launcher.flow.parseFlowOrder
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
@@ -229,7 +233,11 @@ fun FlowInterestPicker(
     inboxAccess: Boolean = false,
     onAllowInbox: () -> Unit = {},
     hasCallLogPermission: Boolean = false,
-    onAllowCallLog: () -> Unit = {}
+    onAllowCallLog: () -> Unit = {},
+    flowOrder: List<String> = defaultFlowNames(),
+    flowEnabled: Set<String> = defaultFlowEnabled(),
+    onToggleFlow: (String) -> Unit = {},
+    onMoveFlow: (String, Int) -> Unit = { _, _ -> }
 ) {
     var tab by remember { mutableStateOf(0) }
     var draft by remember(selected) { mutableStateOf(selected) }
@@ -267,7 +275,7 @@ fun FlowInterestPicker(
                 .background(Color.White.copy(0.10f))
                 .padding(4.dp)
         ) {
-            listOf("Calendars", "News").forEachIndexed { index, label ->
+            listOf("Cards", "Calendars", "News").forEachIndexed { index, label ->
                 val on = tab == index
                 Text(
                     label,
@@ -286,6 +294,65 @@ fun FlowInterestPicker(
             }
         }
         if (tab == 0) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    "Choose what Flow shows, and the order. Empty cards still hide themselves.",
+                    color = Lumen.Faint,
+                    fontFamily = Outfit,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 14.dp)
+                )
+                parseFlowOrder(flowOrder).forEach { module ->
+                    val enabled = module.name in flowEnabled
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(0.08f))
+                            .clickable { onToggleFlow(module.name) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (enabled) "On" else "Off",
+                            color = if (enabled) Lumen.Accent else Lumen.Faint,
+                            fontFamily = Outfit,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                            modifier = Modifier.width(36.dp)
+                        )
+                        Text(
+                            module.title,
+                            color = Lumen.Text,
+                            fontFamily = Outfit,
+                            fontSize = 16.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "↑",
+                            color = Lumen.Faint,
+                            fontSize = 16.sp,
+                            modifier = Modifier
+                                .clickable { onMoveFlow(module.name, -1) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                        Text(
+                            "↓",
+                            color = Lumen.Faint,
+                            fontSize = 16.sp,
+                            modifier = Modifier
+                                .clickable { onMoveFlow(module.name, 1) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        } else if (tab == 1) {
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -397,7 +464,7 @@ fun FlowInterestPicker(
                             .padding(vertical = 14.dp)
                     )
                     Text(
-                        "They leave Flow after you call that number back, or after 3 days.",
+                        "Phone call log is only requested if Lumen is the default digital assistant. WhatsApp missed calls still use notification access.",
                         color = Lumen.Faint,
                         fontFamily = Outfit,
                         fontSize = 13.sp,

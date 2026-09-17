@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.IconCache
+import com.lumen.launcher.search.FuzzySearch
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.DrawerFilter
@@ -92,13 +93,26 @@ fun DrawerSheet(
     val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
     var drawerQuery by remember { mutableStateOf("") }
     val query = drawerQuery.trim()
-    val sections = remember(state.drawerSections, query) {
+    val sections = remember(state.drawerSections, query, state.aliases) {
         if (query.isBlank()) state.drawerSections
-        else state.drawerSections.map { (title, apps) ->
-            title to apps.filter { app ->
-                app.label.contains(query, ignoreCase = true)
-            }
-        }.filter { it.second.isNotEmpty() }
+        else {
+            val normalized = FuzzySearch.normalize(query)
+            val aliasKey = state.aliases[normalized]
+            state.drawerSections.map { (title, apps) ->
+                title to apps.map { app ->
+                    val score = maxOf(
+                        FuzzySearch.score(query, app.label),
+                        if (app.key == aliasKey) 1200 else 0,
+                        if (normalized.length >= 4 &&
+                            app.packageName.contains(normalized.replace(" ", ""), ignoreCase = true)
+                        ) 620 else 0
+                    )
+                    app to score
+                }.filter { it.second >= 300 }
+                    .sortedByDescending { it.second }
+                    .map { it.first }
+            }.filter { it.second.isNotEmpty() }
+        }
     }
     val showRecents = query.isBlank() && state.recentApps.isNotEmpty() && state.drawerFilter == DrawerFilter.Az
 
@@ -323,14 +337,14 @@ fun DrawerSheet(
                 }
             }
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(state.drawerColumns),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 28.dp, top = 8.dp),
                 userScrollEnabled = !holding,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (showRecents) {
-                    item(span = { GridItemSpan(4) }, key = "recently-used-h") {
+                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-h") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -355,7 +369,7 @@ fun DrawerSheet(
                             )
                         }
                     }
-                    item(span = { GridItemSpan(4) }, key = "recently-used-row") {
+                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-row") {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             state.recentApps.take(5).forEach { app ->
                                 DrawerAppIcon(
@@ -376,7 +390,7 @@ fun DrawerSheet(
                 }
                 sections.forEach { (title, apps) ->
                     if (apps.isEmpty()) return@forEach
-                    item(span = { GridItemSpan(4) }, key = "h-$title") {
+                    item(span = { GridItemSpan(state.drawerColumns) }, key = "h-$title") {
                         Text(
                             title,
                             color = Color.White.copy(alpha = 0.42f),
@@ -467,6 +481,7 @@ private fun DrawerAppIcon(
         iconSize = iconSize,
         icons = icons,
         labelSize = 12.sp,
+        showLabel = true,
         allowDrag = true,
         onClick = onLaunch,
         onLongClick = onMenu,

@@ -34,11 +34,11 @@ fun PrivatePage(
             .padding(horizontal = 18.dp)
     ) {
         Spacer(Modifier.height(18.dp))
-        Text("PRIVATE", color = Lumen.Faint, fontFamily = Outfit, fontWeight = FontWeight.Medium, letterSpacing = 2.sp, fontSize = 12.sp)
+        Text("LOCKED", color = Lumen.Faint, fontFamily = Outfit, fontWeight = FontWeight.Medium, letterSpacing = 2.sp, fontSize = 12.sp)
         Text("Space", color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 40.sp)
         Text(
             if (state.privateUnlocked) "Unlocked. Close this screen to lock again."
-            else "Long-press the TouchPad, then confirm with fingerprint or PIN.",
+            else "Hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.",
             color = Lumen.Faint,
             fontFamily = Outfit,
             fontSize = 14.sp,
@@ -53,7 +53,7 @@ fun PrivatePage(
             )
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(state.gridColumns),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
@@ -67,14 +67,15 @@ fun PrivatePage(
                         activityName = app.activityName,
                         iconSize = state.iconSizeDp.dp,
                         icons = viewModel.icons,
+                        showLabel = state.showLabels,
                         onClick = { viewModel.launch(app) },
                         onLongClick = { viewModel.showAppActions(app) }
                     )
                 }
                 if (state.privateAppList.isEmpty()) {
-                    item(key = "empty-private", span = { GridItemSpan(4) }) {
+                    item(key = "empty-private", span = { GridItemSpan(state.gridColumns) }) {
                         Text(
-                            "Long-press any app on Home and choose Move to Private Space.",
+                            "Long-press any app on Home and choose Move to Locked Space.",
                             color = Lumen.Faint,
                             fontSize = 14.sp,
                             fontFamily = Outfit,

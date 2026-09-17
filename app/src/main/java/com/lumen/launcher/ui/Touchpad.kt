@@ -363,7 +363,7 @@ fun TouchpadIsland(
                 )
                 Icon(
                     if (lockShown > 0.55f) Icons.Outlined.Fingerprint else Icons.Outlined.Lock,
-                    contentDescription = "Private Space",
+                    contentDescription = "Locked Space",
                     tint = GoldHi.copy(alpha = seal),
                     modifier = Modifier.size(28.dp)
                 )

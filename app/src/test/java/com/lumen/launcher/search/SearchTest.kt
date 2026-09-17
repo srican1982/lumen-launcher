@@ -88,3 +88,57 @@ class CalculatorTest {
         assertThat(result!!.value).isEqualTo("15.48")
     }
 }
+
+class VoiceMatchTest {
+
+    @Test
+    fun workDoesNotMatchWord() {
+        assertThat(VoiceMatch.score("work", "Word")).isLessThan(0)
+        assertThat(VoiceMatch.score("work", "Microsoft Word")).isLessThan(0)
+    }
+
+    @Test
+    fun wordStillMatchesWord() {
+        assertThat(VoiceMatch.score("word", "Word")).isAtLeast(980)
+        assertThat(VoiceMatch.score("word", "Microsoft Word")).isAtLeast(980)
+    }
+
+    @Test
+    fun outlookMatchesMicrosoftOutlook() {
+        assertThat(VoiceMatch.score("outlook", "Microsoft Outlook")).isAtLeast(980)
+        assertThat(VoiceMatch.score("chrome", "Google Chrome")).isAtLeast(980)
+    }
+
+    @Test
+    fun anyInstalledLabelIsSpokenWithoutPerAppRules() {
+        assertThat(VoiceMatch.spokenForms("PhotoLab")).containsAtLeast("photolab", "photo lab")
+        assertThat(VoiceMatch.spokenForms("ChatGPT")).containsAtLeast("chatgpt", "chat gpt", "chat g p t")
+        assertThat(VoiceMatch.spokenForms("FXNow")).containsAtLeast("fxnow", "fx now", "f x now")
+        assertThat(VoiceMatch.spokenForms("TikTok")).containsAtLeast("tiktok", "tik tok")
+    }
+
+    @Test
+    fun newAppsWinFromTheLiveCatalog() {
+        val installed = listOf("Word", "WhatsApp", "PhotoLab", "FXNow")
+        assertThat(VoiceMatch.best("photo lab", installed)).isEqualTo("PhotoLab")
+        assertThat(VoiceMatch.best("f x now", installed)).isEqualTo("FXNow")
+    }
+
+    @Test
+    fun workDoesNotOpenWordFromCatalog() {
+        assertThat(VoiceMatch.best("work", listOf("Word", "WhatsApp"))).isNull()
+    }
+
+    @Test
+    fun closeNamesDoNotGuess() {
+        assertThat(VoiceMatch.best("note", listOf("Notes", "Notion"))).isNull()
+    }
+
+    @Test
+    fun spokenFullNameMatchesAcronymLabel() {
+        assertThat(VoiceMatch.best("bank of america", listOf("BOA", "WhatsApp"))).isEqualTo("BOA")
+        assertThat(VoiceMatch.best("cable news network", listOf("CNN", "Chrome"))).isEqualTo("CNN")
+        assertThat(VoiceMatch.best("photos", listOf("OP", "Photos"))).isEqualTo("Photos")
+        assertThat(VoiceMatch.best("photos", listOf("OP"))).isNull()
+    }
+}

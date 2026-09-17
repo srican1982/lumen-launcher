@@ -30,6 +30,9 @@ class WakePhraseTest {
     fun ignoresNearbyWords() {
         assertThat(WakePhrase.detect("aluminum")).isNull()
         assertThat(WakePhrase.detect("hey human")).isNull()
+        assertThat(WakePhrase.detect("hey looking")).isNull()
+        assertThat(WakePhrase.detect("hey sandwich")).isNull()
+        assertThat(WakePhrase.detect("hey lucy")).isNull()
         assertThat(WakePhrase.detect("lumen")).isNull()
     }
 }

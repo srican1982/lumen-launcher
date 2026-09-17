@@ -6,7 +6,7 @@ enum class SpaceKind(val title: String, val kicker: String) {
     Personal("Personal", "Personal space"),
     Focus("Focus", "Focus space"),
     Travel("Travel", "Travel space"),
-    Private("Private", "Locked space");
+    Private("Locked", "Locked space");
 
     companion object {
         fun infer(hour: Int): SpaceKind = when (hour) {

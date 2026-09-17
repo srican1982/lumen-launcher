@@ -15,10 +15,12 @@ data class DockApp(
 )
 
 object DockResolver {
-    const val MAX = 4
+    const val MIN = 3
+    const val DEFAULT = 4
+    const val MAX = 6
 
-    fun resolve(context: Context, apps: List<AppInfo>, keys: List<String>?): List<DockApp> {
-        val resolved = (keys ?: defaultKeys(context, apps)).distinct().take(MAX)
+    fun resolve(context: Context, apps: List<AppInfo>, keys: List<String>?, capacity: Int = DEFAULT): List<DockApp> {
+        val resolved = (keys ?: defaultKeys(context, apps)).distinct().take(capacity.coerceIn(MIN, MAX))
         return resolved.mapNotNull { key -> fromKey(context, apps, key) }
     }
 

@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -130,6 +131,7 @@ fun HomeScreen(
     val rootRef = remember { CoordBox() }
     val padBox = remember { RectBox() }
     val slotOrigins = remember { mutableMapOf<String, Offset>() }
+    val dockSlotWindows = remember { mutableStateMapOf<Int, Rect>() }
     val editing = editPhase == IconPhase.Lifted || editPhase == IconPhase.Dragging
     val hour = rememberLiveHour()
     val copy = remember(state.activeSpace, state.spaceAutomatic, hour) {
@@ -139,7 +141,10 @@ fun HomeScreen(
     val dragged = state.homeApps.find { it.key == editKey }
     val density = LocalDensity.current
     val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
-    val padRowHeight = state.iconSizeDp.dp * 2 + 84.dp
+    val iconSlotPad = 4.dp
+    val leadLabel = if (state.showLabels) 6.dp + with(density) { 11.sp.toDp() } + 3.dp else 0.dp
+    val leadRowHeight = iconSlotPad * 2 + state.iconSizeDp.dp + leadLabel
+    val leadBlockHeight = leadRowHeight * 2 + 16.dp
     val gridState = rememberLazyGridState()
     LaunchedEffect(isActive) {
         if (isActive) gridState.scrollToItem(0)
@@ -177,7 +182,23 @@ fun HomeScreen(
         return layout.localToWindow(origin + drag + Offset(iconPx / 2f, iconPx / 2f))
     }
 
-    val overPad = editing && windowOnPad(dropWindow(gridRef.value, liftOrigin, editDrag))
+    fun dockSlotAt(window: Offset): Int? {
+        if (window == Offset.Unspecified) return null
+        val pad = 28f
+        return dockSlotWindows.entries
+            .mapNotNull { (index, box) ->
+                if (box.width <= 4f || box.height <= 4f) return@mapNotNull null
+                val hit = box.inflate(pad)
+                if (!hit.contains(window)) return@mapNotNull null
+                index to (box.center - window).getDistance()
+            }
+            .minByOrNull { it.second }
+            ?.first
+    }
+
+    val dropWin = dropWindow(gridRef.value, liftOrigin, editDrag)
+    val hoverDock = if (editing) dockSlotAt(dropWin) else null
+    val overPad = editing && hoverDock == null && windowOnPad(dropWin)
     LaunchedEffect(overPad, editing) {
         if (editing && overPad) dropArmed = true
         if (!editing) dropArmed = false
@@ -188,7 +209,18 @@ fun HomeScreen(
 
     fun finishDrag(from: String?) {
         val app = state.homeApps.find { it.key == from }
+            ?: state.visibleApps.find { it.key == from }
         val window = dropWindow(gridRef.value, liftOrigin, editDrag)
+        val dockSlot = dockSlotAt(window)
+        if (app != null && dockSlot != null) {
+            viewModel.placeOnDock(app, dockSlot)
+            dropArmed = false
+            editKey = null
+            editPhase = IconPhase.Rest
+            editDrag = Offset.Zero
+            showFloatPad = false
+            return
+        }
         if (app != null && (dropArmed || windowOnPad(window))) {
             viewModel.moveToPrivate(app)
             dropArmed = false
@@ -225,6 +257,7 @@ fun HomeScreen(
             icons = viewModel.icons,
             onClick = { viewModel.launch(app) },
             onLongClick = { viewModel.showAppActions(app) },
+            showLabel = state.showLabels,
             allowDrag = !recentsOpen,
             dragOffset = Offset.Zero,
             modifier = modifier
@@ -307,19 +340,19 @@ fun HomeScreen(
             @Suppress("DEPRECATION")
             CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(state.gridColumns),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
                 userScrollEnabled = !editing,
                 verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
-                item(key = "touchpad-row", span = { GridItemSpan(4) }) {
-                    val lead = state.homeApps.take(4)
+                item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
+                    val lead = state.homeApps.filter { it.key !in state.folderAppKeys }.take(4)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(padRowHeight),
+                            .height(leadBlockHeight),
                         verticalAlignment = Alignment.Top
                     ) {
                         Column(
@@ -349,11 +382,23 @@ fun HomeScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .padding(start = 6.dp)
+                                .padding(start = 6.dp, top = iconSlotPad, bottom = iconSlotPad)
                         )
                     }
                 }
-                items(state.homeApps.drop(4), key = { it.key }) { app ->
+                items(state.folders, key = { "folder-${it.id}" }) { folder ->
+                    val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
+                    HomeFolderTile(
+                        name = folder.name,
+                        apps = apps,
+                        iconSize = state.iconSizeDp.dp,
+                        icons = viewModel.icons,
+                        showLabel = state.showLabels,
+                        onClick = { viewModel.openFolder(folder) },
+                        onLongClick = { viewModel.editFolder(folder) }
+                    )
+                }
+                items(state.homeApps.filter { it.key !in state.folderAppKeys }.drop(4), key = { it.key }) { app ->
                     HomeGridIcon(app)
                 }
             }
@@ -362,13 +407,16 @@ fun HomeScreen(
         Spacer(Modifier.height(8.dp))
         DockBar(
             apps = state.dock,
+            slotCount = state.dockCapacity,
             iconSize = state.iconSizeDp.dp,
             icons = viewModel.icons,
+            hoverSlot = hoverDock,
             onClick = viewModel::launchDock,
             onLongClick = viewModel::showDockActions,
             onReorder = viewModel::reorderDock,
             onDrawer = viewModel::openDrawer,
             onMove = viewModel::dismissPopups,
+            onSlotBounds = { index, box -> dockSlotWindows[index] = box },
             onDropWindow = { window -> windowOnPad(window) },
             onDropPrivate = { app ->
                 val info = state.apps.find { it.key == app.key } ?: return@DockBar
@@ -430,10 +478,13 @@ fun HomeScreen(
         }
         RecentsOverlay(
             open = recentsOpen,
-            apps = state.recentApps.take(6),
-            iconSize = state.iconSizeDp.dp,
+            apps = state.recentApps.take(12),
             icons = viewModel.icons,
             onDismiss = { viewModel.setRecentsOpen(false) },
+            onSeeMore = {
+                viewModel.setRecentsOpen(false)
+                viewModel.openDrawer()
+            },
             onClick = { app ->
                 viewModel.setRecentsOpen(false)
                 viewModel.launch(app)
@@ -692,7 +743,7 @@ fun PrivateLockCard(onUnlock: () -> Unit, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = 14.dp)
         )
         Text(
-            "Apps in Private Space stay hidden until you unlock with biometrics or your PIN. Long-press the TouchPad, then confirm it’s you.",
+            "Hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications. Long-press the TouchPad, then confirm it’s you.",
             color = Lumen.Muted,
             fontFamily = Outfit,
             fontSize = 14.sp,
@@ -765,13 +816,17 @@ private fun RecentsArrow(open: Boolean, onClick: () -> Unit, modifier: Modifier 
     }
 }
 
+private val ListedGold = Color(0xFFE7C27A)
+private val ListedGoldHi = Color(0xFFF8E7C4)
+private val ListedPanel = RoundedCornerShape(40.dp)
+
 @Composable
 private fun BoxScope.RecentsOverlay(
     open: Boolean,
     apps: List<AppInfo>,
-    iconSize: Dp,
     icons: IconCache,
     onDismiss: () -> Unit,
+    onSeeMore: () -> Unit,
     onClick: (AppInfo) -> Unit,
     onLongClick: (AppInfo) -> Unit
 ) {
@@ -783,7 +838,7 @@ private fun BoxScope.RecentsOverlay(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.55f))
+                .background(Color.Black.copy(alpha = 0.22f))
                 .clickable(onClick = onDismiss)
         )
     }
@@ -792,7 +847,7 @@ private fun BoxScope.RecentsOverlay(
         modifier = Modifier
             .align(Alignment.CenterStart)
             .fillMaxHeight()
-            .width(280.dp)
+            .width(124.dp)
             .zIndex(2f),
         enter = fadeIn() + slideInHorizontally(spring(dampingRatio = 0.86f, stiffness = 380f)) { -it },
         exit = fadeOut() + slideOutHorizontally { -it }
@@ -802,80 +857,191 @@ private fun BoxScope.RecentsOverlay(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(top = 58.dp, bottom = 12.dp, end = 8.dp)
-                .clip(RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp))
-                .denseGlass(RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp))
+                .padding(start = 10.dp, top = 10.dp, bottom = 18.dp)
+                .shadow(
+                    elevation = 24.dp,
+                    shape = ListedPanel,
+                    spotColor = Color.Black.copy(alpha = 0.34f),
+                    ambientColor = ListedGold.copy(alpha = 0.12f)
+                )
+                .clip(ListedPanel)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color(0x66FFFFFF),
+                        0.28f to Color(0x33FFFFFF),
+                        1f to Color(0x24FFFFFF)
+                    )
+                )
+                .denseGlass(ListedPanel)
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.55f),
+                        0.45f to ListedGoldHi.copy(alpha = 0.28f),
+                        1f to Color.White.copy(alpha = 0.16f)
+                    ),
+                    shape = ListedPanel
+                )
                 .clickable(enabled = false) {}
-                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .padding(top = 22.dp, bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("RECENT", color = Lumen.Accent, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 1.6.sp)
             Text(
-                "Jump back in",
-                color = Lumen.Text,
+                "LISTED",
+                color = Color.White.copy(alpha = 0.72f),
                 fontFamily = Outfit,
-                fontWeight = FontWeight.Light,
-                fontSize = 26.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                letterSpacing = 3.4.sp
             )
+            Spacer(Modifier.height(16.dp))
             if (apps.isEmpty()) {
-                Text("Apps you open will show up here.", color = Lumen.Faint, fontFamily = Outfit, fontSize = 14.sp)
+                Text(
+                    "Open an app\nand it lands\nhere.",
+                    color = Lumen.Faint,
+                    fontFamily = Outfit,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 14.dp)
+                )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                    apps.forEach { app ->
-                        RecentsRow(app, iconSize, icons, onClick = { onClick(app) }, onLongClick = { onLongClick(app) })
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(apps, key = { it.key }) { app ->
+                        ListedAppOrb(
+                            app = app,
+                            icons = icons,
+                            onClick = { onClick(app) },
+                            onLongClick = { onLongClick(app) }
+                        )
                     }
                 }
             }
+            Text(
+                "SEE MORE",
+                color = Color.White.copy(alpha = 0.58f),
+                fontFamily = Outfit,
+                fontWeight = FontWeight.Medium,
+                fontSize = 10.sp,
+                letterSpacing = 2.2.sp,
+                modifier = Modifier
+                    .padding(top = 14.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = onSeeMore)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            )
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RecentsRow(
+private fun ListedAppOrb(
     app: AppInfo,
-    iconSize: Dp,
     icons: IconCache,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    Row(
+    Box(
+        modifier = Modifier
+            .size(64.dp)
+            .shadow(
+                elevation = 10.dp,
+                shape = CircleShape,
+                spotColor = Color.Black.copy(alpha = 0.22f),
+                ambientColor = ListedGold.copy(alpha = 0.10f)
+            )
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.10f))
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    0f to ListedGoldHi.copy(alpha = 0.70f),
+                    1f to ListedGold.copy(alpha = 0.28f)
+                ),
+                shape = CircleShape
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        contentAlignment = Alignment.Center
+    ) {
+        AppIcon(app.packageName, app.activityName, 40.dp, icons)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeFolderTile(
+    name: String,
+    apps: List<AppInfo>,
+    iconSize: Dp,
+    icons: IconCache,
+    showLabel: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 4.dp)
     ) {
-        AppIcon(app.packageName, app.activityName, iconSize, icons)
-        Text(
-            app.label,
-            color = Lumen.Text,
-            fontFamily = Outfit,
-            fontWeight = FontWeight.Medium,
-            fontSize = 16.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 14.dp)
-        )
+        Box(
+            modifier = Modifier
+                .size(iconSize)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.16f))
+                .padding(5.dp)
+        ) {
+            val cells = listOf(
+                Alignment.TopStart, Alignment.TopEnd, Alignment.BottomStart, Alignment.BottomEnd
+            )
+            cells.forEachIndexed { index, align ->
+                val app = apps.getOrNull(index)
+                Box(Modifier.align(align).size(iconSize * 0.38f)) {
+                    if (app != null) {
+                        AppIcon(app.packageName, app.activityName, iconSize * 0.38f, icons)
+                    }
+                }
+            }
+        }
+        if (showLabel) {
+            Text(
+                name,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontFamily = Outfit,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
 private fun DockBar(
     apps: List<DockApp>,
+    slotCount: Int = 4,
     iconSize: Dp,
     icons: IconCache,
+    hoverSlot: Int? = null,
     onClick: (DockApp) -> Unit,
     onLongClick: (DockApp) -> Unit,
     onReorder: (String, String) -> Unit,
     onDrawer: () -> Unit,
     onMove: () -> Unit,
+    onSlotBounds: (Int, Rect) -> Unit = { _, _ -> },
     onDropWindow: (Offset) -> Boolean = { false },
     onDropPrivate: (DockApp) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val slots = List(4) { index -> apps.getOrNull(index) }
+    val slots = List(slotCount.coerceIn(3, 6)) { index -> apps.getOrNull(index) }
     var dockKey by remember { mutableStateOf<String?>(null) }
     var dockPhase by remember { mutableStateOf(IconPhase.Rest) }
     var dockDrag by remember { mutableStateOf(Offset.Zero) }
@@ -898,15 +1064,17 @@ private fun DockBar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                slots.forEach { slot ->
+                slots.forEachIndexed { index, slot ->
                     DockSlot(
                         app = slot,
                         iconSize = iconSize,
                         icons = icons,
                         hidden = moving && slot?.key == dockKey,
+                        highlighted = hoverSlot == index,
                         onClick = onClick,
                         onLongClick = onLongClick,
                         onAdd = onDrawer,
+                        onBounds = { onSlotBounds(index, it) },
                         onPositioned = { key, coords ->
                             val dock = dockLayout
                             if (dock != null && dock.isAttached && coords.isAttached) {
@@ -979,31 +1147,44 @@ private fun DockSlot(
     iconSize: Dp,
     icons: IconCache,
     hidden: Boolean,
+    highlighted: Boolean = false,
     onClick: (DockApp) -> Unit,
     onLongClick: (DockApp) -> Unit,
     onAdd: () -> Unit,
+    onBounds: (Rect) -> Unit = {},
     onPositioned: (String, LayoutCoordinates) -> Unit,
     onContact: (DockApp, IconPhase, Offset) -> Unit,
     onDragEnd: (DockApp) -> Unit
 ) {
+    val glow = if (highlighted) {
+        Modifier.border(1.5.dp, Color(0xFFE7C27A).copy(alpha = 0.92f), Squircle)
+    } else {
+        Modifier
+    }
     if (app != null) {
-        DockIcon(
-            app = app,
-            iconSize = iconSize,
-            icons = icons,
-            hidden = hidden,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            onPositioned = { onPositioned(app.key, it) },
-            onContact = { phase, drag -> onContact(app, phase, drag) },
-            onDragEnd = { onDragEnd(app) }
-        )
+        Box(
+            modifier = glow.onGloballyPositioned { onBounds(it.boundsInWindow()) }
+        ) {
+            DockIcon(
+                app = app,
+                iconSize = iconSize,
+                icons = icons,
+                hidden = hidden,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onPositioned = { onPositioned(app.key, it) },
+                onContact = { phase, drag -> onContact(app, phase, drag) },
+                onDragEnd = { onDragEnd(app) }
+            )
+        }
     } else {
         Box(
             modifier = Modifier
                 .size(iconSize)
+                .then(glow)
                 .clip(Squircle)
-                .background(Color.White.copy(0.10f))
+                .background(Color.White.copy(if (highlighted) 0.20f else 0.10f))
+                .onGloballyPositioned { onBounds(it.boundsInWindow()) }
                 .clickable(onClick = onAdd),
             contentAlignment = Alignment.Center
         ) {

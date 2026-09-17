@@ -252,7 +252,12 @@ fun LauncherRoot(
                 enter = fadeIn(tween(180)),
                 exit = fadeOut(tween(140))
             ) {
-                VoiceSheet(state = state, onDismiss = viewModel::closeSheet)
+                VoiceSheet(
+                    state = state,
+                    onDismiss = viewModel::closeSheet,
+                    onSubmit = viewModel::submitVoiceText,
+                    onRetry = viewModel::retryVoice
+                )
             }
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Menu,
@@ -284,6 +289,20 @@ fun LauncherRoot(
                 exit = fadeOut(tween(120))
             ) {
                 AppPickerSheet(state, viewModel)
+            }
+            AnimatedVisibility(
+                visible = state.sheet == Sheet.Folder,
+                enter = fadeIn(tween(160)),
+                exit = fadeOut(tween(120))
+            ) {
+                FolderSheet(state, viewModel)
+            }
+            AnimatedVisibility(
+                visible = state.sheet == Sheet.FolderEditor,
+                enter = fadeIn(tween(160)),
+                exit = fadeOut(tween(120))
+            ) {
+                FolderEditorSheet(state, viewModel)
             }
         }
     }

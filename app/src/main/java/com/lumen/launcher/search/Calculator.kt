@@ -20,6 +20,13 @@ object Calculator {
 
     fun interpret(raw: String): Calculation? {
         val query = raw.trim()
+            .replace(Regex("""^(?:what\s+is|whats|calculate|work\s+out)\s+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\bpercent\b""", RegexOption.IGNORE_CASE), "%")
+            .replace(Regex("""\bdivided\s+by\b""", RegexOption.IGNORE_CASE), "/")
+            .replace(Regex("""\bmultiplied\s+by\b|\btimes\b""", RegexOption.IGNORE_CASE), "*")
+            .replace(Regex("""\bplus\b|\badded\s+to\b""", RegexOption.IGNORE_CASE), "+")
+            .replace(Regex("""\bminus\b""", RegexOption.IGNORE_CASE), "-")
+            .trim()
         if (query.isEmpty()) return null
 
         tipPattern.matchEntire(query)?.let { match ->

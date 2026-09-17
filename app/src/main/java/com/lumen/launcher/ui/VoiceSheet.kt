@@ -20,12 +20,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,12 +44,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,14 +68,27 @@ private val Panel = RoundedCornerShape(36.dp)
 @Composable
 fun VoiceSheet(
     state: LauncherUiState,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+    onRetry: () -> Unit
 ) {
+    var draft by remember { mutableStateOf("") }
+    val submit = {
+        val text = draft.trim()
+        if (text.isNotBlank()) {
+            draft = ""
+            onSubmit(text)
+        }
+    }
+    val processing = !state.voiceListening &&
+        (state.voiceHint == "On it." || state.voiceHint == "Give me a second.")
+    val thinking = processing
     val motion = rememberInfiniteTransition(label = "lumen-listen")
     val breath by motion.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = FastOutSlowInEasing),
+            animation = tween(if (thinking) 850 else 3200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "breath"
@@ -71,19 +97,28 @@ fun VoiceSheet(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(4200, easing = FastOutSlowInEasing)
+            animation = tween(if (thinking) 1050 else 4200, easing = FastOutSlowInEasing)
         ),
         label = "wave"
     )
+    val live = if (state.voiceListening) {
+        (0.28f + 0.72f * state.voiceLevel).coerceIn(0.28f, 1f)
+    } else {
+        breath
+    }
     val title = when {
         state.voiceListening -> "I'm listening."
+        processing && state.voiceHint == "Give me a second." -> "Give me a second."
+        processing -> "On it."
         state.voiceHint.isNotBlank() -> state.voiceHint
         else -> "I'm listening."
     }
     val subtitle = when {
         state.voiceHeard.isNotBlank() -> state.voiceHeard
-        state.voiceListening -> "You can keep talking."
-        else -> "Say Hey Lumen anytime."
+        state.voiceListening -> "Say an app or a command."
+        state.voiceCanRetry -> "Tap Lumen to try again."
+        processing -> "Working on that."
+        else -> state.voiceHint.ifBlank { "Say Hey Lumen anytime." }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -136,10 +171,18 @@ fun VoiceSheet(
                 modifier = Modifier
                     .size(168.dp)
                     .graphicsLayer {
-                        val s = 0.986f + 0.014f * breath
+                        val pulse = if (state.voiceListening) live else breath
+                        val range = when {
+                            state.voiceListening -> 0.055f
+                            thinking -> 0.02f
+                            else -> 0.014f
+                        }
+                        val s = 0.986f + range * pulse
+                        rotationZ = if (thinking) 360f * wave else 0f
                         scaleX = s
                         scaleY = s
-                    },
+                    }
+                    .clickable(enabled = state.voiceCanRetry, onClick = onRetry),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -148,7 +191,7 @@ fun VoiceSheet(
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Lumen.AccentDeep.copy(alpha = 0.22f + 0.08f * breath),
+                                Lumen.AccentDeep.copy(alpha = 0.22f + 0.10f * live),
                                 Lumen.Bloom.copy(alpha = 0.10f),
                                 Color.Transparent
                             ),
@@ -161,7 +204,7 @@ fun VoiceSheet(
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                Gold.copy(alpha = 0.16f + 0.06f * breath),
+                                Gold.copy(alpha = 0.16f + 0.10f * live),
                                 Gold.copy(alpha = 0.04f),
                                 Color.Transparent
                             ),
@@ -250,6 +293,83 @@ fun VoiceSheet(
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
+            Spacer(Modifier.height(20.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.horizontalGradient(
+                            0f to GoldHi.copy(alpha = 0.50f),
+                            0.45f to Color.White.copy(alpha = 0.16f),
+                            1f to Gold.copy(alpha = 0.28f)
+                        ),
+                        shape = RoundedCornerShape(26.dp)
+                    )
+                    .padding(start = 18.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontFamily = Outfit,
+                        fontWeight = FontWeight.Light,
+                        fontSize = 16.sp,
+                        letterSpacing = (-0.1).sp
+                    ),
+                    cursorBrush = SolidColor(GoldHi),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { submit() }),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        Box {
+                            if (draft.isEmpty()) {
+                                Text(
+                                    "Or type a command",
+                                    color = Color.White.copy(alpha = 0.38f),
+                                    fontFamily = Outfit,
+                                    fontWeight = FontWeight.Light,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            inner()
+                        }
+                    }
+                )
+                val ready = draft.isNotBlank()
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (ready) {
+                                Brush.radialGradient(listOf(GoldHi, Gold))
+                            } else {
+                                Brush.radialGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.10f),
+                                        Color.White.copy(alpha = 0.04f)
+                                    )
+                                )
+                            }
+                        )
+                        .clickable(enabled = ready, onClick = submit),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowUpward,
+                        contentDescription = "Send",
+                        tint = if (ready) Color(0xFF2A1810) else Color.White.copy(alpha = 0.28f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.lumen.launcher.search
 
 import com.google.common.truth.Truth.assertThat
 import com.lumen.launcher.data.SpaceKind
+import com.lumen.launcher.flow.FlowModule
 import org.junit.Test
 
 class LauncherVoiceTest {
@@ -25,6 +26,10 @@ class LauncherVoiceTest {
     @Test
     fun switchesWorkLayout() {
         assertThat(LauncherVoice.parse("switch to work layout"))
+            .isEqualTo(LauncherCommand.SwitchSpace(SpaceKind.Work))
+        assertThat(LauncherVoice.parse("work"))
+            .isEqualTo(LauncherCommand.SwitchSpace(SpaceKind.Work))
+        assertThat(LauncherVoice.parse("open work"))
             .isEqualTo(LauncherCommand.SwitchSpace(SpaceKind.Work))
     }
 
@@ -65,5 +70,33 @@ class LauncherVoiceTest {
     fun noEndsTheConversation() {
         assertThat(LauncherVoice.parse("no")).isEqualTo(LauncherCommand.EndTalk)
         assertThat(LauncherVoice.parse("no thanks")).isEqualTo(LauncherCommand.EndTalk)
+    }
+
+    @Test
+    fun turnsFlowCardsOnAndOff() {
+        assertThat(LauncherVoice.parse("turn inbox off"))
+            .isEqualTo(LauncherCommand.SetFlowCard(FlowModule.Inbox, false))
+        assertThat(LauncherVoice.parse("show weather on flow"))
+            .isEqualTo(LauncherCommand.SetFlowCard(FlowModule.Weather, true))
+        assertThat(LauncherVoice.parse("move weather above inbox"))
+            .isEqualTo(LauncherCommand.MoveFlowCard(FlowModule.Weather, FlowModule.Inbox))
+    }
+
+    @Test
+    fun changesGridAndLabels() {
+        assertThat(LauncherVoice.parse("use 5 columns")).isEqualTo(LauncherCommand.Grid(5))
+        assertThat(LauncherVoice.parse("hide app labels")).isEqualTo(LauncherCommand.Labels(false))
+        assertThat(LauncherVoice.parse("hide all app label")).isEqualTo(LauncherCommand.Labels(false))
+        assertThat(LauncherVoice.parse("show app labels")).isEqualTo(LauncherCommand.Labels(true))
+        assertThat(LauncherVoice.parse("show all app labels")).isEqualTo(LauncherCommand.Labels(true))
+        assertThat(LauncherVoice.parse("show app names")).isEqualTo(LauncherCommand.Labels(true))
+    }
+
+    @Test
+    fun changesDockAndCreatesFolder() {
+        assertThat(LauncherVoice.parse("dock size 6")).isEqualTo(LauncherCommand.DockCapacity(6))
+        assertThat(LauncherVoice.parse("create folder")).isEqualTo(LauncherCommand.CreateFolder())
+        assertThat(LauncherVoice.parse("create folder called Work")).isEqualTo(LauncherCommand.CreateFolder("work"))
+        assertThat(LauncherVoice.parse("add Outlook to Work folder")).isEqualTo(LauncherCommand.AddToFolder("outlook", "work"))
     }
 }

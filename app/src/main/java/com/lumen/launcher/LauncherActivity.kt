@@ -1,18 +1,14 @@
 package com.lumen.launcher
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
-import java.util.Locale
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -36,21 +32,42 @@ import com.lumen.launcher.util.AssistantRole
 import com.lumen.launcher.util.HomeRole
 import com.lumen.launcher.vm.LauncherViewModel
 import com.lumen.launcher.vm.Sheet
-import com.lumen.launcher.voice.HeyLumenListener
 import com.lumen.launcher.voice.LumenVoiceSession
+import com.lumen.launcher.voice.SpeechRecognizers
+import com.lumen.launcher.voice.VoiceEngine
 import kotlinx.coroutines.launch
 
 class LauncherActivity : FragmentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
     private var authenticating = false
-    private var tts: TextToSpeech? = null
-    private var recognizer: SpeechRecognizer? = null
-    private var listenAfterSpeak = false
     private var pendingMicForVoice = false
     private var overLockscreen = false
     private var askedWakeMic = false
-    private lateinit var heyLumen: HeyLumenListener
+    private var promptInFlight = false
+    private var lastSheet: Sheet? = null
+    private lateinit var voiceEngine: VoiceEngine
+    private val promptWatchdog = Runnable {
+        if (!promptInFlight) return@Runnable
+        promptInFlight = false
+        if (viewModel.state.value.sheet == Sheet.Voice) viewModel.onVoiceEngineStuck()
+    }
+
+    private val speechPrompt = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        window.decorView.removeCallbacks(promptWatchdog)
+        promptInFlight = false
+        if (viewModel.state.value.sheet != Sheet.Voice) return@registerForActivityResult
+        val texts = result.data
+            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            .orEmpty()
+        if (result.resultCode == Activity.RESULT_OK && texts.any { it.isNotBlank() }) {
+            viewModel.onVoiceResults(texts)
+        } else {
+            viewModel.onVoiceNoSpeech()
+        }
+    }
 
     private val homeRoleLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -80,6 +97,10 @@ class LauncherActivity : FragmentActivity() {
         viewModel.onCallLogPermission(granted)
     }
 
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -96,10 +117,7 @@ class LauncherActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         clearNavScrim()
-        heyLumen = HeyLumenListener(applicationContext) { remainder ->
-            showOverLockscreen()
-            viewModel.onWakeWord(remainder)
-        }
+        voiceEngine = VoiceEngine(applicationContext, voiceCallbacks)
         viewModel.onAuthenticate = { onSuccess, onFail -> authenticate(onSuccess, onFail) }
         viewModel.onRequestContacts = {
             contactsPermission.launch(Manifest.permission.READ_CONTACTS)
@@ -111,10 +129,22 @@ class LauncherActivity : FragmentActivity() {
             else calendarPermission.launch(Manifest.permission.READ_CALENDAR)
         }
         viewModel.onRequestCallLog = {
-            val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
+            if (!AssistantRole.isHeld(this)) {
+                AssistantRole.request(this, assistantRoleLauncher)
+            } else {
+                val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
+                    PackageManager.PERMISSION_GRANTED
+                if (ok) viewModel.onCallLogPermission(true)
+                else callLogPermission.launch(Manifest.permission.READ_CALL_LOG)
+            }
+        }
+        viewModel.onRequestNotifications = {
+            if (Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
-            if (ok) viewModel.onCallLogPermission(true)
-            else callLogPermission.launch(Manifest.permission.READ_CALL_LOG)
+            ) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
         viewModel.onStartActivity = { intent ->
             runCatching { startActivity(intent) }.isSuccess
@@ -125,36 +155,11 @@ class LauncherActivity : FragmentActivity() {
         viewModel.onRequestMicQuiet = {
             requestMic(forVoice = false)
         }
-        viewModel.onSpeak = { text, listen -> speak(text, listen) }
-        viewModel.onListen = {
-            if (::heyLumen.isInitialized) heyLumen.setEnabled(false)
-            startListen()
-        }
+        viewModel.onSpeak = { text, listen -> voiceEngine.speak(text, listen) }
+        viewModel.onListen = { startListen() }
         viewModel.onStopVoice = { stopVoice() }
         viewModel.onRequestAssistant = {
             AssistantRole.request(this, assistantRoleLauncher)
-        }
-        tts = TextToSpeech(this) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.getDefault()
-                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) = Unit
-                    override fun onDone(utteranceId: String?) {
-                        runOnUiThread {
-                            if (listenAfterSpeak) {
-                                listenAfterSpeak = false
-                                startListen()
-                            } else {
-                                viewModel.onSpeakFinished()
-                            }
-                        }
-                    }
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) {
-                        runOnUiThread { viewModel.onSpeakFinished() }
-                    }
-                })
-            }
         }
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
@@ -175,6 +180,10 @@ class LauncherActivity : FragmentActivity() {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 try {
                     viewModel.state.collect { state ->
+                        if (state.sheet == Sheet.Voice && lastSheet != Sheet.Voice) {
+                            promptInFlight = false
+                        }
+                        lastSheet = state.sheet
                         val mic = ContextCompat.checkSelfPermission(
                             this@LauncherActivity,
                             Manifest.permission.RECORD_AUDIO
@@ -187,11 +196,11 @@ class LauncherActivity : FragmentActivity() {
                             mic &&
                             state.sheet == Sheet.None &&
                             !state.privatePageActive
-                        heyLumen.setEnabled(want)
+                        if (::voiceEngine.isInitialized) voiceEngine.setWakeWanted(want)
                         if (state.sheet != Sheet.Voice) hideOverLockscreen()
                     }
                 } finally {
-                    heyLumen.setEnabled(false)
+                    if (::voiceEngine.isInitialized) voiceEngine.setWakeWanted(false)
                 }
             }
         }
@@ -218,12 +227,8 @@ class LauncherActivity : FragmentActivity() {
     }
 
     override fun onDestroy() {
-        if (::heyLumen.isInitialized) heyLumen.release()
         stopVoice()
-        tts?.shutdown()
-        tts = null
-        recognizer?.destroy()
-        recognizer = null
+        if (::voiceEngine.isInitialized) voiceEngine.release()
         super.onDestroy()
     }
 
@@ -266,75 +271,60 @@ class LauncherActivity : FragmentActivity() {
         }
     }
 
-    private fun speak(text: String, listenAfter: Boolean) {
-        listenAfterSpeak = listenAfter
-        val engine = tts
-        if (engine == null) {
-            if (listenAfter) startListen() else viewModel.onSpeakFinished()
+    private fun startListen() {
+        if (promptInFlight) return
+        if (!voiceEngine.hasRecognizer()) {
+            listenViaPrompt()
             return
         }
-        val spoken = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lumen")
-        if (spoken != TextToSpeech.SUCCESS) {
-            if (listenAfter) startListen() else viewModel.onSpeakFinished()
-        }
+        voiceEngine.listenCommand()
     }
 
-    private fun startListen() {
-        if (::heyLumen.isInitialized) heyLumen.setEnabled(false)
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            viewModel.onVoiceFailed()
+    private fun listenViaPrompt() {
+        if (promptInFlight) return
+        val intent = SpeechRecognizers.promptIntent(this)
+        if (intent == null) {
+            viewModel.onVoiceEngineStuck()
             return
         }
-        val rec = recognizer ?: SpeechRecognizer.createSpeechRecognizer(this).also { created ->
-            created.setRecognitionListener(voiceListener)
-            recognizer = created
-        }
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 400L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 600L)
-        }
+        promptInFlight = true
+        window.decorView.removeCallbacks(promptWatchdog)
+        window.decorView.postDelayed(promptWatchdog, 45_000L)
         viewModel.onVoiceListening()
-        runCatching { rec.startListening(intent) }.onFailure { viewModel.onVoiceFailed() }
+        runCatching { speechPrompt.launch(intent) }.onFailure {
+            promptInFlight = false
+            viewModel.onVoiceEngineStuck()
+        }
     }
 
     private fun stopVoice() {
-        listenAfterSpeak = false
-        runCatching { recognizer?.cancel() }
-        runCatching { tts?.stop() }
+        promptInFlight = false
+        window.decorView.removeCallbacks(promptWatchdog)
+        if (::voiceEngine.isInitialized) voiceEngine.stopCommand()
     }
 
-    private val voiceListener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) = Unit
-        override fun onBeginningOfSpeech() = Unit
-        override fun onRmsChanged(rmsdB: Float) = Unit
-        override fun onBufferReceived(buffer: ByteArray?) = Unit
-        override fun onEndOfSpeech() = Unit
-        override fun onError(error: Int) {
-            when (error) {
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
-                SpeechRecognizer.ERROR_NO_MATCH -> viewModel.onVoiceNoSpeech()
-                SpeechRecognizer.ERROR_CLIENT,
-                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                    window.decorView.postDelayed({
-                        if (viewModel.state.value.sheet == Sheet.Voice) startListen()
-                    }, 160L)
-                }
-                else -> viewModel.onVoiceFailed()
+    private val voiceCallbacks = object : VoiceEngine.Callbacks {
+        override fun onStarting() = viewModel.onVoiceStarting()
+        override fun onListening() = viewModel.onVoiceListening()
+        override fun onPartial(text: String) = viewModel.onVoicePartial(text)
+        override fun onResults(texts: List<String>) = viewModel.onVoiceResults(texts)
+        override fun onWake(remainder: String) {
+            showOverLockscreen()
+            viewModel.onWakeWord(remainder)
+        }
+        override fun onLevel(level: Float) = viewModel.onVoiceLevel(level)
+        override fun onHardError(message: String) = viewModel.onVoiceHardError(message)
+        override fun onSoftMiss() = viewModel.onVoiceNoSpeech()
+        override fun onSpeakFinished(listenAfter: Boolean) {
+            if (listenAfter) {
+                window.decorView.postDelayed({
+                    if (viewModel.state.value.sheet == Sheet.Voice) startListen()
+                }, 280L)
+            } else {
+                viewModel.onSpeakFinished()
             }
         }
-        override fun onResults(results: Bundle?) {
-            val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            viewModel.onVoiceResult(text)
-        }
-        override fun onPartialResults(partialResults: Bundle?) {
-            val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            viewModel.onVoicePartial(text)
-        }
-        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        override fun onNeedPrompt() = listenViaPrompt()
     }
 
     private fun authenticate(onSuccess: () -> Unit, onFail: () -> Unit) {
@@ -379,8 +369,8 @@ class LauncherActivity : FragmentActivity() {
 
     private fun promptInfo(): BiometricPrompt.PromptInfo {
         val builder = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock Private Space")
-            .setSubtitle("Confirm it’s you to open locked apps")
+            .setTitle("Unlock Locked Space")
+            .setSubtitle("Confirm it’s you to open apps locked inside Lumen")
         if (Build.VERSION.SDK_INT >= 30) {
             builder.setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or

@@ -56,8 +56,10 @@ object VoiceCommands {
 
     fun showTasks(text: String): Boolean {
         val q = text.lowercase()
-        return listOf("show tasks", "my tasks", "task list", "to do list", "what's on my list", "whats on my list")
-            .any { q.contains(it) }
+        return listOf(
+            "show tasks", "show my tasks", "show my list", "my tasks", "task list",
+            "to do list", "what's on my list", "whats on my list"
+        ).any { q.contains(it) }
     }
 
     private fun listAlarms(q: String): Boolean {
