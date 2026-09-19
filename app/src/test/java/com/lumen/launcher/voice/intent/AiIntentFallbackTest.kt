@@ -18,6 +18,42 @@ class AiIntentFallbackTest {
         val intent = VoiceIntent(VoiceAction.OPEN_APP, 0.97f, "open WhatsApp", appName = "whatsapp")
         assertThat(AiIntentFallback.needsFallback(intent)).isFalse()
         assertThat(VoiceConfidence.shouldExecute(intent)).isTrue()
+        assertThat(VoiceConfidence.shouldTrustLocal(intent)).isTrue()
+    }
+
+    @Test
+    fun fuzzyAppMatchAsksGemini() {
+        val intent = VoiceIntent(VoiceAction.OPEN_APP, 0.70f, "open sitting", appName = "settings")
+        assertThat(VoiceConfidence.shouldTrustLocal(intent)).isFalse()
+        assertThat(AiIntentFallback.needsFallback(intent)).isTrue()
+    }
+
+    @Test
+    fun parseAnswerSpeaksFreeText() {
+        val intent = AiIntentFallback.parse(
+            """{"action":"ANSWER","confidence":0.9,"textValue":"Paris is the capital of France."}""",
+            "what's the capital of france"
+        )
+        assertThat(intent!!.action).isEqualTo(VoiceAction.ANSWER)
+        assertThat(intent.textValue).isEqualTo("Paris is the capital of France.")
+        assertThat(VoiceConfidence.shouldExecute(intent)).isTrue()
+    }
+
+    @Test
+    fun unknownWithTextBecomesAnAnswer() {
+        val intent = AiIntentFallback.parse(
+            """{"action":"UNKNOWN","textValue":"I can set an alarm if you want."}""",
+            "can you help me"
+        )
+        assertThat(intent!!.action).isEqualTo(VoiceAction.ANSWER)
+        assertThat(intent.textValue).contains("alarm")
+    }
+
+    @Test
+    fun namesKeyAndOfflineErrors() {
+        assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.NO_KEY)).contains("Gemini API key")
+        assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.OFFLINE)).contains("network")
+        assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.UNAUTHORIZED)).contains("key")
     }
 
     @Test
@@ -102,10 +138,30 @@ class AiIntentFallbackTest {
     fun requestMentionsClosedActionsAndInstalledApps() {
         val body = AiIntentFallback.requestBody("open ChatGPT", listOf("ChatGPT", "WhatsApp"))
         assertThat(body).contains("OPEN_APP")
+        assertThat(body).contains("ANSWER")
         assertThat(body).contains("ChatGPT")
         assertThat(AiIntentFallback.MODEL).isEqualTo("gemini-3-flash-preview")
         assertThat(body).doesNotContain("launch this intent")
         assertThat(body).contains("abbreviated")
+    }
+
+    @Test
+    fun extractTextSkipsThoughtParts() {
+        val raw = """
+            {
+              "candidates": [{
+                "content": {
+                  "parts": [
+                    {"thought": true, "text": "planning"},
+                    {"text": "{\"action\":\"ANSWER\",\"textValue\":\"Hello.\"}"}
+                  ]
+                }
+              }]
+            }
+        """.trimIndent()
+        val text = AiIntentFallback.extractText(raw)
+        assertThat(text).contains("ANSWER")
+        assertThat(text).doesNotContain("planning")
     }
 
     @Test

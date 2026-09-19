@@ -1,17 +1,23 @@
 package com.lumen.launcher.flow
 
 enum class FlowModule {
-    Next, Weather, Missed, Inbox, Continue, NeedNow, News, Alarms, Reminders;
+    Review, Next, Later, Notes, Weather, Missed, Inbox, Continue, NeedNow, News, Alarms, Reminders;
 
     val title: String
         get() = when (this) {
             NeedNow -> "Need now"
+            Review -> "Today"
+            Later -> "Later"
+            Notes -> "Notes"
             else -> name
         }
 }
 
 fun defaultFlowOrder(): List<FlowModule> = listOf(
+    FlowModule.Review,
     FlowModule.Next,
+    FlowModule.Later,
+    FlowModule.Notes,
     FlowModule.Weather,
     FlowModule.Missed,
     FlowModule.Inbox,
@@ -38,6 +44,9 @@ fun parseFlowOrder(names: List<String>): List<FlowModule> {
 fun flowModuleFromSpeech(raw: String): FlowModule? {
     val q = raw.lowercase().trim()
     return when {
+        q.contains("review") || q.contains("today left") -> FlowModule.Review
+        q.contains("later") || q.contains("saved") -> FlowModule.Later
+        q.contains("note") -> FlowModule.Notes
         q.contains("need now") || q.contains("neednow") -> FlowModule.NeedNow
         q.contains("inbox") || q.contains("email") || q.contains("mail") -> FlowModule.Inbox
         q.contains("weather") -> FlowModule.Weather

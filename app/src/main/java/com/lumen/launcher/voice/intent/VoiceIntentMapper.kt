@@ -64,6 +64,7 @@ object VoiceIntentMapper {
             VoiceAction.SET_SPACE -> LauncherCommand.SwitchSpace(intent.space)
             VoiceAction.WEATHER -> LauncherCommand.Weather
             VoiceAction.NEXT_EVENT -> LauncherCommand.NextEvent
+            VoiceAction.INBOX_DIGEST -> LauncherCommand.InboxDigest
             VoiceAction.NEED_NOW -> LauncherCommand.NeedNow
             VoiceAction.USED_YESTERDAY -> LauncherCommand.UsedYesterday
             VoiceAction.PURPOSE -> LauncherCommand.Purpose(intent.textValue ?: intent.originalText)
@@ -73,8 +74,23 @@ object VoiceIntentMapper {
             VoiceAction.CANCEL_ALARM,
             VoiceAction.LIST_ALARMS,
             VoiceAction.SET_REMINDER,
+            VoiceAction.COMPLETE_TASK,
+            VoiceAction.DELETE_TASK,
             VoiceAction.SHOW_TASKS,
+            VoiceAction.SAVE_NOTE,
+            VoiceAction.SAVE_LATER,
+            VoiceAction.START_FOCUS,
+            VoiceAction.END_FOCUS,
+            VoiceAction.DAILY_REVIEW,
             VoiceAction.CALCULATE,
+            VoiceAction.ANSWER,
+            VoiceAction.ASK_USER,
+            VoiceAction.CALL,
+            VoiceAction.SEND_MESSAGE,
+            VoiceAction.SET_TIMER,
+            VoiceAction.NAVIGATE,
+            VoiceAction.PLAY_MEDIA,
+            VoiceAction.TOGGLE_TORCH,
             VoiceAction.CLARIFY,
             VoiceAction.UNKNOWN -> null
         }

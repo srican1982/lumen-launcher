@@ -316,6 +316,16 @@ fun HomeScreen(
             onRecents = { viewModel.setRecentsOpen(!recentsOpen) },
             modifier = restBlur
         )
+        if (!recentsOpen) {
+            SpaceRow(
+                selected = state.activeSpace,
+                automatic = state.spaceAutomatic,
+                onSelect = { space ->
+                    if (space == state.activeSpace && !state.spaceAutomatic) viewModel.selectSpace(null)
+                    else viewModel.selectSpace(space)
+                }
+            )
+        }
         if (!state.isDefaultHome) {
             Spacer(Modifier.height(10.dp))
             HomeSetupCard(onSetDefault = onRequestDefaultHome)
@@ -328,7 +338,16 @@ fun HomeScreen(
             )
         }
         Spacer(Modifier.height(12.dp))
-        ActionBar(hint = copy.prompt, onClick = viewModel::openSearch, modifier = restBlur)
+        ActionBar(
+            hint = copy.prompt,
+            onClick = viewModel::openSearch,
+            onLongClick = { viewModel.openCapture() },
+            modifier = restBlur
+        )
+        if (state.focusing) {
+            Spacer(Modifier.height(10.dp))
+            FocusBanner(state, viewModel)
+        }
         Spacer(Modifier.height(10.dp))
         Box(
             modifier = Modifier
@@ -386,7 +405,7 @@ fun HomeScreen(
                         )
                     }
                 }
-                items(state.folders, key = { "folder-${it.id}" }) { folder ->
+                if (!state.focusing) items(state.folders, key = { "folder-${it.id}" }) { folder ->
                     val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
                     HomeFolderTile(
                         name = folder.name,
@@ -398,7 +417,7 @@ fun HomeScreen(
                         onLongClick = { viewModel.editFolder(folder) }
                     )
                 }
-                items(state.homeApps.filter { it.key !in state.folderAppKeys }.drop(4), key = { it.key }) { app ->
+                if (!state.focusing) items(state.homeApps.filter { it.key !in state.folderAppKeys }.drop(4), key = { it.key }) { app ->
                     HomeGridIcon(app)
                 }
             }
@@ -588,18 +607,19 @@ private fun weatherIcon(summary: String) = when {
     else -> Icons.Outlined.WbSunny
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ActionBar(hint: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val interaction = remember { MutableInteractionSource() }
+private fun ActionBar(
+    hint: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     Glass(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
-            .clickable(
-                interactionSource = interaction,
-                indication = ripple(color = Lumen.Ripple),
-                onClick = onClick
-            ),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         shape = RoundedCornerShape(Lumen.PillRadius)
     ) {
         Row(
@@ -622,6 +642,37 @@ private fun ActionBar(hint: String, onClick: () -> Unit, modifier: Modifier = Mo
             )
             Icon(Icons.Outlined.MicNone, null, tint = Lumen.Accent, modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+@Composable
+private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
+    val left = ((state.focusUntil - System.currentTimeMillis()).coerceAtLeast(0L) / 60000L).toInt()
+    val task = state.focusTask?.text ?: "This space"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.Black.copy(alpha = 0.28f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("FOCUS", color = Lumen.Accent, fontFamily = Outfit, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(task, color = Lumen.Text, fontFamily = Outfit, fontSize = 15.sp, maxLines = 1)
+            Text("$left min left", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
+        }
+        Text(
+            "End",
+            color = Lumen.OnAccent,
+            fontFamily = Outfit,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(Lumen.Accent)
+                .clickable(onClick = viewModel::endFocus)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -766,20 +817,29 @@ fun PrivateLockCard(onUnlock: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
-        items(SpaceKind.entries.filter { it != SpaceKind.Private }, key = { it.name }) { space ->
+    val spaces = SpaceKind.entries.filter { it != SpaceKind.Private }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        spaces.forEach { space ->
             val active = space == selected
             Text(
                 text = space.title,
                 color = if (active) Lumen.OnAccent else Lumen.Muted,
-                fontSize = 13.sp,
+                fontSize = 11.sp,
                 fontFamily = Outfit,
                 fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(18.dp))
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
                     .then(if (active) Modifier.background(Lumen.AccentFill) else Modifier.background(Color.White.copy(0.08f)))
                     .clickable { onSelect(space) }
-                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                    .padding(vertical = 6.dp)
             )
         }
     }
@@ -788,7 +848,7 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
         color = Lumen.Faint,
         fontSize = 11.sp,
         fontFamily = Outfit,
-        modifier = Modifier.padding(top = 8.dp)
+        modifier = Modifier.padding(top = 6.dp)
     )
 }
 

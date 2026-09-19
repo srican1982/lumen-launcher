@@ -22,6 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.alarm.AlarmTones
 import com.lumen.launcher.data.AppInfo
+import com.lumen.launcher.data.CaptureKind
 import com.lumen.launcher.data.GestureAction
 import com.lumen.launcher.data.TouchpadHaptics
 import com.lumen.launcher.flow.parseFlowOrder
@@ -108,6 +112,7 @@ fun BottomMenu(
 @Composable
 fun MenuSheet(viewModel: LauncherViewModel, onRequestDefaultHome: () -> Unit) {
     BottomMenu("Home", "Wallpaper, settings, default app", onDismiss = viewModel::closeSheet) {
+        MenuRow("Capture") { viewModel.openCapture() }
         MenuRow("Search") { viewModel.openSearch() }
         MenuRow("Wallpaper") { viewModel.openWallpaperPicker() }
         MenuRow("Launcher settings") { viewModel.openSettings() }
@@ -122,7 +127,16 @@ fun AppActionsSheet(app: AppInfo, state: LauncherUiState, viewModel: LauncherVie
     val inDock = state.dock.any { it.key == app.key }
     val dockFull = !inDock && state.dock.size >= state.dockCapacity
     val self = LocalContext.current.packageName
-    BottomMenu(app.label, app.category.label, onDismiss = viewModel::dismissAppActions) {
+    val why = if (state.focusing) state.focusReason(app) else null
+    BottomMenu(app.label, why ?: app.category.label, onDismiss = viewModel::dismissAppActions) {
+        MenuRow("Save for later") { viewModel.saveForLater(app) }
+        MenuRow(
+            if (app.key in state.focusPins[state.activeSpace.name].orEmpty()) {
+                "Don't keep during Focus"
+            } else {
+                "Always keep during Focus"
+            }
+        ) { viewModel.toggleFocusPin(app) }
         MenuRow(if (pinned) "Unpin from home" else "Pin to home") { viewModel.toggleFavorite(app) }
         MenuRow(
             when {
@@ -223,7 +237,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             viewModel.setSmartVoice(!state.smartVoice)
         }
         Text(
-            "When local rules are unsure, Lumen asks Gemini 3 Flash Preview to map your words onto Lumen’s own actions. It only sends the phrase and installed app names. Obvious commands stay on-device.",
+            "Exact commands stay on-device. Everything else — questions, fuzzy phrasing, call, timer — goes to Gemini 3 Flash Preview with the time, last few turns, app names, and contacts. It can speak an answer, not only pick a launcher action. If that model isn’t on your key, Lumen tries Gemini 2.5 Flash.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -450,7 +464,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Tap an empty gesture on the TouchPad to assign it. Long-press is always Locked Space.\nLocked Space hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nLong-press an app to pin, dock, or hide it.",
+            "Tap an empty gesture on the TouchPad to assign it. Long-press is always Locked Space.\nLocked Space hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nSwipe left from Home for your list.\nLong-press an app to pin, dock, or hide it.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -581,6 +595,55 @@ fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("Save folder  ·  ${selected.size} apps") {
             viewModel.saveFolder(name, selected)
         }
+    }
+}
+
+@Composable
+fun CaptureSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
+    var draft by remember { mutableStateOf("") }
+    var kind by remember(state.captureKind) { mutableStateOf(state.captureKind) }
+    BottomMenu("Capture", "Task, note, or reminder — no extra apps", onDismiss = viewModel::closeSheet) {
+        BasicTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            singleLine = true,
+            cursorBrush = SolidColor(Lumen.Accent),
+            textStyle = androidx.compose.ui.text.TextStyle(color = Lumen.Text, fontFamily = Outfit, fontSize = 17.sp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { viewModel.capture(kind, draft) }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (draft.isBlank()) Text("Type it once…", color = Lumen.Faint, fontFamily = Outfit, fontSize = 16.sp)
+                    inner()
+                }
+            }
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CaptureKind.entries.forEach { option ->
+                val on = kind == option
+                Text(
+                    option.name,
+                    color = if (on) Lumen.OnAccent else Lumen.Text,
+                    fontFamily = Outfit,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (on) Lumen.Accent else Color.White.copy(alpha = 0.08f))
+                        .clickable { kind = option }
+                        .padding(vertical = 10.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        MenuRow("Save") { viewModel.capture(kind, draft) }
     }
 }
 

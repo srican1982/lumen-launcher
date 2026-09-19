@@ -26,6 +26,34 @@ enum class InboxSource(val title: String, val packages: Set<String>) {
     Gmail(
         "Gmail",
         setOf("com.google.android.gm", "com.google.android.gm.lite")
+    ),
+    Messages(
+        "Messages",
+        setOf(
+            "com.google.android.apps.messaging",
+            "com.android.mms",
+            "com.samsung.android.messaging"
+        )
+    ),
+    WhatsApp(
+        "WhatsApp",
+        setOf("com.whatsapp", "com.whatsapp.w4b")
+    ),
+    Telegram(
+        "Telegram",
+        setOf("org.telegram.messenger", "org.telegram.messenger.web")
+    ),
+    Messenger(
+        "Messenger",
+        setOf("com.facebook.orca")
+    ),
+    Slack(
+        "Slack",
+        setOf("com.Slack")
+    ),
+    Teams(
+        "Teams",
+        setOf("com.microsoft.teams", "com.microsoft.skype.teams.cm")
     );
 
     companion object {

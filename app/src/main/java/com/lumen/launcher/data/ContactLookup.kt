@@ -46,6 +46,11 @@ class ContactLookup(private val context: Context) {
         return chosen.first to leftover
     }
 
+    fun names(limit: Int = 40): List<String> {
+        refresh()
+        return cache.map { it.first }.distinct().take(limit)
+    }
+
     fun hasAccess(): Boolean {
         return context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED

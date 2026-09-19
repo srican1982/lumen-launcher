@@ -133,29 +133,31 @@ object SearchInterpreter {
 }
 
 object Routine {
+    fun preferredCategories(space: SpaceKind): Set<com.lumen.launcher.data.AppCategory> = when (space) {
+        SpaceKind.Work -> setOf(com.lumen.launcher.data.AppCategory.Work)
+        SpaceKind.Personal -> setOf(
+            com.lumen.launcher.data.AppCategory.Social,
+            com.lumen.launcher.data.AppCategory.Entertainment,
+            com.lumen.launcher.data.AppCategory.Food
+        )
+        SpaceKind.Focus -> setOf(
+            com.lumen.launcher.data.AppCategory.Work,
+            com.lumen.launcher.data.AppCategory.Utilities
+        )
+        SpaceKind.Travel -> setOf(
+            com.lumen.launcher.data.AppCategory.Travel,
+            com.lumen.launcher.data.AppCategory.Food
+        )
+        SpaceKind.Home -> setOf(
+            com.lumen.launcher.data.AppCategory.Utilities,
+            com.lumen.launcher.data.AppCategory.Travel,
+            com.lumen.launcher.data.AppCategory.Work
+        )
+        SpaceKind.Private -> emptySet()
+    }
+
     fun likelyNext(apps: List<AppInfo>, recents: List<String>, space: SpaceKind): List<AppInfo> {
-        val preferred = when (space) {
-            SpaceKind.Work -> setOf(com.lumen.launcher.data.AppCategory.Work)
-            SpaceKind.Personal -> setOf(
-                com.lumen.launcher.data.AppCategory.Social,
-                com.lumen.launcher.data.AppCategory.Entertainment,
-                com.lumen.launcher.data.AppCategory.Food
-            )
-            SpaceKind.Focus -> setOf(
-                com.lumen.launcher.data.AppCategory.Work,
-                com.lumen.launcher.data.AppCategory.Utilities
-            )
-            SpaceKind.Travel -> setOf(
-                com.lumen.launcher.data.AppCategory.Travel,
-                com.lumen.launcher.data.AppCategory.Food
-            )
-            SpaceKind.Home -> setOf(
-                com.lumen.launcher.data.AppCategory.Utilities,
-                com.lumen.launcher.data.AppCategory.Travel,
-                com.lumen.launcher.data.AppCategory.Work
-            )
-            SpaceKind.Private -> emptySet()
-        }
+        val preferred = preferredCategories(space)
         val recentApps = recents.mapNotNull { key -> apps.find { it.key == key } }
         val spaceApps = apps.filter { it.category in preferred }
         return (recentApps.filter { it.category in preferred } + recentApps + spaceApps)

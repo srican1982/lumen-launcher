@@ -35,16 +35,32 @@ enum class VoiceAction {
     SET_ALARM,
     CANCEL_ALARM,
     LIST_ALARMS,
+    COMPLETE_TASK,
+    DELETE_TASK,
     SET_REMINDER,
     SHOW_TASKS,
+    SAVE_NOTE,
+    SAVE_LATER,
+    START_FOCUS,
+    END_FOCUS,
+    DAILY_REVIEW,
     CALCULATE,
     WEATHER,
     NEXT_EVENT,
+    INBOX_DIGEST,
     NEED_NOW,
     USED_YESTERDAY,
     PURPOSE,
     HELP,
     END_TALK,
+    ANSWER,
+    ASK_USER,
+    CALL,
+    SEND_MESSAGE,
+    SET_TIMER,
+    NAVIGATE,
+    PLAY_MEDIA,
+    TOGGLE_TORCH,
     CLARIFY,
     UNKNOWN
 }
@@ -91,10 +107,19 @@ data class VoiceIntent(
 object VoiceConfidence {
     const val EXECUTE = 0.95f
     const val SAFE_EXECUTE = 0.75f
+    const val LOCAL_TRUST = 0.88f
     const val ASK = 0.50f
+
+    fun shouldTrustLocal(intent: VoiceIntent): Boolean {
+        if (intent.action == VoiceAction.CLARIFY || intent.action == VoiceAction.UNKNOWN) return false
+        if (intent.action == VoiceAction.ANSWER || intent.action == VoiceAction.ASK_USER) return false
+        if (intent.destructive) return false
+        return intent.confidence >= LOCAL_TRUST
+    }
 
     fun shouldExecute(intent: VoiceIntent): Boolean {
         if (intent.action == VoiceAction.CLARIFY || intent.action == VoiceAction.UNKNOWN) return false
+        if (intent.action == VoiceAction.ANSWER) return !intent.textValue.isNullOrBlank()
         if (intent.destructive) return false
         if (intent.confidence >= EXECUTE) return true
         if (intent.confidence >= SAFE_EXECUTE) return true

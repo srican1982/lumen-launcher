@@ -37,6 +37,7 @@ sealed class LauncherCommand {
     data object UsedYesterday : LauncherCommand()
     data object Weather : LauncherCommand()
     data object NextEvent : LauncherCommand()
+    data object InboxDigest : LauncherCommand()
     data object Help : LauncherCommand()
     data object EndTalk : LauncherCommand()
     data class OpenApp(val name: String) : LauncherCommand()

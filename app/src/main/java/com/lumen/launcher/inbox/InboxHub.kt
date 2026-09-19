@@ -18,7 +18,7 @@ object InboxHub {
             intents.clear()
             intents.putAll(nextIntents)
         }
-        _items.value = next.take(8)
+        _items.value = next.take(16)
     }
 
     fun contentIntent(key: String): PendingIntent? = synchronized(intents) { intents[key] }

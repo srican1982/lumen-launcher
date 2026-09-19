@@ -44,8 +44,22 @@ internal object DeterministicIntentParser {
         add(weather(q, text))
         add(calendar(q, text))
         add(alarm(q, text))
+        add(productivity(q, text))
         add(tasks(q, text))
         return hits
+    }
+
+    private fun productivity(q: String, original: String): VoiceIntent? {
+        VoiceCommands.note(original)?.let {
+            return VoiceIntent(VoiceAction.SAVE_NOTE, 0.97f, original, textValue = it)
+        }
+        if (VoiceCommands.saveLater(q)) return VoiceIntent(VoiceAction.SAVE_LATER, 0.97f, original)
+        if (VoiceCommands.dailyReview(q)) return VoiceIntent(VoiceAction.DAILY_REVIEW, 0.97f, original)
+        VoiceCommands.focusMinutes(q)?.let { mins ->
+            return if (mins == 0) VoiceIntent(VoiceAction.END_FOCUS, 0.97f, original)
+            else VoiceIntent(VoiceAction.START_FOCUS, 0.97f, original, intValue = mins)
+        }
+        return null
     }
 
     private fun math(q: String, original: String): VoiceIntent? {
@@ -369,6 +383,14 @@ internal object DeterministicIntentParser {
         if (q in needNow || q.contains("normally use") || q.contains("usually use")) {
             return VoiceIntent(VoiceAction.NEED_NOW, 0.96f, original)
         }
+        val digest = setOf(
+            "what did i miss", "what have i missed", "summarize my messages",
+            "summarize my inbox", "unread digest", "any messages", "any new messages",
+            "catch me up", "what did i miss today"
+        )
+        if (q in digest || (q.contains("summarize") && (q.contains("inbox") || q.contains("message")))) {
+            return VoiceIntent(VoiceAction.INBOX_DIGEST, 0.96f, original)
+        }
         return null
     }
 
@@ -412,7 +434,8 @@ internal object DeterministicIntentParser {
         if (q in setOf(
                 "next meeting", "what's next", "whats next", "what s next", "next event",
                 "my calendar", "what's on my calendar", "whats on my calendar",
-                "what's next on my calendar", "whats next on my calendar", "on my calendar"
+                "what's next on my calendar", "whats next on my calendar", "on my calendar",
+                "up next"
             )
         ) {
             return VoiceIntent(VoiceAction.NEXT_EVENT, 0.97f, original)
@@ -437,6 +460,12 @@ internal object DeterministicIntentParser {
 
     private fun tasks(q: String, original: String): VoiceIntent? {
         if (VoiceCommands.showTasks(q)) return VoiceIntent(VoiceAction.SHOW_TASKS, 0.98f, original)
+        VoiceCommands.completeTask(q)?.let {
+            return VoiceIntent(VoiceAction.COMPLETE_TASK, 0.96f, original, textValue = it)
+        }
+        VoiceCommands.deleteTask(q)?.let {
+            return VoiceIntent(VoiceAction.DELETE_TASK, 0.96f, original, textValue = it)
+        }
         VoiceCommands.task(q)?.let {
             return VoiceIntent(VoiceAction.SET_REMINDER, 0.97f, original, textValue = it)
         }

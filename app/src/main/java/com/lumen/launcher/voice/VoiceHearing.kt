@@ -23,7 +23,8 @@ object VoiceHearing {
         "drawer", "settings", "home", "flow", "search", "recents", "recent",
         "private", "work", "personal", "focus", "space", "layout", "mode",
         "weather", "calendar", "alarm", "alarms", "reminder", "remind",
-        "tasks", "list", "help", "goodbye", "news", "inbox", "switch",
+        "tasks", "task", "list", "todo", "done", "complete", "delete", "finish",
+        "help", "goodbye", "news", "inbox", "switch",
         "bigger", "smaller", "turn", "off", "on", "size", "grid", "capacity",
         "yesterday", "meeting", "event", "temperature", "move", "above",
         "before", "under", "panel", "where", "remember", "locked", "means"

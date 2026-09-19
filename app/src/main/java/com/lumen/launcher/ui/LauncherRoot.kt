@@ -34,8 +34,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -75,8 +78,9 @@ fun LauncherRoot(
     val edgeDeadPx = maxOf(gestureLeftPx, gestureRightPx, with(density) { 18.dp.toPx() })
     val drawerZonePx = bottomDeadPx + with(density) { 108.dp.toPx() }
     val homePage = 1
-    val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 2 })
+    val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 3 })
     val pagerScope = rememberCoroutineScope()
+    var listTyping by remember { mutableStateOf(false) }
     LaunchedEffect(state.homePulse) {
         if (state.homePulse == 0) return@LaunchedEffect
         pagerState.scrollToPage(homePage)
@@ -84,6 +88,9 @@ fun LauncherRoot(
     LaunchedEffect(state.pagerPulse) {
         if (state.pagerPulse == 0) return@LaunchedEffect
         pagerState.animateScrollToPage(state.pagerPage)
+    }
+    LaunchedEffect(pagerState.settledPage) {
+        if (pagerState.settledPage != 2) listTyping = false
     }
     val homeIdle = state.sheet == Sheet.None && !state.privatePageActive
     val privateExpand = remember { Animatable(0f) }
@@ -126,7 +133,7 @@ fun LauncherRoot(
                 HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 1,
-                userScrollEnabled = homeIdle,
+                userScrollEnabled = homeIdle && !listTyping,
                 flingBehavior = PagerDefaults.flingBehavior(
                     state = pagerState,
                     snapAnimationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -143,6 +150,11 @@ fun LauncherRoot(
                             state = state,
                             viewModel = viewModel,
                             isActive = pagerState.settledPage == 0
+                        )
+                        2 -> TodoPage(
+                            state = state,
+                            viewModel = viewModel,
+                            onComposerFocus = { listTyping = it }
                         )
                         else -> HomeScreen(
                             state = state,
@@ -172,7 +184,7 @@ fun LauncherRoot(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    repeat(2) { index ->
+                    repeat(3) { index ->
                         val active = pagerState.currentPage == index
                         Box(
                             Modifier
@@ -239,6 +251,13 @@ fun LauncherRoot(
                 exit = fadeOut(tween(140)) + slideOutVertically(tween(180)) { it / 3 }
             ) {
                 DrawerSheet(state = state, viewModel = viewModel, onDismiss = viewModel::closeSheet)
+            }
+            AnimatedVisibility(
+                visible = state.sheet == Sheet.Capture,
+                enter = fadeIn(tween(160)),
+                exit = fadeOut(tween(120))
+            ) {
+                CaptureSheet(state, viewModel)
             }
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Search,

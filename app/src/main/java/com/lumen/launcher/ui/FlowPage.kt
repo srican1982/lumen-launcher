@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AcUnit
 import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
@@ -64,11 +65,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.lumen.launcher.alarm.LumenAlarm
 import com.lumen.launcher.data.AppInfo
+import com.lumen.launcher.data.CaptureKind
+import com.lumen.launcher.data.NeedNowHint
 import com.lumen.launcher.data.CalendarEvent
 import com.lumen.launcher.data.IconCache
 import com.lumen.launcher.data.MissedCall
 import com.lumen.launcher.data.NewsItem
 import com.lumen.launcher.data.SpaceCopy
+import com.lumen.launcher.data.UpNext
 import com.lumen.launcher.data.WeatherCodes
 import com.lumen.launcher.data.WeatherHour
 import com.lumen.launcher.data.WeatherSnapshot
@@ -131,7 +135,6 @@ fun FlowPage(
     val hour = LocalDateTime.now().hour
     val greeting = SpaceCopy.greetingFor(hour, state.firstName)
     val continueApp = state.recentApps.firstOrNull()
-    val needNow = state.likelyNext.filter { it.key != continueApp?.key }.take(4)
     val news = state.news.take(2)
     val modules = state.flowModules.filter { module ->
         when (module) {
@@ -140,10 +143,13 @@ fun FlowPage(
             FlowModule.Missed -> state.missedCalls.isNotEmpty()
             FlowModule.Inbox -> state.inbox.any { !it.isDigest }
             FlowModule.Weather -> state.weather != null
-            FlowModule.NeedNow -> needNow.isNotEmpty()
+            FlowModule.NeedNow -> state.needNowHints.isNotEmpty()
             FlowModule.Continue -> continueApp != null
-            FlowModule.Reminders -> state.tasks.isNotEmpty()
+            FlowModule.Reminders -> state.openTasks.isNotEmpty()
             FlowModule.News -> news.isNotEmpty()
+            FlowModule.Review -> state.dailyReview.visible
+            FlowModule.Later -> state.later.isNotEmpty()
+            FlowModule.Notes -> true
         }
     }
 
@@ -164,6 +170,7 @@ fun FlowPage(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRoundIcon(Icons.Outlined.AutoAwesome) { viewModel.openCapture() }
                     FlowRoundIcon(Icons.Outlined.PersonOutline) { viewModel.openSettings() }
                     FlowRoundIcon(Icons.Outlined.Settings) { viewModel.openSettings() }
                 }
@@ -190,6 +197,13 @@ fun FlowPage(
             }
         }
         Spacer(Modifier.height(14.dp))
+        if (state.focusing) {
+            FocusFlowCard(state, viewModel)
+        }
+        state.upNext?.let { item ->
+            Spacer(Modifier.height(8.dp))
+            UpNextCard(item) { viewModel.openUpNext(item) }
+        }
         modules.forEach { module ->
             when (module) {
                 FlowModule.Alarms -> {
@@ -200,7 +214,8 @@ fun FlowPage(
                 }
                 FlowModule.Next -> {
                     val event = state.upcomingEvents.firstOrNull() ?: state.nextEvent
-                    if (event != null) {
+                    val same = event != null && state.upNext?.event?.id == event.id && event.id != 0L
+                    if (event != null && !same) {
                         Spacer(Modifier.height(8.dp))
                         NextCard(event) { viewModel.openCalendarEvent(event) }
                     }
@@ -208,14 +223,14 @@ fun FlowPage(
                 FlowModule.Missed -> {
                     if (state.missedCalls.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
-                        MissedCallsCard(state.missedCalls, viewModel::callBack, viewModel::openCallLog)
+                        MissedCallsCard(state.missedCalls.take(3), viewModel::callBack, viewModel::openCallLog)
                     }
                 }
                 FlowModule.Inbox -> {
                     val mail = state.inbox.filterNot { it.isDigest }
                     if (mail.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
-                        InboxCard(mail.take(2), mail.size, viewModel, state.apps)
+                        InboxCard(mail.take(2), mail.size, state.inboxDigest, viewModel, state.apps)
                     }
                 }
                 FlowModule.Weather -> {
@@ -224,10 +239,26 @@ fun FlowPage(
                         WeatherCard(it)
                     }
                 }
-                FlowModule.NeedNow -> {
-                    if (needNow.isNotEmpty()) {
+                FlowModule.Review -> {
+                    if (state.dailyReview.visible) {
                         Spacer(Modifier.height(8.dp))
-                        NeedNowCard(needNow, viewModel)
+                        ReviewCard(state, viewModel)
+                    }
+                }
+                FlowModule.Later -> {
+                    if (state.later.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        LaterCard(state, viewModel)
+                    }
+                }
+                FlowModule.Notes -> {
+                    Spacer(Modifier.height(8.dp))
+                    NotesCard(state, viewModel)
+                }
+                FlowModule.NeedNow -> {
+                    if (state.needNowHints.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        NeedNowCard(state.needNowHints, viewModel)
                     }
                 }
                 FlowModule.Continue -> {
@@ -242,9 +273,9 @@ fun FlowPage(
                     }
                 }
                 FlowModule.Reminders -> {
-                    if (state.tasks.isNotEmpty()) {
+                    if (state.openTasks.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
-                        RemindersCard(state.tasks.take(3), state.tasks.size, viewModel::completeTask)
+                        RemindersCard(state.openTasks.take(3), state.openTasks.size, viewModel::completeTask, viewModel::openTodoList)
                     }
                 }
                 FlowModule.News -> {
@@ -358,6 +389,62 @@ private fun ActionPill(onClick: () -> Unit, content: @Composable () -> Unit) {
 }
 
 @Composable
+private fun UpNextCard(item: UpNext, onClick: () -> Unit) {
+    val icon = when (item.kind) {
+        UpNext.Kind.Flight -> Icons.Outlined.Place
+        UpNext.Kind.Meeting -> Icons.Outlined.CalendarMonth
+        UpNext.Kind.Delivery, UpNext.Kind.Message -> Icons.Outlined.MailOutline
+    }
+    FlowCard {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LeadIcon(icon)
+            Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {
+                Kicker("UP NEXT")
+                Text(
+                    item.title,
+                    color = Lumen.Text,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.detail.isNotBlank()) {
+                    Text(
+                        item.detail,
+                        color = Lumen.Muted,
+                        fontFamily = Outfit,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Lumen.Accent.copy(alpha = 0.22f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    item.actionLabel,
+                    color = Lumen.Accent,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun NextCard(
     event: CalendarEvent,
     onClick: () -> Unit
@@ -439,7 +526,6 @@ private fun MissedCallsCard(
     onCall: (MissedCall) -> Unit,
     onSeeAll: () -> Unit
 ) {
-    val latest = calls.maxBy { it.at }
     val total = calls.sumOf { it.count }.coerceAtLeast(calls.size)
     FlowCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -448,40 +534,75 @@ private fun MissedCallsCard(
                 tint = Color.White,
                 background = Color(0xCCE25C7A)
             )
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(start = 10.dp, end = 8.dp)
-                    .clickable(onClick = onSeeAll)
-            ) {
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("MISSED CALLS")
                 Text(
                     if (total == 1) "1 missed call" else "$total missed calls",
-                    color = Lumen.Text,
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp
-                )
-                Text(
-                    "Most recent  ·  ${relativeMissed(latest.at)}",
                     color = Lumen.Faint,
                     fontFamily = Outfit,
                     fontSize = 12.sp
                 )
             }
-            ActionPill(onClick = { onCall(latest) }) {
-                Icon(Icons.Outlined.Call, null, tint = Lumen.Text, modifier = Modifier.size(13.dp))
-                Text(
-                    "Call back",
-                    color = Lumen.Text,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 5.dp)
-                )
-                Icon(Icons.Outlined.ChevronRight, null, tint = Lumen.Faint, modifier = Modifier.size(14.dp))
+            SeeAll(onSeeAll)
+        }
+        calls.forEach { call ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .clickable { onCall(call) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        missedCallTitle(call),
+                        color = Lumen.Text,
+                        fontFamily = Outfit,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        missedCallDetail(call),
+                        color = Lumen.Faint,
+                        fontFamily = Outfit,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                ActionPill(onClick = { onCall(call) }) {
+                    Icon(Icons.Outlined.Call, null, tint = Lumen.Text, modifier = Modifier.size(13.dp))
+                    Text(
+                        "Call",
+                        color = Lumen.Text,
+                        fontFamily = Outfit,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 5.dp)
+                    )
+                }
             }
         }
     }
+}
+
+private fun missedCallTitle(call: MissedCall): String {
+    val who = call.display
+    val extra = if (call.count > 1) " · ${call.count}x" else ""
+    return who + extra
+}
+
+private fun missedCallDetail(call: MissedCall): String {
+    val number = call.number.trim()
+    val bits = mutableListOf<String>()
+    if (number.isNotBlank() && !number.equals(call.display, ignoreCase = true)) bits += number
+    if (call.whatsapp) bits += "WhatsApp"
+    bits += relativeMissed(call.at)
+    return bits.joinToString("  ·  ")
 }
 
 @Composable
@@ -542,6 +663,7 @@ private fun AlarmsCard(alarms: List<LumenAlarm>, viewModel: LauncherViewModel) {
 private fun InboxCard(
     items: List<InboxItem>,
     total: Int,
+    digest: String,
     viewModel: LauncherViewModel,
     apps: List<AppInfo>
 ) {
@@ -551,10 +673,12 @@ private fun InboxCard(
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("INBOX")
                 Text(
-                    if (total == 1) "1 new email" else "$total new emails",
+                    digest.ifBlank { if (total == 1) "1 new" else "$total new" },
                     color = Lumen.Faint,
                     fontFamily = Outfit,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             SeeAll(viewModel::openMailApp)
@@ -677,17 +801,20 @@ private fun HourChip(hour: WeatherHour) {
 }
 
 @Composable
-private fun NeedNowCard(apps: List<AppInfo>, viewModel: LauncherViewModel) {
+private fun NeedNowCard(hints: List<NeedNowHint>, viewModel: LauncherViewModel) {
+    val task = hints.firstOrNull()?.detail
     FlowCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LeadIcon(Icons.Outlined.Widgets)
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("NEED NOW")
                 Text(
-                    "Based on your routine",
+                    task?.takeIf { it.isNotBlank() } ?: "Based on your task and routine",
                     color = Lumen.Faint,
                     fontFamily = Outfit,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             ActionPill(onClick = viewModel::openDrawer) {
@@ -696,19 +823,140 @@ private fun NeedNowCard(apps: List<AppInfo>, viewModel: LauncherViewModel) {
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            apps.forEach { app ->
+            hints.forEach { hint ->
                 Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
-                    IconSlot(
-                        label = app.label,
-                        packageName = app.packageName,
-                        activityName = app.activityName,
-                        iconSize = 40.dp,
-                        icons = viewModel.icons,
-                        labelSize = 10.sp,
-                        onClick = { viewModel.launch(app) },
-                        onLongClick = { viewModel.showAppActions(app) }
+                    val app = hint.app
+                    if (app != null) {
+                        IconSlot(
+                            label = hint.title,
+                            packageName = app.packageName,
+                            activityName = app.activityName,
+                            iconSize = 40.dp,
+                            icons = viewModel.icons,
+                            labelSize = 10.sp,
+                            onClick = { viewModel.openNeedNow(hint) },
+                            onLongClick = { viewModel.showAppActions(app) }
+                        )
+                    } else {
+                        Text(
+                            hint.title,
+                            color = Lumen.Text,
+                            fontFamily = Outfit,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable { viewModel.openNeedNow(hint) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(state: LauncherUiState, viewModel: LauncherViewModel) {
+    val review = state.dailyReview
+    FlowCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LeadIcon(Icons.Outlined.CalendarMonth)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Kicker("TODAY")
+                Text(
+                    if (review.tasksLeft == 1) "1 task left" else "${review.tasksLeft} tasks left",
+                    color = Lumen.Text,
+                    fontFamily = Outfit,
+                    fontSize = 16.sp
+                )
+                if (review.overdue > 0) {
+                    Text(
+                        if (review.overdue == 1) "1 overdue" else "${review.overdue} overdue",
+                        color = Lumen.Faint,
+                        fontFamily = Outfit,
+                        fontSize = 12.sp
                     )
                 }
+                if (review.nextLine.isNotBlank()) {
+                    Text(review.nextLine, color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
+                }
+            }
+            ActionPill(onClick = viewModel::openTodoList) {
+                Text("Tasks", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LaterCard(state: LauncherUiState, viewModel: LauncherViewModel) {
+    FlowCard {
+        Kicker("LATER")
+        state.later.take(3).forEach { item ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .clickable { viewModel.openLater(item) },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(item.text, color = Lumen.Text, fontFamily = Outfit, fontSize = 15.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Open", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.clickable { viewModel.openLater(item) }.padding(end = 8.dp))
+                Text("Done", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.clickable { viewModel.dismissLater(item.id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotesCard(state: LauncherUiState, viewModel: LauncherViewModel) {
+    FlowCard {
+        Kicker("NOTES")
+        state.spaceNotes.take(4).forEach { note ->
+            Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    note.text,
+                    color = Lumen.Text,
+                    fontFamily = Outfit,
+                    fontSize = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "×",
+                    color = Lumen.Faint,
+                    fontFamily = Outfit,
+                    fontSize = 16.sp,
+                    modifier = Modifier.clickable { viewModel.deleteNote(note.id) }.padding(start = 8.dp)
+                )
+            }
+        }
+        Text(
+            "+ Add note",
+            color = Lumen.Faint,
+            fontFamily = Outfit,
+            fontSize = 14.sp,
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .clickable { viewModel.openCapture(CaptureKind.Note) }
+        )
+    }
+}
+
+@Composable
+private fun FocusFlowCard(state: LauncherUiState, viewModel: LauncherViewModel) {
+    val left = ((state.focusUntil - System.currentTimeMillis()).coerceAtLeast(0L) / 60000L).toInt()
+    FlowCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LeadIcon(Icons.Outlined.PlayArrow)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Kicker("FOCUS")
+                Text(state.focusTask?.text ?: "This space", color = Lumen.Text, fontFamily = Outfit, fontSize = 16.sp, maxLines = 1)
+                Text("$left min left", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
+            }
+            ActionPill(onClick = viewModel::endFocus) {
+                Text("End", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
             }
         }
     }
@@ -763,11 +1011,16 @@ private fun ContinueCard(
 }
 
 @Composable
-private fun RemindersCard(tasks: List<String>, total: Int, onComplete: (String) -> Unit) {
+private fun RemindersCard(
+    tasks: List<String>,
+    total: Int,
+    onComplete: (String) -> Unit,
+    onSeeAll: () -> Unit
+) {
     FlowCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LeadIcon(Icons.Outlined.CheckBoxOutlineBlank)
-            Column(Modifier.padding(start = 10.dp)) {
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("REMINDERS")
                 Text(
                     if (total == 1) "1 thing today" else "$total things today",
@@ -776,6 +1029,7 @@ private fun RemindersCard(tasks: List<String>, total: Int, onComplete: (String) 
                     fontSize = 12.sp
                 )
             }
+            SeeAll(onSeeAll)
         }
         tasks.forEach { item ->
             Row(

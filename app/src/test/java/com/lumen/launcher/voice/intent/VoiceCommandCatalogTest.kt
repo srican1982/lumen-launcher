@@ -143,6 +143,7 @@ class VoiceCommandCatalogTest {
         assertThat(route("how's the weather").action).isEqualTo(VoiceAction.WEATHER)
         assertThat(route("weather").action).isEqualTo(VoiceAction.WEATHER)
         assertThat(route("what's next").action).isEqualTo(VoiceAction.NEXT_EVENT)
+        assertThat(route("what did I miss").action).isEqualTo(VoiceAction.INBOX_DIGEST)
         assertThat(route("need now").action).isEqualTo(VoiceAction.NEED_NOW)
         assertThat(route("app I used yesterday").action).isEqualTo(VoiceAction.USED_YESTERDAY)
 
@@ -151,10 +152,18 @@ class VoiceCommandCatalogTest {
         assertThat(alarm.hour).isNotNull()
         assertThat(route("show my alarms").action).isEqualTo(VoiceAction.LIST_ALARMS)
 
+        assertThat(route("note that parking is level B").action).isEqualTo(VoiceAction.SAVE_NOTE)
+        assertThat(route("save this for later").action).isEqualTo(VoiceAction.SAVE_LATER)
+        assertThat(route("focus 30 minutes").action).isEqualTo(VoiceAction.START_FOCUS)
+        assertThat(route("what's left today").action).isEqualTo(VoiceAction.DAILY_REVIEW)
+
         val reminder = route("remind me to call Steve")
         assertThat(reminder.action).isEqualTo(VoiceAction.SET_REMINDER)
         assertThat(reminder.textValue).contains("call")
         assertThat(route("what's on my list").action).isEqualTo(VoiceAction.SHOW_TASKS)
+        assertThat(route("I'm done with call Steve").action).isEqualTo(VoiceAction.COMPLETE_TASK)
+        assertThat(route("I am done with call Steve").action).isEqualTo(VoiceAction.COMPLETE_TASK)
+        assertThat(route("delete the task call Steve").action).isEqualTo(VoiceAction.DELETE_TASK)
 
         val math = route("what is 18 percent of 86")
         assertThat(math.action).isEqualTo(VoiceAction.CALCULATE)
@@ -182,5 +191,6 @@ class VoiceCommandCatalogTest {
         assertThat(LauncherVoice.parse("open Flow")).isEqualTo(LauncherCommand.OpenFlow)
         assertThat(LauncherVoice.parse("hide app labels")).isEqualTo(LauncherCommand.Labels(false))
         assertThat(LauncherVoice.parse("go to ChatGPT")).isEqualTo(LauncherCommand.OpenApp("chatgpt"))
+        assertThat(LauncherVoice.parse("what did I miss")).isEqualTo(LauncherCommand.InboxDigest)
     }
 }
