@@ -237,15 +237,16 @@ fun TouchpadIsland(
         contentAlignment = Alignment.Center
     ) {
         val pressGlow = if (pressed) 1f else 0f
+        val glass = LocalGlass.current
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(Squircle)
                 .background(
                     Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.40f - 0.08f * pressGlow),
-                        0.45f to Color.White.copy(alpha = 0.18f),
-                        1f to Color.White.copy(alpha = 0.10f)
+                        0f to glass.padTop.copy(alpha = glass.padTop.alpha - 0.08f * pressGlow),
+                        0.45f to glass.padMid,
+                        1f to glass.padBottom
                     )
                 )
                 .border(

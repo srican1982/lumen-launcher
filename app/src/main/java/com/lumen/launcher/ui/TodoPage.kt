@@ -97,7 +97,6 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private enum class TaskFilter { Today, Upcoming, Done }
-private val Frost = Color(0x3D000000)
 private val Sheet = Color(0xE616121C)
 
 @Composable
@@ -246,7 +245,7 @@ fun TodoPage(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (state.focusing) Lumen.Accent else Frost)
+                        .background(if (state.focusing) Lumen.Accent else LocalGlass.current.pill)
                         .clickable { if (state.focusing) viewModel.endFocus() else viewModel.startFocus(30) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
@@ -256,7 +255,7 @@ fun TodoPage(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(28.dp))
-                    .background(Frost)
+                    .background(LocalGlass.current.pill)
                     .clickable(onClick = { openComposer() })
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -532,7 +531,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
-                .background(Frost)
+                .background(LocalGlass.current.pill)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -671,7 +670,7 @@ private fun TimeSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
-                .background(Frost)
+                .background(LocalGlass.current.pill)
                 .clickable { anytime = true }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -716,7 +715,7 @@ private fun TimeSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(28.dp))
-                .background(Frost)
+                .background(LocalGlass.current.pill)
                 .clickable { pickedPriority = !pickedPriority }
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -781,7 +780,7 @@ private fun RepeatSheet(
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(if (on) Lumen.Accent.copy(alpha = 0.18f) else Frost)
+                    .background(if (on) Lumen.Accent.copy(alpha = 0.18f) else LocalGlass.current.pill)
                     .clickable { selected = value }
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -899,7 +898,7 @@ private fun PickerScaffold(
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Frost),
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(LocalGlass.current.pill),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, null, tint = Lumen.Accent, modifier = Modifier.size(18.dp))
@@ -933,7 +932,7 @@ private fun QuickChip(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) Lumen.Accent else Frost)
+            .background(if (selected) Lumen.Accent else LocalGlass.current.pill)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.Center,
@@ -951,7 +950,7 @@ private fun ActionFrost(label: String, filled: Boolean, modifier: Modifier = Mod
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(if (filled) Lumen.Accent else Frost)
+            .background(if (filled) Lumen.Accent else LocalGlass.current.pill)
             .clickable(onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
@@ -965,7 +964,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(22.dp))
-            .background(if (selected) Lumen.Accent else Frost)
+            .background(if (selected) Lumen.Accent else LocalGlass.current.pill)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
@@ -979,7 +978,7 @@ private fun RoundIcon(icon: ImageVector, onClick: () -> Unit) {
         modifier = Modifier
             .size(38.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(LocalGlass.current.pill)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1003,7 +1002,7 @@ private fun TaskRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(Frost)
+            .background(LocalGlass.current.pill)
             .combinedClickable(onClick = onToggle, onLongClick = onDelete)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically

@@ -31,6 +31,9 @@ class LauncherPreferences(private val context: Context) {
             drawerColumns = (prefs[DRAWER_COLUMNS] ?: 4).coerceIn(3, 6),
             dockCapacity = (prefs[DOCK_CAPACITY] ?: 4).coerceIn(3, 6),
             showLabels = prefs[SHOW_LABELS] ?: true,
+            iconSkin = prefs[ICON_SKIN].orEmpty(),
+            glassDepth = prefs[GLASS_DEPTH].orEmpty(),
+            smartCluster = prefs[SMART_CLUSTER] ?: true,
             aliases = decodeAliases(prefs[ALIASES].orEmpty()),
             spaceOverride = prefs[SPACE]?.takeIf { it.isNotBlank() },
             privateApps = prefs[PRIVATE].orEmpty(),
@@ -70,7 +73,8 @@ class LauncherPreferences(private val context: Context) {
             later = decodeLater(prefs[LATER].orEmpty()),
             focusUntil = prefs[FOCUS_UNTIL] ?: 0L,
             focusTaskId = prefs[FOCUS_TASK].orEmpty(),
-            focusPins = decodeSpaceDocks(prefs[FOCUS_PINS].orEmpty())
+            focusPins = decodeSpaceDocks(prefs[FOCUS_PINS].orEmpty()),
+            spaceWallpapers = decodeAliases(prefs[SPACE_WALLS].orEmpty())
         )
     }
 
@@ -110,6 +114,18 @@ class LauncherPreferences(private val context: Context) {
 
     suspend fun setShowLabels(show: Boolean) {
         context.launcherStore.edit { it[SHOW_LABELS] = show }
+    }
+
+    suspend fun setIconSkin(skin: String) {
+        context.launcherStore.edit { it[ICON_SKIN] = skin }
+    }
+
+    suspend fun setGlassDepth(depth: String) {
+        context.launcherStore.edit { it[GLASS_DEPTH] = depth }
+    }
+
+    suspend fun setSmartCluster(enabled: Boolean) {
+        context.launcherStore.edit { it[SMART_CLUSTER] = enabled }
     }
 
     suspend fun setFolders(items: List<HomeFolder>) {
@@ -242,6 +258,10 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit {
             it[FOCUS_PINS] = encodeSpaceDocks(pins.mapValues { entry -> entry.value.distinct().take(4) })
         }
+    }
+
+    suspend fun setSpaceWallpapers(paths: Map<String, String>) {
+        context.launcherStore.edit { it[SPACE_WALLS] = encodeAliases(paths) }
     }
 
     suspend fun setHeyLumen(enabled: Boolean) {
@@ -524,6 +544,9 @@ class LauncherPreferences(private val context: Context) {
         val DRAWER_COLUMNS = intPreferencesKey("drawer_columns")
         val DOCK_CAPACITY = intPreferencesKey("dock_capacity")
         val SHOW_LABELS = booleanPreferencesKey("show_labels")
+        val ICON_SKIN = stringPreferencesKey("icon_skin")
+        val GLASS_DEPTH = stringPreferencesKey("glass_depth")
+        val SMART_CLUSTER = booleanPreferencesKey("smart_cluster")
         val FOLDERS = stringPreferencesKey("home_folders")
         val ALIASES = stringPreferencesKey("aliases")
         val SPACE = stringPreferencesKey("space_override")
@@ -559,6 +582,7 @@ class LauncherPreferences(private val context: Context) {
         val FOCUS_UNTIL = longPreferencesKey("focus_until")
         val FOCUS_TASK = stringPreferencesKey("focus_task")
         val FOCUS_PINS = stringPreferencesKey("focus_pins")
+        val SPACE_WALLS = stringPreferencesKey("space_wallpapers")
     }
 }
 
@@ -572,6 +596,9 @@ data class LauncherState(
     val drawerColumns: Int = 4,
     val dockCapacity: Int = 4,
     val showLabels: Boolean = true,
+    val iconSkin: String = IconSkin.MatchSpace.name,
+    val glassDepth: String = GlassDepth.Balanced.name,
+    val smartCluster: Boolean = true,
     val aliases: Map<String, String> = emptyMap(),
     val spaceOverride: String? = null,
     val privateApps: Set<String> = emptySet(),
@@ -606,7 +633,8 @@ data class LauncherState(
     val later: List<LaterItem> = emptyList(),
     val focusUntil: Long = 0L,
     val focusTaskId: String = "",
-    val focusPins: Map<String, List<String>> = emptyMap()
+    val focusPins: Map<String, List<String>> = emptyMap(),
+    val spaceWallpapers: Map<String, String> = emptyMap()
 )
 
 object TouchpadHaptics {

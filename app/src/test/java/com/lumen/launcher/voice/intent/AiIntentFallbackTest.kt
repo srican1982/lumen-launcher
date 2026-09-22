@@ -51,7 +51,7 @@ class AiIntentFallbackTest {
 
     @Test
     fun namesKeyAndOfflineErrors() {
-        assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.NO_KEY)).contains("Gemini API key")
+        assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.NO_KEY)).contains("OpenRouter")
         assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.OFFLINE)).contains("network")
         assertThat(AiIntentFallback.spokenError(AiIntentFallback.Error.UNAUTHORIZED)).contains("key")
     }

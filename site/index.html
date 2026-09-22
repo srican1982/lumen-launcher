@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Lumen — A quieter home for your phone</title>
+  <meta name="description" content="Lumen is an Android launcher with Spaces, capture, Focus, voice, and a locked room. Simple on the surface. Exact underneath.">
+  <meta name="theme-color" content="#07060c">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav" data-nav>
+    <a class="brand" href="#top">
+      <img class="logo" src="logo.svg" alt="">
+      <span>Lumen</span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu" data-nav-toggle>
+      <span class="sr-only">Menu</span>
+      <span></span><span></span>
+    </button>
+    <nav id="menu" class="menu">
+      <a href="#spaces">Spaces</a>
+      <a href="#touchpad">TouchPad</a>
+      <a href="#locked">Locked</a>
+      <a href="#flow">Flow</a>
+      <a href="#focus">Focus</a>
+      <a href="#tasks">Tasks</a>
+      <a href="#pricing">Price</a>
+      <a class="pill-cta" href="#get">Get Lumen</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="kicker">A smarter Android home</p>
+        <h1>Your phone,<br>already ready for you.</h1>
+        <p class="lede">
+          Lumen learns the hour, keeps your grid, and puts what matters
+          in front of you. Capture. Focus. Then get out of the way.
+        </p>
+        <div class="actions">
+          <a class="btn btn-light" href="#get">Get Lumen</a>
+          <a class="btn btn-ghost" href="#spaces">See the Spaces</a>
+        </div>
+        <ul class="trust">
+          <li>Smart Spaces</li>
+          <li>Lumen TouchPad</li>
+          <li>Locked Space</li>
+          <li>Capture &amp; Focus</li>
+        </ul>
+      </div>
+      <div class="hero-visual">
+        <div class="device hero-phone">
+          <div class="island"></div>
+          <div class="screen wall-lumen">
+            <div class="ui-status"><span data-clock>3:18</span><span>78°</span></div>
+            <div class="lumen-hello">
+              <p class="ui-greet">Good afternoon</p>
+              <span class="wx">78° · Clear</span>
+            </div>
+            <p class="ui-date">Friday, 18 September</p>
+            <div class="space-pills">
+              <span class="on">Home</span>
+              <span>Work</span>
+              <span>Personal</span>
+              <span>Focus</span>
+              <span>Travel</span>
+            </div>
+            <p class="space-pin">Home space · pinned</p>
+            <div class="lumen-search">
+              <span class="search-spark">✦</span>
+              <span class="search-hint">What do you want to do?</span>
+              <span class="search-mic" aria-hidden="true"></span>
+            </div>
+            <div class="lumen-lead">
+              <div class="lead-icons">
+                <span class="tile"><img class="app" src="img/icons/mail.svg" alt=""><small>Mail</small></span>
+                <span class="tile"><img class="app" src="img/icons/maps.svg" alt=""><small>Maps</small></span>
+                <span class="tile"><img class="app" src="img/icons/photos.svg" alt=""><small>Photos</small></span>
+                <span class="tile"><img class="app" src="img/icons/notes.svg" alt=""><small>Notes</small></span>
+              </div>
+              <div class="touchpad-tile">
+                <span class="pad-core sm"></span>
+                <small>Lumen<br>TouchPad</small>
+              </div>
+            </div>
+            <div class="ui-grid slim">
+              <span class="tile"><img class="app" src="img/icons/music.svg" alt=""><small>Music</small></span>
+              <span class="tile"><img class="app" src="img/icons/wallet.svg" alt=""><small>Wallet</small></span>
+              <span class="tile"><img class="app" src="img/icons/calendar.svg" alt=""><small>Calendar</small></span>
+              <span class="tile"><img class="app" src="img/icons/weather.svg" alt=""><small>Weather</small></span>
+              <span class="tile"><img class="app" src="img/icons/files.svg" alt=""><small>Files</small></span>
+              <span class="tile"><img class="app" src="img/icons/store.svg" alt=""><small>Store</small></span>
+              <span class="tile"><img class="app" src="img/icons/clock.svg" alt=""><small>Clock</small></span>
+              <span class="tile"><img class="app" src="img/icons/books.svg" alt=""><small>Books</small></span>
+            </div>
+            <div class="ui-dock glass-dock">
+              <img class="app" src="img/icons/phone.svg" alt="">
+              <img class="app" src="img/icons/chat.svg" alt="">
+              <img class="app" src="img/icons/settings.svg" alt="">
+              <img class="app" src="img/icons/camera.svg" alt="">
+            </div>
+          </div>
+        </div>
+        <p class="aside-note">Less noise.<br>More you.</p>
+      </div>
+    </section>
+
+    <section id="spaces" class="band wash-lilac">
+      <div class="split">
+        <div>
+          <p class="kicker">Spaces that adapt to you</p>
+          <h2>Different moments.<br>A quieter Home.</h2>
+          <p class="lede">
+            Home, Work, Personal, Focus, Travel — Lumen can follow the clock
+            or stay where you pin it. Each room may keep its own wallpaper
+            and icon skin. The grid stays.
+          </p>
+        </div>
+      </div>
+      <div class="space-row">
+        <figure>
+          <div class="device mini"><div class="island"></div><div class="screen wall-home"><p class="mini-greet">Good morning</p></div></div>
+          <figcaption>Home</figcaption>
+        </figure>
+        <figure>
+          <div class="device mini"><div class="island"></div><div class="screen wall-work"><p class="mini-greet">Focused work</p></div></div>
+          <figcaption>Work</figcaption>
+        </figure>
+        <figure>
+          <div class="device mini"><div class="island"></div><div class="screen wall-personal"><p class="mini-greet">Good evening</p></div></div>
+          <figcaption>Personal</figcaption>
+        </figure>
+        <figure>
+          <div class="device mini"><div class="island"></div><div class="screen wall-focus"><p class="mini-greet">Deep focus</p></div></div>
+          <figcaption>Focus</figcaption>
+        </figure>
+        <figure>
+          <div class="device mini"><div class="island"></div><div class="screen wall-travel"><p class="mini-greet">Ready to go</p></div></div>
+          <figcaption>Travel</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="touchpad" class="band touch-band wash-dusk">
+      <div class="pad-stage">
+        <div class="pad-map">
+          <span class="g two">2 tap</span>
+          <span class="g up">↑<small>Swipe up</small></span>
+          <span class="g three">3 tap</span>
+          <span class="g left">←<small>Swipe left</small></span>
+          <div class="pad-card">
+            <span class="voice-badge">Tap · Voice</span>
+            <span class="pad-core" aria-hidden="true"></span>
+            <p>Hold · Locked</p>
+          </div>
+          <span class="g right"><small>Swipe right</small>→</span>
+          <span class="g pinch">Pinch</span>
+          <span class="g down">↓<small>Swipe down</small></span>
+          <span class="g voice">Assistant</span>
+        </div>
+      </div>
+      <div>
+        <p class="kicker">The Lumen button</p>
+        <h2>One glass square.<br>The whole home.</h2>
+        <p class="lede">
+          Tap once and Lumen Voice listens — the assistant on this home.
+          Two taps, three taps, and each swipe are yours: search, drawer,
+          lock, an app. Long-press is always Locked Space. Pinch for settings.
+        </p>
+        <ul class="gestures">
+          <li><em>Tap</em> Lumen Voice — the assistant, no extra mic hunt</li>
+          <li><em>2 tap / 3 tap</em> Drawer, search, lock, or any app you choose</li>
+          <li><em>↑ ↓ ← →</em> Four swipes. Notifications, Quick Settings, Flow, an app</li>
+          <li><em>Hold</em> Locked Space. That one is fixed.</li>
+          <li><em>Pinch</em> Launcher settings, quietly</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="locked" class="band locked-band wash-deep">
+      <div>
+        <p class="kicker">Locked Space</p>
+        <h2>A room off<br>the public grid.</h2>
+        <p class="lede">
+          Hold the TouchPad. Confirm it is you. Apps you move here
+          leave Home, the dock, and search. Long-press any icon and
+          choose Move to Locked Space. Unlock to open.
+        </p>
+        <p class="lede">
+          Honest about the edges: they can still appear in Settings,
+          Play Store, another launcher, or a notification. Lumen hides
+          them from <em>this</em> home — then asks for you.
+        </p>
+      </div>
+      <div class="device mid lock-phone">
+        <div class="island"></div>
+        <div class="screen wall-lock">
+          <div class="ui-status"><span>9:41</span></div>
+          <div class="lock-seal" aria-hidden="true"></div>
+          <p class="mini-greet">Unlock to open</p>
+          <p class="lock-meta">Locked space</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="flow" class="band flow-band wash-lilac">
+      <div class="device tilt">
+        <div class="island"></div>
+        <div class="screen wall-soft">
+          <div class="ui-status"><span>9:41</span><span>64°</span></div>
+          <p class="ui-greet sm">Good morning</p>
+          <p class="flow-title">Flow</p>
+          <div class="flow-card"><b>Need now</b><span>Timesheet · ADP, Outlook</span></div>
+          <div class="flow-card"><b>Today</b><span>2 left · review at 6</span></div>
+          <div class="flow-card"><b>Inbox</b><span>3 new. Priya: deck</span></div>
+          <div class="flow-card"><b>Later</b><span>Save Maps for the trip</span></div>
+          <div class="ui-apps">
+            <img class="app" src="img/icons/calendar.svg" alt="">
+            <img class="app" src="img/icons/mail.svg" alt="">
+            <img class="app" src="img/icons/notes.svg" alt="">
+            <img class="app" src="img/icons/maps.svg" alt="">
+          </div>
+        </div>
+      </div>
+      <div class="copy">
+        <p class="kicker">Everything in Flow</p>
+        <h2>What matters,<br>right here.</h2>
+        <p class="lede">
+          Need now, today’s review, mail already on the phone, notes,
+          missed calls. Not another inbox. A glance — then close it.
+        </p>
+        <p class="script">Organized for real life.</p>
+      </div>
+    </section>
+
+    <section id="focus" class="band focus-band">
+      <div class="copy">
+        <p class="kicker">Focus on what matters</p>
+        <h2>One task.<br>Only what you need.</h2>
+        <p class="lede">
+          Start Focus and Home simplifies to four apps around the work
+          in front of you. Pin the ones that must stay. End when you are done.
+        </p>
+      </div>
+      <div class="compare">
+        <figure>
+          <div class="device mid">
+            <div class="island"></div>
+            <div class="screen wall-dusk">
+              <div class="ui-status"><span>9:41</span></div>
+              <div class="ui-grid tiny">
+                <img class="app" src="img/icons/mail.svg" alt="">
+                <img class="app" src="img/icons/maps.svg" alt="">
+                <img class="app" src="img/icons/photos.svg" alt="">
+                <img class="app" src="img/icons/notes.svg" alt="">
+                <img class="app" src="img/icons/music.svg" alt="">
+                <img class="app" src="img/icons/calendar.svg" alt="">
+                <img class="app" src="img/icons/files.svg" alt="">
+                <img class="app" src="img/icons/clock.svg" alt="">
+              </div>
+            </div>
+          </div>
+          <figcaption>Home</figcaption>
+        </figure>
+        <span class="arrow" aria-hidden="true">→</span>
+        <figure>
+          <div class="device mid">
+            <div class="island"></div>
+            <div class="screen wall-focus">
+              <div class="ui-status"><span>9:41</span></div>
+              <p class="focus-kicker">FOCUS · 24 min</p>
+              <div class="ui-grid tiny four-only">
+                <img class="app" src="img/icons/notes.svg" alt="">
+                <img class="app" src="img/icons/calendar.svg" alt="">
+                <img class="app" src="img/icons/mail.svg" alt="">
+                <img class="app" src="img/icons/files.svg" alt="">
+              </div>
+            </div>
+          </div>
+          <figcaption>Focus</figcaption>
+        </figure>
+      </div>
+      <p class="script focus-note">A calmer phone for a brighter you.</p>
+    </section>
+
+    <section id="tasks" class="band task-band wash-lilac">
+      <div>
+        <p class="kicker">Tasks</p>
+        <h2>One line.<br>That’s the whole page.</h2>
+        <p class="lede">
+          Swipe to Tasks. Type. It stays in this Space — Today, Upcoming, or Anytime.
+          Priority and Repeat if you want them. No boards. No projects. No second app.
+        </p>
+        <ol class="easy">
+          <li><em>01</em> Swipe to the list — or long-press search</li>
+          <li><em>02</em> Type the thought. Or say it to Voice</li>
+          <li><em>03</em> Task, note, or reminder. Stamped to this Space</li>
+        </ol>
+      </div>
+      <div class="device mid task-phone">
+        <div class="island"></div>
+        <div class="screen wall-soft task-ui">
+          <div class="ui-status"><span>9:41</span></div>
+          <div class="task-head">
+            <p class="task-title">Tasks</p>
+            <p class="task-space">Work</p>
+          </div>
+          <div class="task-filters">
+            <span class="on">Today</span><span>Upcoming</span><span>Done</span>
+            <b>Focus 30</b>
+          </div>
+          <div class="task-add">Add a task…</div>
+          <div class="task-row"><i></i><div><b>Submit timesheet</b><small>Anytime</small></div></div>
+          <div class="task-row pri"><i></i><div><b>Call Priya</b><small>3:00 · Priority</small></div></div>
+          <div class="task-row"><i></i><div><b>Pack the charger</b><small>Tomorrow</small></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="capture" class="band capture-band">
+      <div>
+        <p class="kicker">Capture a thing</p>
+        <h2>Type it. Say it.<br>Done.</h2>
+        <p class="lede">
+          Task, reminder, or note — stamped to this Space.
+          Long-press search. No boards. No projects.
+        </p>
+        <div class="chips">
+          <div class="chip glass"><b>+</b> Add a task · Submit timesheet</div>
+          <div class="chip glass"><b>◐</b> Remind me · Call Steve</div>
+          <div class="chip glass"><b>✎</b> Note this · Meeting moved</div>
+        </div>
+      </div>
+      <div>
+        <p class="kicker">Search that understands</p>
+        <h2>Find anything<br>your way.</h2>
+        <p class="lede">
+          Type or speak. Apps, settings, contacts, your own aliases.
+          Exact commands stay on the phone.
+        </p>
+        <div class="chips ghost">
+          <div class="chip glass">“whatsapp”</div>
+          <div class="chip glass">“open my banking app”</div>
+          <div class="chip glass">“add Teams to my Work dock”</div>
+        </div>
+      </div>
+      <div class="device search-phone">
+        <div class="island"></div>
+        <div class="screen wall-soft">
+          <div class="ui-search on">whatsapp</div>
+          <div class="result"><img class="app" src="img/icons/chat.svg" alt=""> WhatsApp</div>
+          <div class="result"><img class="app" src="img/icons/chat.svg" alt=""> WhatsApp Business</div>
+          <div class="result dim">Open · Add to dock · App info</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="privacy" class="band close-band wash-deep">
+      <article>
+        <p class="kicker">Private by design</p>
+        <h3>Your routines stay on this device.</h3>
+        <p>Locked Space is a long-press away. Tasks are stamped here. No ads. No second brain in the cloud.</p>
+      </article>
+      <article>
+        <p class="kicker">All features included</p>
+        <h3>Spaces, voice, Flow, Focus.</h3>
+        <p>Hey Lumen is opt-in. Gemini is only for the phrases the phone cannot settle alone.</p>
+      </article>
+      <article>
+        <p class="kicker">Works offline</p>
+        <h3>Exact commands stay on the phone.</h3>
+        <p>The home still works when the network does not. No clutter. Cancel anytime.</p>
+      </article>
+    </section>
+
+    <section id="pricing" class="band price-band">
+      <p class="kicker">Simple price</p>
+      <p class="price">$4.99 <span>/ year</span></p>
+      <h2>The whole home.<br>One quiet fee.</h2>
+      <p class="lede">
+        Every Space, the TouchPad, Locked, Flow, and Focus.
+        No ads. No upsells hiding in settings.
+      </p>
+      <ul class="price-points">
+        <li>All features, every Space</li>
+        <li>No ads. Ever.</li>
+        <li>Works offline for local commands</li>
+        <li>Cancel anytime</li>
+      </ul>
+      <div class="actions">
+        <a class="btn btn-light" href="#get">Get Lumen · $4.99 / year</a>
+      </div>
+    </section>
+
+    <section id="get" class="get">
+      <div class="get-copy">
+        <p class="kicker">Begin</p>
+        <h2>Make the phone<br>feel like yours.</h2>
+        <div class="actions">
+          <a class="btn btn-light" href="https://github.com/srican1982/lumen-launcher" target="_blank" rel="noreferrer">Get Lumen</a>
+          <a class="btn btn-ghost" href="#spaces">Stay a little longer</a>
+        </div>
+      </div>
+      <div class="device mid get-phone" data-space-cycle>
+        <div class="island"></div>
+        <div class="screen wall-home">
+          <div class="ui-status"><span data-clock>9:41</span></div>
+          <p class="mini-greet" data-cycle-greet>Good morning</p>
+          <p class="lock-meta" data-cycle-space>Home</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span class="brand"><img class="logo" src="logo.svg" alt=""> <span>Lumen</span></span>
+    <p>A quieter home for Android.</p>
+    <p class="fine">© <span data-year>2026</span> Lumen. Photographs via Unsplash. Android is a trademark of Google LLC.</p>
+  </footer>
+  <script src="script.js"></script>
+</body>
+</html>

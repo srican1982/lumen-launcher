@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -51,11 +53,13 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import com.lumen.launcher.data.IconSkin
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.LumenTheme
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import com.lumen.launcher.vm.Sheet
+import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.launch
 
 @Composable
@@ -81,6 +85,13 @@ fun LauncherRoot(
     val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 3 })
     val pagerScope = rememberCoroutineScope()
     var listTyping by remember { mutableStateOf(false) }
+    val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let(viewModel::setSpaceWallpaper)
+    }
+    LaunchedEffect(state.wallpaperPickPulse) {
+        if (state.wallpaperPickPulse == 0) return@LaunchedEffect
+        wallpaperPicker.launch("image/*")
+    }
     LaunchedEffect(state.homePulse) {
         if (state.homePulse == 0) return@LaunchedEffect
         pagerState.scrollToPage(homePage)
@@ -103,6 +114,10 @@ fun LauncherRoot(
         }
     }
     LumenTheme {
+        CompositionLocalProvider(
+            LocalIconTreatment provides IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing),
+            LocalGlass provides rememberGlassColors(state.spaceWallpaper, state.glassDepth)
+        ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -118,6 +133,7 @@ fun LauncherRoot(
                     onPinch = viewModel::openSettings
                 )
         ) {
+            SpaceBackdrop(state.spaceWallpaper)
             AmbientBackdrop()
             Box(
                 modifier = Modifier
@@ -283,7 +299,7 @@ fun LauncherRoot(
                 enter = fadeIn(tween(160)),
                 exit = fadeOut(tween(120))
             ) {
-                MenuSheet(viewModel, onRequestDefaultHome)
+                MenuSheet(state, viewModel, onRequestDefaultHome)
             }
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Settings,
@@ -323,6 +339,7 @@ fun LauncherRoot(
             ) {
                 FolderEditorSheet(state, viewModel)
             }
+        }
         }
     }
 }

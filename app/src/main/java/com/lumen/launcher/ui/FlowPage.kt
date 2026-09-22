@@ -295,8 +295,7 @@ fun FlowPage(
         Row(
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.12f))
+                .glassPill(RoundedCornerShape(24.dp), LocalGlass.current)
                 .clickable { personalize = true }
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -314,8 +313,7 @@ private fun FlowRoundIcon(icon: ImageVector, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(38.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .glassPill(CircleShape, LocalGlass.current)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -328,8 +326,7 @@ private fun FlowCard(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .glass(RoundedCornerShape(24.dp), LocalGlass.current)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) { content() }
 }
@@ -338,7 +335,7 @@ private fun FlowCard(content: @Composable () -> Unit) {
 private fun LeadIcon(
     icon: ImageVector,
     tint: Color = Lumen.Accent,
-    background: Color = Color.White.copy(alpha = 0.10f),
+    background: Color = LocalGlass.current.pill,
     leading: @Composable (() -> Unit)? = null
 ) {
     if (leading != null) {
@@ -381,8 +378,7 @@ private fun ActionPill(onClick: () -> Unit, content: @Composable () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .glassPill(RoundedCornerShape(16.dp), LocalGlass.current)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) { content() }
@@ -551,7 +547,7 @@ private fun MissedCallsCard(
                     .fillMaxWidth()
                     .padding(top = 8.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .background(LocalGlass.current.well)
                     .clickable { onCall(call) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -695,7 +691,7 @@ private fun InboxCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(LocalGlass.current.well)
                         .clickable { viewModel.openInboxItem(item) }
                         .padding(8.dp),
                     verticalAlignment = Alignment.Top
@@ -1086,7 +1082,7 @@ private fun NewsCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(LocalGlass.current.well)
                         .clickable { onOpen(item) }
                 ) {
                     Box(
@@ -1229,7 +1225,7 @@ private fun FlowBrandIcon(
             modifier = Modifier
                 .size(size)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White.copy(alpha = 0.10f)),
+                .background(LocalGlass.current.well),
             contentAlignment = Alignment.Center
         ) {
             Icon(fallback, null, tint = Lumen.Accent, modifier = Modifier.size(size * 0.52f))

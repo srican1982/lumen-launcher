@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="books-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFB74D"/>
+      <stop offset="1" stop-color="#E65100"/>
+    </linearGradient>
+    <linearGradient id="books-sheen" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="books-soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.1" flood-color="#000" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#books-bg)"/>
+  <rect width="64" height="64" rx="16" fill="url(#books-sheen)"/>
+  <rect x=".6" y=".6" width="62.8" height="62.8" rx="15.4" fill="none" stroke="#fff" stroke-opacity=".18"/>
+  <g filter="url(#books-soft)">
+  <rect x="14" y="16" width="10" height="34" rx="2" fill="#fff"/>
+  <rect x="26" y="14" width="10" height="36" rx="2" fill="#FFE0B2"/>
+  <rect x="38" y="18" width="10" height="32" rx="2" fill="#fff"/>
+  <rect x="16" y="20" width="6" height="2" rx="1" fill="#E65100" opacity=".45"/>
+  <rect x="40" y="22" width="6" height="2" rx="1" fill="#E65100" opacity=".45"/>
+</g>
+</svg>

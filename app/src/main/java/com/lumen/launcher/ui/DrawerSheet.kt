@@ -17,18 +17,15 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MicNone
@@ -41,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,27 +49,31 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.lumen.launcher.data.AlphabetIndex
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.IconCache
 import com.lumen.launcher.search.FuzzySearch
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
-import com.lumen.launcher.vm.DrawerFilter
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import android.view.HapticFeedbackConstants
 
 @Composable
 fun DrawerSheet(
@@ -93,12 +95,20 @@ fun DrawerSheet(
     val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
     var drawerQuery by remember { mutableStateOf("") }
     val query = drawerQuery.trim()
-    val sections = remember(state.drawerSections, query, state.aliases) {
-        if (query.isBlank()) state.drawerSections
+    val azBase = remember(state.visibleApps, state.activeSpace, state.recents) {
+        AlphabetIndex.buildAz(
+            apps = state.visibleApps,
+            space = state.activeSpace,
+            recents = state.recents
+        )
+    }
+    val sections = remember(azBase, query, state.aliases) {
+        val base = azBase.first
+        if (query.isBlank()) base
         else {
             val normalized = FuzzySearch.normalize(query)
             val aliasKey = state.aliases[normalized]
-            state.drawerSections.map { (title, apps) ->
+            base.map { (title, apps) ->
                 title to apps.map { app ->
                     val score = maxOf(
                         FuzzySearch.score(query, app.label),
@@ -114,7 +124,22 @@ fun DrawerSheet(
             }.filter { it.second.isNotEmpty() }
         }
     }
-    val showRecents = query.isBlank() && state.recentApps.isNotEmpty() && state.drawerFilter == DrawerFilter.Az
+    val showAlphabet = query.isBlank()
+    val alphabetIndex = remember(sections, showAlphabet, azBase) {
+        if (!showAlphabet) AlphabetIndex.build(emptyList())
+        else AlphabetIndex.build(sections, leadingItems = 0)
+            .copy(spaceBoosted = azBase.second.spaceBoosted)
+    }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var scrubLetter by remember { mutableStateOf<Char?>(null) }
+    var scrubbing by remember { mutableStateOf(false) }
+
+    fun jumpToLetter(letter: Char) {
+        scrubLetter = letter
+        val target = alphabetIndex.firstVisibleIndex(letter) ?: return
+        scope.launch { listState.scrollToItem(target) }
+    }
 
     fun dropPoint(delta: Offset = dragDelta): Offset {
         return liftWindow + delta + Offset(iconPx / 2f, iconPx / 2f)
@@ -167,7 +192,6 @@ fun DrawerSheet(
             dragPhase = phase
             dragDelta = drag
         }
-        if (phase == IconPhase.Lifted) viewModel.showAppActions(app)
         if (phase == IconPhase.Dragging) {
             dropArmed = overPad(drag)
             viewModel.dismissPopups()
@@ -308,111 +332,60 @@ fun DrawerSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(DrawerFilter.entries.toList()) { filter ->
-                    val active = state.drawerFilter == filter
-                    val label = when (filter) {
-                        DrawerFilter.Az -> "A-Z"
-                        DrawerFilter.MostUsed -> "Most used"
-                        DrawerFilter.Categories -> "Categories"
-                    }
-                    Text(
-                        text = label,
-                        color = if (active) Lumen.OnAccent else Color.White.copy(alpha = 0.9f),
-                        fontSize = 14.sp,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50.dp))
-                            .then(
-                                if (active) Modifier.background(Color(0xFFE6D4FA))
-                                else Modifier
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(50.dp))
-                            )
-                            .clickable { viewModel.selectDrawerFilter(filter) }
-                            .padding(horizontal = 18.dp, vertical = 10.dp)
-                    )
-                }
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(state.drawerColumns),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 28.dp, top = 8.dp),
-                userScrollEnabled = !holding,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (showRecents) {
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-h") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 18.dp, bottom = 10.dp)
-                                .clickable { viewModel.selectDrawerFilter(DrawerFilter.MostUsed) },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+            Spacer(Modifier.height(12.dp))
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(end = 20.dp),
+                    contentPadding = PaddingValues(bottom = 28.dp, top = 4.dp),
+                    userScrollEnabled = !holding && !scrubbing
+                ) {
+                    sections.forEach { (title, apps) ->
+                        if (apps.isEmpty()) return@forEach
+                        item(key = "h-$title") {
                             Text(
-                                "RECENTLY USED",
-                                color = Color.White.copy(alpha = 0.42f),
-                                fontSize = 11.sp,
+                                title,
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontSize = 26.sp,
                                 fontFamily = Outfit,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 1.8.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.38f),
-                                modifier = Modifier.size(18.dp)
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(top = 18.dp, bottom = 10.dp)
                             )
                         }
-                    }
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-row") {
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            state.recentApps.take(5).forEach { app ->
-                                DrawerAppIcon(
-                                    app = app,
-                                    iconSize = 58.dp,
-                                    icons = viewModel.icons,
-                                    dimmed = moving && dragApp?.key != app.key,
-                                    onLaunch = { viewModel.launch(app) },
-                                    onMenu = { viewModel.showAppActions(app) },
-                                    onLocated = { slotWindows[app.key] = it },
-                                    onContact = { phase, drag -> onContact(app, phase, drag) },
-                                    onDragEnd = { finishDrag(app) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                        items(apps, key = { it.key }) { app ->
+                            DrawerAppRow(
+                                app = app,
+                                icons = viewModel.icons,
+                                dimmed = moving && dragApp?.key != app.key,
+                                lifted = holding && dragApp?.key == app.key,
+                                onLaunch = { viewModel.launch(app) },
+                                onMenu = { viewModel.showAppActions(app) },
+                                onLocated = { slotWindows[app.key] = it },
+                                onContact = { phase, drag -> onContact(app, phase, drag) },
+                                onDragEnd = { finishDrag(app) }
+                            )
                         }
                     }
                 }
-                sections.forEach { (title, apps) ->
-                    if (apps.isEmpty()) return@forEach
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "h-$title") {
-                        Text(
-                            title,
-                            color = Color.White.copy(alpha = 0.42f),
-                            fontSize = 13.sp,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)
-                        )
-                    }
-                    items(apps, key = { it.key }) { app ->
-                        DrawerAppIcon(
-                            app = app,
-                            iconSize = 58.dp,
-                            icons = viewModel.icons,
-                            dimmed = moving && dragApp?.key != app.key,
-                            onLaunch = { viewModel.launch(app) },
-                            onMenu = { viewModel.showAppActions(app) },
-                            onLocated = { slotWindows[app.key] = it },
-                            onContact = { phase, drag -> onContact(app, phase, drag) },
-                            onDragEnd = { finishDrag(app) }
-                        )
-                    }
+                if (showAlphabet && alphabetIndex.available.isNotEmpty()) {
+                    AlphabetRail(
+                        index = alphabetIndex,
+                        activeLetter = scrubLetter,
+                        scrubbing = scrubbing,
+                        space = state.activeSpace,
+                        icons = viewModel.icons,
+                        onLetter = ::jumpToLetter,
+                        onScrubbingChange = { active ->
+                            scrubbing = active
+                            if (!active) scrubLetter = null
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .zIndex(4f)
+                    )
                 }
             }
         }
@@ -462,35 +435,91 @@ fun DrawerSheet(
 }
 
 @Composable
-private fun DrawerAppIcon(
+private fun DrawerAppRow(
     app: AppInfo,
-    iconSize: Dp,
     icons: IconCache,
     dimmed: Boolean,
+    lifted: Boolean,
     onLaunch: () -> Unit,
     onMenu: () -> Unit,
     onLocated: (Offset) -> Unit,
     onContact: (IconPhase, Offset) -> Unit,
-    onDragEnd: () -> Unit,
-    modifier: Modifier = Modifier
+    onDragEnd: () -> Unit
 ) {
-    IconSlot(
-        label = app.label,
-        packageName = app.packageName,
-        activityName = app.activityName,
-        iconSize = iconSize,
-        icons = icons,
-        labelSize = 12.sp,
-        showLabel = true,
-        allowDrag = true,
-        onClick = onLaunch,
-        onLongClick = onMenu,
-        onContact = onContact,
-        onDragEnd = onDragEnd,
-        modifier = modifier
-            .then(if (dimmed) Modifier.blur(10.dp) else Modifier)
+    var phase by remember(app.key) { mutableStateOf(IconPhase.Rest) }
+    var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    val view = LocalView.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+            .iconContact(
+                key = app.key,
+                allowDrag = true,
+                onPhase = {
+                    phase = it
+                    if (it == IconPhase.Rest) drag = Offset.Zero
+                    onContact(it, drag)
+                },
+                onLaunch = {
+                    scope.launch {
+                        onLaunch()
+                        delay(180)
+                        if (phase == IconPhase.Launching) {
+                            phase = IconPhase.Rest
+                            onContact(IconPhase.Rest, Offset.Zero)
+                        }
+                    }
+                },
+                onLongPress = {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    onMenu()
+                },
+                onLift = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                },
+                onDrag = {
+                    drag = it
+                    onContact(IconPhase.Dragging, it)
+                },
+                onDragEnd = onDragEnd
+            )
             .onGloballyPositioned { coords ->
                 onLocated(coords.boundsInWindow().topLeft)
             }
-    )
+            .padding(vertical = 8.dp, horizontal = 2.dp)
+    ) {
+        AppIcon(
+            packageName = app.packageName,
+            activityName = app.activityName,
+            size = 44.dp,
+            icons = icons,
+            corner = 12.dp,
+            phase = if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
+                IconPhase.Lifted
+            } else {
+                phase
+            },
+            modifier = Modifier.then(
+                if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
+                    Modifier.graphicsLayer { alpha = 0f }
+                } else {
+                    Modifier
+                }
+            )
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = app.label,
+            color = Color.White.copy(alpha = if (lifted) 0.35f else 0.94f),
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Light,
+            fontSize = 17.sp,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+    }
 }

@@ -90,22 +90,23 @@ fun Modifier.iconContact(
             latestLift()
             if (!allowDragState) {
                 val held = waitForUpOrCancellation()
-                if (held != null) latestLong()
                 latestPhase(IconPhase.Rest)
+                if (held != null) latestLong()
                 return@awaitEachGesture
             }
             var dragging = false
+            val dragSlop = slop * 2.5f
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id }
                 if (change == null || !change.pressed || change.changedToUpIgnoreConsumed()) {
-                    if (dragging) latestEnd() else latestLong()
                     latestPhase(IconPhase.Rest)
+                    if (dragging) latestEnd() else latestLong()
                     break
                 }
                 finger = change.position
                 val drag = finger - pickup
-                if (dragging || drag.getDistance() > slop) {
+                if (dragging || drag.getDistance() > dragSlop) {
                     if (!dragging) {
                         dragging = true
                         latestPhase(IconPhase.Dragging)

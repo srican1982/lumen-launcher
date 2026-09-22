@@ -181,7 +181,7 @@ fun FeedPage(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .glass(RoundedCornerShape(24.dp))
+                                .glass(RoundedCornerShape(24.dp), LocalGlass.current)
                                 .clickable(onClick = viewModel::loadNews)
                                 .padding(18.dp)
                         ) {

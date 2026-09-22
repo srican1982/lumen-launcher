@@ -2,6 +2,9 @@ package com.lumen.launcher.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,23 +32,31 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.alarm.AlarmTones
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.CaptureKind
 import com.lumen.launcher.data.GestureAction
+import com.lumen.launcher.data.LlmClient
 import com.lumen.launcher.data.TouchpadHaptics
 import com.lumen.launcher.flow.parseFlowOrder
 import com.lumen.launcher.ui.theme.Lumen
@@ -54,6 +65,8 @@ import com.lumen.launcher.util.AssistantRole
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 
+private val LocalMenuArmed = staticCompositionLocalOf { true }
+
 @Composable
 fun BottomMenu(
     title: String,
@@ -61,12 +74,24 @@ fun BottomMenu(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    var armed by remember { mutableStateOf(false) }
+    LaunchedEffect(title) {
+        armed = false
+        delay(450)
+        armed = true
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.42f))
-                .clickable(onClick = onDismiss)
+                .pointerInput(armed) {
+                    if (!armed) return@pointerInput
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        if (waitForUpOrCancellation() != null) onDismiss()
+                    }
+                }
         )
         Column(
             modifier = Modifier
@@ -104,17 +129,23 @@ fun BottomMenu(
             } else {
                 Spacer(Modifier.height(10.dp))
             }
-            content()
+            CompositionLocalProvider(LocalMenuArmed provides armed) {
+                content()
+            }
         }
     }
 }
 
 @Composable
-fun MenuSheet(viewModel: LauncherViewModel, onRequestDefaultHome: () -> Unit) {
+fun MenuSheet(state: LauncherUiState, viewModel: LauncherViewModel, onRequestDefaultHome: () -> Unit) {
     BottomMenu("Home", "Wallpaper, settings, default app", onDismiss = viewModel::closeSheet) {
         MenuRow("Capture") { viewModel.openCapture() }
         MenuRow("Search") { viewModel.openSearch() }
-        MenuRow("Wallpaper") { viewModel.openWallpaperPicker() }
+        MenuRow("Wallpaper for ${state.activeSpace.title}") { viewModel.openWallpaperPicker() }
+        if (!state.spaceWallpaper.isNullOrBlank()) {
+            MenuRow("Clear ${state.activeSpace.title} wallpaper") { viewModel.clearSpaceWallpaper() }
+        }
+        MenuRow("System wallpaper") { viewModel.openSystemWallpaperPicker() }
         MenuRow("Launcher settings") { viewModel.openSettings() }
         MenuRow("Set as default Home") { onRequestDefaultHome() }
     }
@@ -187,6 +218,11 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("App labels  ·  ${if (state.showLabels) "On" else "Off"}") {
             viewModel.setShowLabels(!state.showLabels)
         }
+        MenuRow("Icons  ·  ${state.iconSkin.title}") { viewModel.cycleIconSkin() }
+        MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }
+        MenuRow("Smart Cluster  ·  ${if (state.smartCluster) "On" else "Off"}") {
+            viewModel.setSmartCluster(!state.smartCluster)
+        }
         MenuRow("Create folder") { viewModel.openFolderCreator() }
         if (state.hidden.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -237,7 +273,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             viewModel.setSmartVoice(!state.smartVoice)
         }
         Text(
-            "Exact commands stay on-device. Everything else — questions, fuzzy phrasing, call, timer — goes to Gemini 3 Flash Preview with the time, last few turns, app names, and contacts. It can speak an answer, not only pick a launcher action. If that model isn’t on your key, Lumen tries Gemini 2.5 Flash.",
+            "Exact commands stay on-device. Everything else — questions, fuzzy phrasing, call, timer — goes to Gemini or OpenRouter with the time, last few turns, app names, and contacts. It can speak an answer, not only pick a launcher action.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -245,9 +281,25 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             lineHeight = 18.sp,
             modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
         )
-        var geminiDraft by remember(state.geminiApiKey) { mutableStateOf(state.geminiApiKey) }
+        var geminiDraft by remember { mutableStateOf(state.geminiApiKey) }
+        var keySaved by remember { mutableStateOf(false) }
+        val latestDraft = remember { mutableStateOf(state.geminiApiKey) }
+        latestDraft.value = geminiDraft
+        val dirty = geminiDraft.trim() != state.geminiApiKey.trim()
+        LaunchedEffect(state.geminiApiKey) {
+            if (!dirty && state.geminiApiKey != geminiDraft) {
+                geminiDraft = state.geminiApiKey
+            }
+        }
+        fun saveApiKey() {
+            viewModel.setGeminiApiKey(geminiDraft)
+            keySaved = true
+        }
+        DisposableEffect(viewModel) {
+            onDispose { viewModel.setGeminiApiKey(latestDraft.value) }
+        }
         Text(
-            "Gemini API key",
+            "AI API key",
             color = Lumen.Muted,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -258,7 +310,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             value = geminiDraft,
             onValueChange = {
                 geminiDraft = it
-                viewModel.setGeminiApiKey(it)
+                keySaved = false
             },
             singleLine = true,
             cursorBrush = SolidColor(Lumen.Accent),
@@ -267,6 +319,8 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 fontSize = 16.sp,
                 fontFamily = Outfit
             ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { saveApiKey() }),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
@@ -275,7 +329,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             decorationBox = { inner ->
                 if (geminiDraft.isBlank()) {
                     Text(
-                        "Paste key from Google AI Studio",
+                        "Paste Gemini or OpenRouter key",
                         color = Lumen.Faint,
                         fontSize = 16.sp,
                         fontFamily = Outfit
@@ -283,6 +337,40 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 }
                 inner()
             }
+        )
+        val storedKind = LlmClient.kind(state.geminiApiKey)
+        val status = when {
+            dirty -> "Not saved yet — tap Save"
+            keySaved && state.geminiApiKey.isNotBlank() && storedKind == LlmClient.Kind.OpenRouter ->
+                "Saved on this phone · OpenRouter"
+            keySaved && state.geminiApiKey.isNotBlank() -> "Saved on this phone · Gemini"
+            state.geminiApiKey.isBlank() -> "Nothing saved yet"
+            storedKind == LlmClient.Kind.OpenRouter -> "On this phone · OpenRouter"
+            else -> "On this phone · Gemini"
+        }
+        Text(
+            status,
+            color = if (dirty) Lumen.Accent else Lumen.Faint,
+            fontSize = 12.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Light,
+            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
+        )
+        val armed = LocalMenuArmed.current
+        Text(
+            if (dirty || state.geminiApiKey.isBlank()) "Save key" else "Saved",
+            color = if (dirty) Lumen.OnAccent else Lumen.Text,
+            fontSize = 16.sp,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (dirty) Lumen.Accent else Color.White.copy(alpha = 0.10f))
+                .clickable(enabled = armed && dirty, onClick = { saveApiKey() })
+                .padding(vertical = 12.dp)
         )
         Spacer(Modifier.height(8.dp))
         Text(
@@ -649,6 +737,7 @@ fun CaptureSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
 
 @Composable
 private fun MenuRow(label: String, onClick: () -> Unit) {
+    val armed = LocalMenuArmed.current
     Text(
         text = label,
         color = Lumen.Text,
@@ -658,7 +747,7 @@ private fun MenuRow(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = armed, onClick = onClick)
             .padding(vertical = 14.dp, horizontal = 4.dp)
     )
 }

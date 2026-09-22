@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="store-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B39DDB"/>
+      <stop offset="1" stop-color="#5E35B1"/>
+    </linearGradient>
+    <linearGradient id="store-sheen" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="store-soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.1" flood-color="#000" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#store-bg)"/>
+  <rect width="64" height="64" rx="16" fill="url(#store-sheen)"/>
+  <rect x=".6" y=".6" width="62.8" height="62.8" rx="15.4" fill="none" stroke="#fff" stroke-opacity=".18"/>
+  <g filter="url(#store-soft)">
+  <path d="M16 24h32l-2.4 22.2A5 5 0 0 1 40.7 51H23.3a5 5 0 0 1-4.9-4.8L16 24z" fill="#fff"/>
+  <path d="M22 24a10 10 0 0 1 20 0" fill="none" stroke="#5E35B1" stroke-width="3.4" stroke-linecap="round"/>
+</g>
+</svg>

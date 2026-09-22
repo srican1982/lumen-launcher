@@ -58,6 +58,11 @@ import com.lumen.launcher.data.DailyReview
 import com.lumen.launcher.data.DailyReviewResolver
 import com.lumen.launcher.data.FocusAppsResolver
 import com.lumen.launcher.data.FocusPick
+import com.lumen.launcher.data.IconSkin
+import com.lumen.launcher.data.GlassDepth
+import com.lumen.launcher.data.AlphabetIndex
+import com.lumen.launcher.data.SmartClusterResolver
+import com.lumen.launcher.data.SpaceWallpaper
 import com.lumen.launcher.data.LaterItem
 import com.lumen.launcher.data.NeedNowHint
 import com.lumen.launcher.data.NeedNowResolver
@@ -226,6 +231,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         drawerColumns = stored.drawerColumns,
                         dockCapacity = stored.dockCapacity,
                         showLabels = stored.showLabels,
+                        iconSkin = IconSkin.parse(stored.iconSkin),
+                        glassDepth = GlassDepth.parse(stored.glassDepth),
+                        smartCluster = stored.smartCluster,
                         aliases = stored.aliases,
                         spaceOverride = stored.spaceOverride
                             ?.let { runCatching { SpaceKind.valueOf(it) }.getOrNull() }
@@ -262,7 +270,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         later = stored.later,
                         focusUntil = stored.focusUntil,
                         focusTaskId = stored.focusTaskId,
-                        focusPins = stored.focusPins
+                        focusPins = stored.focusPins,
+                        spaceWallpapers = stored.spaceWallpapers
                     )
                 }
                 _state.update { applyContext(it) }
@@ -1204,7 +1213,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun showAppActions(app: AppInfo) {
-        _state.update { it.copy(activeApp = app) }
+        _state.update { it.copy(activeApp = app, sheet = Sheet.AppActions) }
     }
 
     fun showDockActions(app: DockApp) {
@@ -2725,6 +2734,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.setShowLabels(show) }
     }
 
+    fun cycleIconSkin() {
+        val next = IconSkin.next(_state.value.iconSkin)
+        _state.update { it.copy(iconSkin = next) }
+        viewModelScope.launch { preferences.setIconSkin(next.name) }
+    }
+
+    fun cycleGlassDepth() {
+        val next = GlassDepth.next(_state.value.glassDepth)
+        _state.update { it.copy(glassDepth = next) }
+        viewModelScope.launch { preferences.setGlassDepth(next.name) }
+    }
+
+    fun setSmartCluster(enabled: Boolean) {
+        _state.update { it.copy(smartCluster = enabled) }
+        viewModelScope.launch { preferences.setSmartCluster(enabled) }
+    }
+
     fun openFolderCreator(seedAppKey: String? = null) {
         _state.update {
             it.copy(sheet = Sheet.FolderEditor, activeFolderId = null, folderSeedAppKey = seedAppKey, activeApp = null)
@@ -2770,9 +2796,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openWallpaperPicker() {
+        _state.update { it.copy(wallpaperPickPulse = it.wallpaperPickPulse + 1) }
+        closeSheet()
+    }
+
+    fun openSystemWallpaperPicker() {
         val intent = Intent(Intent.ACTION_SET_WALLPAPER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { getApplication<Application>().startActivity(intent) }
         closeSheet()
+    }
+
+    fun setSpaceWallpaper(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val space = _state.value.activeSpace.takeUnless { it == SpaceKind.Private } ?: SpaceKind.Home
+            val path = SpaceWallpaper.copy(getApplication(), uri, space) ?: return@launch
+            persistSpaceWallpapers(_state.value.spaceWallpapers + (space.name to path))
+        }
+    }
+
+    fun clearSpaceWallpaper() {
+        val space = _state.value.activeSpace.takeUnless { it == SpaceKind.Private } ?: SpaceKind.Home
+        SpaceWallpaper.delete(getApplication(), space)
+        persistSpaceWallpapers(_state.value.spaceWallpapers - space.name)
+    }
+
+    private fun persistSpaceWallpapers(next: Map<String, String>) {
+        viewModelScope.launch { preferences.setSpaceWallpapers(next) }
+        _state.update { it.copy(spaceWallpapers = next) }
     }
 
     fun openPackageInfo(packageName: String) {
@@ -2877,6 +2927,9 @@ data class LauncherUiState(
     val drawerColumns: Int = 4,
     val dockCapacity: Int = 4,
     val showLabels: Boolean = true,
+    val iconSkin: IconSkin = IconSkin.MatchSpace,
+    val glassDepth: GlassDepth = GlassDepth.Balanced,
+    val smartCluster: Boolean = true,
     val query: String = "",
     val hits: List<SearchHit> = emptyList(),
     val selectedCategory: AppCategory = AppCategory.All,
@@ -2957,7 +3010,9 @@ data class LauncherUiState(
     val focusTaskId: String = "",
     val focusPins: Map<String, List<String>> = emptyMap(),
     val captureKind: CaptureKind = CaptureKind.Task,
-    val duePickerTodoId: String = ""
+    val duePickerTodoId: String = "",
+    val spaceWallpapers: Map<String, String> = emptyMap(),
+    val wallpaperPickPulse: Int = 0
 ) {
     val selectedNewsTopics: List<NewsTopic>
         get() = NewsTopic.entries.filter { it.name in newsInterests }
@@ -3003,6 +3058,19 @@ data class LauncherUiState(
 
     val spaceNotes: List<CaptureNote>
         get() = notes.filter { it.space.name == activeSpace.name }
+
+    val spaceWallpaper: String?
+        get() = spaceWallpapers[activeSpace.name]?.takeIf { java.io.File(it).exists() }
+
+    val clusterApps: List<AppInfo>
+        get() = SmartClusterResolver.apps(
+            space = activeSpace,
+            focusing = focusing,
+            focusApps = focusPicks.map { it.app },
+            visible = visibleApps,
+            recents = recents,
+            needNow = needNowHints.mapNotNull { it.app }
+        )
 
     val focusTask: TodoItem?
         get() = spaceTodos.find { it.id == focusTaskId } ?: spaceTodos.filterNot { it.done }.firstOrNull()
@@ -3065,9 +3133,11 @@ data class LauncherUiState(
 
     val drawerSections: List<Pair<String, List<AppInfo>>>
         get() = when (drawerFilter) {
-            DrawerFilter.Az -> visibleApps.groupBy { it.label.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }
-                .toSortedMap()
-                .map { it.key to it.value }
+            DrawerFilter.Az -> AlphabetIndex.buildAz(
+                apps = visibleApps,
+                space = activeSpace,
+                recents = recents
+            ).first
             DrawerFilter.MostUsed -> listOf("Recently used" to recentApps) +
                 listOf("All apps" to visibleApps.filterNot { app -> recentApps.any { it.key == app.key } })
             DrawerFilter.Categories -> visibleApps.groupBy { it.category.label }
