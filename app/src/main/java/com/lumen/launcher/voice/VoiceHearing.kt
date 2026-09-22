@@ -21,7 +21,7 @@ object VoiceHearing {
         "add", "put", "remove", "pin", "unpin", "dock", "folder", "called", "named",
         "labels", "label", "names", "icons", "icon", "columns", "column",
         "drawer", "settings", "home", "flow", "search", "recents", "recent",
-        "private", "work", "personal", "focus", "space", "layout", "mode",
+        "private", "work", "personal", "social", "focus", "space", "layout", "mode",
         "weather", "calendar", "alarm", "alarms", "reminder", "remind",
         "tasks", "task", "list", "todo", "done", "complete", "delete", "finish",
         "help", "goodbye", "news", "inbox", "switch",

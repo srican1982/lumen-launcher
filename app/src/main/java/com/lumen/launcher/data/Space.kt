@@ -3,12 +3,25 @@ package com.lumen.launcher.data
 enum class SpaceKind(val title: String, val kicker: String) {
     Home("Home", "Home space"),
     Work("Work", "Work space"),
-    Personal("Personal", "Personal space"),
+    Personal("Social", "Social space"),
     Focus("Focus", "Focus space"),
     Travel("Travel", "Travel space"),
     Private("Locked", "Locked space");
 
     companion object {
+        /** Maps spoken or typed aliases to a space. Internal enum name stays [Personal] for persisted data. */
+        fun fromSpeechAlias(raw: String): SpaceKind? {
+            val v = raw.trim().lowercase().replace(" space", "").replace(" layout", "").replace(" mode", "")
+            return when (v) {
+                "home" -> Home
+                "work" -> Work
+                "social", "personal" -> Personal
+                "focus" -> Focus
+                "travel" -> Travel
+                else -> entries.firstOrNull { it.name.equals(raw.trim(), ignoreCase = true) }
+            }
+        }
+
         fun infer(hour: Int): SpaceKind = when (hour) {
             in 5..8 -> Home
             in 9..16 -> Work

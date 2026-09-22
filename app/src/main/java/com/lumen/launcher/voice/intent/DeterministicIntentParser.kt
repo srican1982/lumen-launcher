@@ -10,10 +10,10 @@ internal object DeterministicIntentParser {
     private val reservedOpen = setOf(
         "flow", "home", "search", "settings", "drawer", "recents", "private",
         "the drawer", "app drawer", "all apps", "lumen settings", "private space",
-        "locked space", "work", "personal", "focus", "work space", "personal space",
-        "focus space", "home space", "work mode", "focus mode", "the work space",
-        "the personal space", "the focus space", "the home space",
-        "the work", "the personal", "the focus", "up settings", "up search",
+        "locked space", "work", "personal", "social", "focus", "work space", "personal space",
+        "social space", "focus space", "home space", "work mode", "focus mode", "the work space",
+        "the personal space", "the social space", "the focus space", "the home space",
+        "the work", "the personal", "the social", "the focus", "up settings", "up search",
         "up home", "up flow", "up drawer"
     )
 
@@ -152,6 +152,9 @@ internal object DeterministicIntentParser {
             "go to work", "go to work space", "work space", "work layout", "work mode",
             "switch to work", "switch to work layout", "switch to work mode" ->
                 return VoiceIntent(VoiceAction.SET_SPACE, 0.99f, original, space = SpaceKind.Work)
+            "social", "open social", "open social space", "open social mode",
+            "open social layout", "go to social", "go to social space",
+            "social space", "social layout", "switch to social", "switch to social space",
             "personal", "open personal", "open personal space", "open personal mode",
             "open personal layout", "go to personal", "go to personal space",
             "personal space", "personal layout", "switch to personal", "switch to personal space" ->

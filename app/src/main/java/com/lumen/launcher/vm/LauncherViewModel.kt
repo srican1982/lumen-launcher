@@ -99,6 +99,9 @@ import com.lumen.launcher.data.NewsTopic
 import com.lumen.launcher.data.WeatherRepository
 import com.lumen.launcher.data.WeatherSnapshot
 import com.lumen.launcher.flow.FlowModule
+import com.lumen.launcher.social.SocialCreateCoordinator
+import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.social.CreationItem
 import com.lumen.launcher.flow.defaultFlowEnabled
 import com.lumen.launcher.flow.defaultFlowNames
 import com.lumen.launcher.flow.parseFlowOrder
@@ -149,6 +152,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var digestStamp = ""
     private val torch = TorchController(application)
     val icons = IconCache(application)
+    val socialCreate = SocialCreateCoordinator(application, viewModelScope)
     private val contacts = ContactLookup(application)
     private var pendingPeople: SearchHit.Action? = null
     private var padLeft = 0f
@@ -178,6 +182,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             application.registerReceiver(packageReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             application.registerReceiver(packageReceiver, filter)
+        }
+        viewModelScope.launch {
+            socialCreate.creations.collect { list ->
+                _state.update { it.copy(socialCreations = list) }
+            }
         }
         viewModelScope.launch {
             InboxHub.items.collect { items ->
@@ -2229,7 +2238,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setRecentsOpen(open: Boolean) {
-        _state.update { if (it.recentsOpen == open) it else it.copy(recentsOpen = open) }
+        _state.update {
+            when {
+                !open -> it.copy(recentsOpen = false, socialCreateTool = null)
+                it.recentsOpen == open -> it
+                else -> it.copy(recentsOpen = true)
+            }
+        }
+    }
+
+    fun openSocialTool(tool: SocialCreateTool) {
+        _state.update { it.copy(recentsOpen = false, socialCreateTool = tool) }
+    }
+
+    fun closeSocialTool() {
+        _state.update { it.copy(socialCreateTool = null) }
     }
 
     fun closePersonalize() {
@@ -3003,6 +3026,8 @@ data class LauncherUiState(
     val pagerPage: Int = 1,
     val pagerPulse: Int = 0,
     val recentsOpen: Boolean = false,
+    val socialCreations: List<CreationItem> = emptyList(),
+    val socialCreateTool: SocialCreateTool? = null,
     val personalizeFlow: Boolean = false,
     val notes: List<CaptureNote> = emptyList(),
     val later: List<LaterItem> = emptyList(),

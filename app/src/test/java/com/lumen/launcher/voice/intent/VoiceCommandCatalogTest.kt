@@ -119,6 +119,8 @@ class VoiceCommandCatalogTest {
         assertThat(route("switch to work").space).isEqualTo(SpaceKind.Work)
         assertThat(route("open work space").space).isEqualTo(SpaceKind.Work)
         assertThat(route("open personal space").space).isEqualTo(SpaceKind.Personal)
+        assertThat(route("switch to social").space).isEqualTo(SpaceKind.Personal)
+        assertThat(route("open social space").space).isEqualTo(SpaceKind.Personal)
         assertThat(route("go to focus").space).isEqualTo(SpaceKind.Focus)
         assertThat(route("switch to home space").space).isEqualTo(SpaceKind.Home)
         assertThat(route("private space").action).isEqualTo(VoiceAction.OPEN_PRIVATE)

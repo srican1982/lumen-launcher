@@ -107,6 +107,8 @@ import com.lumen.launcher.data.WeatherSnapshot
 import com.lumen.launcher.util.CompetingLauncher
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
+import com.lumen.launcher.ui.social.SocialCreatePanel
+import com.lumen.launcher.ui.social.SocialToolOverlay
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import kotlinx.coroutines.delay
@@ -505,24 +507,21 @@ fun HomeScreen(
                 )
             }
         }
-        RecentsOverlay(
+        SocialCreatePanel(
             open = recentsOpen,
-            apps = state.recentApps.take(12),
-            icons = viewModel.icons,
+            creations = state.socialCreations,
+            activeSpace = state.activeSpace,
+            shareManager = viewModel.socialCreate.share,
             onDismiss = { viewModel.setRecentsOpen(false) },
-            onSeeMore = {
-                viewModel.setRecentsOpen(false)
-                viewModel.openDrawer()
-            },
-            onClick = { app ->
-                viewModel.setRecentsOpen(false)
-                viewModel.launch(app)
-            },
-            onLongClick = { app ->
-                viewModel.setRecentsOpen(false)
-                viewModel.showAppActions(app)
-            }
+            onOpenTool = viewModel::openSocialTool
         )
+        state.socialCreateTool?.let { tool ->
+            SocialToolOverlay(
+                tool = tool,
+                coordinator = viewModel.socialCreate,
+                onClose = viewModel::closeSocialTool
+            )
+        }
     }
 }
 
@@ -949,170 +948,12 @@ private fun RecentsArrow(open: Boolean, onClick: () -> Unit, modifier: Modifier 
     ) {
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-            contentDescription = "Recent apps",
+            contentDescription = "Create and share",
             tint = Color.White.copy(alpha = 0.92f),
             modifier = Modifier
                 .size(20.dp)
                 .graphicsLayer { rotationZ = rotation }
         )
-    }
-}
-
-private val ListedGold = Color(0xFFE7C27A)
-private val ListedGoldHi = Color(0xFFF8E7C4)
-private val ListedPanel = RoundedCornerShape(40.dp)
-
-@Composable
-private fun BoxScope.RecentsOverlay(
-    open: Boolean,
-    apps: List<AppInfo>,
-    icons: IconCache,
-    onDismiss: () -> Unit,
-    onSeeMore: () -> Unit,
-    onClick: (AppInfo) -> Unit,
-    onLongClick: (AppInfo) -> Unit
-) {
-    AnimatedVisibility(
-        visible = open,
-        enter = fadeIn(),
-        exit = fadeOut()
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.22f))
-                .clickable(onClick = onDismiss)
-        )
-    }
-    AnimatedVisibility(
-        visible = open,
-        modifier = Modifier
-            .align(Alignment.CenterStart)
-            .fillMaxHeight()
-            .width(124.dp)
-            .zIndex(2f),
-        enter = fadeIn() + slideInHorizontally(spring(dampingRatio = 0.86f, stiffness = 380f)) { -it },
-        exit = fadeOut() + slideOutHorizontally { -it }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(start = 10.dp, top = 10.dp, bottom = 18.dp)
-                .shadow(
-                    elevation = 24.dp,
-                    shape = ListedPanel,
-                    spotColor = Color.Black.copy(alpha = 0.34f),
-                    ambientColor = ListedGold.copy(alpha = 0.12f)
-                )
-                .clip(ListedPanel)
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color(0x66FFFFFF),
-                        0.28f to Color(0x33FFFFFF),
-                        1f to Color(0x24FFFFFF)
-                    )
-                )
-                .denseGlass(ListedPanel)
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.55f),
-                        0.45f to ListedGoldHi.copy(alpha = 0.28f),
-                        1f to Color.White.copy(alpha = 0.16f)
-                    ),
-                    shape = ListedPanel
-                )
-                .clickable(enabled = false) {}
-                .padding(top = 22.dp, bottom = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "LISTED",
-                color = Color.White.copy(alpha = 0.72f),
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp,
-                letterSpacing = 3.4.sp
-            )
-            Spacer(Modifier.height(16.dp))
-            if (apps.isEmpty()) {
-                Text(
-                    "Open an app\nand it lands\nhere.",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 14.dp)
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    items(apps, key = { it.key }) { app ->
-                        ListedAppOrb(
-                            app = app,
-                            icons = icons,
-                            onClick = { onClick(app) },
-                            onLongClick = { onLongClick(app) }
-                        )
-                    }
-                }
-            }
-            Text(
-                "SEE MORE",
-                color = Color.White.copy(alpha = 0.58f),
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
-                letterSpacing = 2.2.sp,
-                modifier = Modifier
-                    .padding(top = 14.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onSeeMore)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ListedAppOrb(
-    app: AppInfo,
-    icons: IconCache,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .shadow(
-                elevation = 10.dp,
-                shape = CircleShape,
-                spotColor = Color.Black.copy(alpha = 0.22f),
-                ambientColor = ListedGold.copy(alpha = 0.10f)
-            )
-            .clip(CircleShape)
-            .background(LocalGlass.current.pill)
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    0f to ListedGoldHi.copy(alpha = 0.70f),
-                    1f to ListedGold.copy(alpha = 0.28f)
-                ),
-                shape = CircleShape
-            )
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        contentAlignment = Alignment.Center
-    ) {
-        AppIcon(app.packageName, app.activityName, 40.dp, icons)
     }
 }
 

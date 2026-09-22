@@ -1,0 +1,455 @@
+package com.lumen.launcher.ui.social
+
+import android.graphics.Bitmap
+import android.graphics.Canvas as AndroidCanvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Redo
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import com.lumen.launcher.social.CreationKind
+import com.lumen.launcher.social.SocialCreateCoordinator
+import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.ui.theme.Lumen
+import com.lumen.launcher.ui.theme.Outfit
+
+private data class StrokeLine(val path: Path, val color: Color, val width: Float, val erase: Boolean)
+
+@Composable
+fun SocialToolOverlay(
+    tool: SocialCreateTool,
+    coordinator: SocialCreateCoordinator,
+    onClose: () -> Unit
+) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .zIndex(20f)
+    ) {
+        when (tool) {
+            SocialCreateTool.Scribble -> ScribbleScreen(coordinator, onClose)
+            SocialCreateTool.Quote -> QuoteScreen(coordinator, onClose)
+            SocialCreateTool.Photo -> PhotoMarkupScreen(coordinator, onClose)
+        }
+    }
+}
+
+@Composable
+private fun ToolTopBar(title: String, onClose: () -> Unit, onShare: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Outlined.Close, "Close", tint = Lumen.Text, modifier = Modifier
+            .size(28.dp)
+            .clickable(onClick = onClose))
+        Text(
+            title,
+            color = Lumen.Text,
+            fontFamily = Outfit,
+            fontSize = 18.sp,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+        )
+        Icon(Icons.Outlined.Share, "Share", tint = Lumen.Accent, modifier = Modifier
+            .size(26.dp)
+            .clickable(onClick = onShare))
+    }
+}
+
+@Composable
+private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    val strokes = remember { mutableStateListOf<StrokeLine>() }
+    val undo = remember { mutableStateListOf<StrokeLine>() }
+    var current by remember { mutableStateOf<Path?>(null) }
+    var penColor by remember { mutableStateOf(Color.White) }
+    var erasing by remember { mutableStateOf(false) }
+    var bgMode by remember { mutableIntStateOf(0) }
+    var canvasSize by remember { mutableStateOf(IntSize(1080, 1080)) }
+    val bgColors = listOf(
+        Color.Transparent,
+        Color(0xFFF4F0FA),
+        Color(0xFF14121C)
+    )
+    val penColors = listOf(Color.White, Color.Black, Color(0xFFB794F4), Color(0xFFFFD56A))
+
+    fun exportAndShare() {
+        val bmp = renderStrokes(canvasSize.width, canvasSize.height, bgColors[bgMode], strokes)
+        coordinator.saveBitmap(CreationKind.Scribble, bmp) { item ->
+            coordinator.share(coordinator.repository.fileFor(item))
+            onClose()
+        }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar("Scribble", onClose, ::exportAndShare)
+        Row(
+            Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("Clear", "Light", "Dark").forEachIndexed { i, label ->
+                Text(
+                    label,
+                    color = if (bgMode == i) Lumen.OnAccent else Lumen.Muted,
+                    fontSize = 11.sp,
+                    fontFamily = Outfit,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (bgMode == i) Lumen.AccentFill else Color.White.copy(0.08f))
+                        .clickable { bgMode = i }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+        Row(
+            Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Pen", color = if (!erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = false })
+            Text("Eraser", color = if (erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = true })
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = Lumen.Text, modifier = Modifier
+                .size(22.dp)
+                .clickable {
+                    if (strokes.isNotEmpty()) {
+                        undo.add(strokes.removeAt(strokes.lastIndex))
+                    }
+                })
+            Icon(Icons.Outlined.Redo, null, tint = Lumen.Text, modifier = Modifier
+                .size(22.dp)
+                .clickable {
+                    if (undo.isNotEmpty()) strokes.add(undo.removeAt(undo.lastIndex))
+                })
+            Text("Clear", color = Lumen.Faint, modifier = Modifier.clickable {
+                strokes.clear()
+                undo.clear()
+            })
+        }
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            penColors.forEach { c ->
+                Box(
+                    Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(c)
+                        .border(1.dp, Color.White.copy(0.4f), CircleShape)
+                        .clickable { penColor = c; erasing = false }
+                )
+            }
+        }
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(bgColors[bgMode].takeIf { it != Color.Transparent } ?: Color(0xFF1A1028))
+                .border(0.6.dp, Color.White.copy(0.15f), RoundedCornerShape(24.dp))
+                .onSizeChanged { canvasSize = it }
+                .pointerInput(erasing, penColor) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            current = Path().apply { moveTo(offset.x, offset.y) }
+                        },
+                        onDrag = { change, _ ->
+                            current?.lineTo(change.position.x, change.position.y)
+                        },
+                        onDragEnd = {
+                            current?.let { path ->
+                                strokes.add(
+                                    StrokeLine(path, penColor, if (erasing) 28f else 6f, erasing)
+                                )
+                                undo.clear()
+                            }
+                            current = null
+                        },
+                        onDragCancel = { current = null }
+                    )
+                }
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                strokes.forEach { line ->
+                    drawPath(
+                        line.path,
+                        color = if (line.erase) Color.Transparent else line.color,
+                        style = Stroke(line.width, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                        blendMode = if (line.erase) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver
+                    )
+                }
+                current?.let { path ->
+                    drawPath(
+                        path,
+                        color = if (erasing) Color.Transparent else penColor,
+                        style = Stroke(if (erasing) 28f else 6f, cap = StrokeCap.Round),
+                        blendMode = if (erasing) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var template by remember { mutableIntStateOf(0) }
+    val templates = listOf(
+        listOf(Color(0xFF2A1848), Color(0xFF7C3AED), Color.White),
+        listOf(Color(0xFF0F172A), Color(0xFF38BDF8), Color(0xFFE2E8F0)),
+        listOf(Color(0xFF1A0F14), Color(0xFFE879A8), Color(0xFFFFF1F2)),
+        listOf(Color(0xFF102A1E), Color(0xFF34D399), Color(0xFFECFDF5))
+    )
+
+    fun exportAndShare() {
+        val colors = templates[template]
+        val bmp = renderQuoteBitmap(text.ifBlank { "…" }, colors[0], colors[1], colors[2])
+        coordinator.saveBitmap(CreationKind.Quote, bmp) { item ->
+            coordinator.share(coordinator.repository.fileFor(item))
+            onClose()
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        ToolTopBar("Quote", onClose, ::exportAndShare)
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            textStyle = TextStyle(color = Lumen.Text, fontFamily = Outfit, fontSize = 18.sp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(0.08f))
+                .padding(14.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            templates.indices.forEach { i ->
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(templates[i][0], templates[i][1])))
+                        .border(
+                            if (template == i) 2.dp else 0.dp,
+                            Color.White.copy(0.7f),
+                            CircleShape
+                        )
+                        .clickable { template = i }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        val c = templates[template]
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(Brush.verticalGradient(listOf(c[0], c[1])))
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text.ifBlank { "Your quote" },
+                color = c[2],
+                fontFamily = Outfit,
+                fontWeight = FontWeight.Medium,
+                fontSize = 22.sp,
+                lineHeight = 30.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    val context = LocalContext.current
+    var uri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val strokes = remember { mutableStateListOf<StrokeLine>() }
+    var current by remember { mutableStateOf<Path?>(null) }
+    var penColor by remember { mutableStateOf(Color(0xFFFFD56A)) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri = it }
+
+    fun exportAndShare() {
+        val picked = uri ?: return
+        val base = context.contentResolver.openInputStream(picked)?.use {
+            android.graphics.BitmapFactory.decodeStream(it)
+        } ?: return
+        val out = base.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = AndroidCanvas(out)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 8f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        strokes.forEach { line ->
+            paint.color = if (line.erase) android.graphics.Color.TRANSPARENT else line.color.toArgb()
+            canvas.drawPath(line.path.asAndroidPath(), paint)
+        }
+        coordinator.saveBitmap(CreationKind.Photo, out) { item ->
+            coordinator.share(coordinator.repository.fileFor(item))
+            onClose()
+        }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        ToolTopBar("Photo", onClose, ::exportAndShare)
+        if (uri == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Choose photo",
+                    color = Lumen.Accent,
+                    fontFamily = Outfit,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Lumen.AccentFill)
+                        .clickable { picker.launch("image/*") }
+                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                )
+            }
+        } else {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { o -> current = Path().apply { moveTo(o.x, o.y) } },
+                            onDrag = { c, _ -> current?.lineTo(c.position.x, c.position.y) },
+                            onDragEnd = {
+                                current?.let { strokes.add(StrokeLine(it, penColor, 6f, false)) }
+                                current = null
+                            },
+                            onDragCancel = { current = null }
+                        )
+                    }
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = coil.compose.rememberAsyncImagePainter(uri),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Canvas(Modifier.fillMaxSize()) {
+                    strokes.forEach { drawPath(it.path, it.color, style = Stroke(6f, cap = StrokeCap.Round)) }
+                    current?.let { drawPath(it, penColor, style = Stroke(6f, cap = StrokeCap.Round)) }
+                }
+            }
+        }
+    }
+}
+
+private fun renderStrokes(w: Int, h: Int, bg: Color, strokes: List<StrokeLine>): Bitmap {
+    val width = w.coerceAtLeast(512)
+    val height = h.coerceAtLeast(512)
+    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = AndroidCanvas(bmp)
+    if (bg.alpha > 0f) {
+        canvas.drawColor(bg.toArgb())
+    }
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    strokes.forEach { line ->
+        paint.strokeWidth = line.width
+        paint.color = if (line.erase) android.graphics.Color.TRANSPARENT else line.color.toArgb()
+        canvas.drawPath(line.path.asAndroidPath(), paint)
+    }
+    return bmp
+}
+
+private fun renderQuoteBitmap(
+    quote: String,
+    top: Color,
+    bottom: Color,
+    textColor: Color
+): Bitmap {
+    val w = 1080
+    val h = 1080
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val canvas = AndroidCanvas(bmp)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    paint.shader = android.graphics.LinearGradient(
+        0f, 0f, 0f, h.toFloat(),
+        top.toArgb(), bottom.toArgb(),
+        android.graphics.Shader.TileMode.CLAMP
+    )
+    canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+    paint.shader = null
+    paint.color = textColor.toArgb()
+    paint.textSize = 64f
+    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+    val lines = quote.chunked(28)
+    var y = h / 2f - lines.size * 40f
+    lines.forEach { line ->
+        val tw = paint.measureText(line)
+        canvas.drawText(line, (w - tw) / 2f, y, paint)
+        y += 80f
+    }
+    return bmp
+}

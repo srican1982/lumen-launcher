@@ -273,7 +273,7 @@ object AiIntentFallback {
             action, confidence, appName, folderName, module, beforeModule, space,
             enabled, intValue, floatValue, textValue, hour, minute, daily, destructive,
             clarify (array of strings), options (array of the same object).
-            Use null when a field does not apply. space is Home, Work, Personal, Focus, or null.
+            Use null when a field does not apply. space is Home, Work, Social (or Personal), Focus, or null.
         """.trimIndent()
     }
 
@@ -334,7 +334,8 @@ object AiIntentFallback {
         if (raw.isNullOrBlank()) return null
         val value = raw.trim().lowercase()
         if (value == "auto" || value == "automatic" || value == "null") return null
-        return SpaceKind.entries.firstOrNull { it.name.equals(raw.trim(), ignoreCase = true) }
+        return SpaceKind.fromSpeechAlias(raw)
+            ?: SpaceKind.entries.firstOrNull { it.name.equals(raw.trim(), ignoreCase = true) }
     }
 
     private fun JSONObject.optionalString(key: String): String? {

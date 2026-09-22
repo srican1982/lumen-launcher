@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="social_creations" path="social_creations/" />
+    <cache-path name="social_cache" path="." />
+</paths>
