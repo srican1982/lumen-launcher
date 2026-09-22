@@ -397,7 +397,6 @@ fun DrawerSheet(
                             index = alphabetIndex,
                             activeLetter = scrubLetter,
                             scrubbing = scrubbing,
-                            space = state.activeSpace,
                             icons = viewModel.icons,
                             onLetter = ::jumpToLetter,
                             onScrubbingChange = { active ->
@@ -568,40 +567,6 @@ private fun DrawerAppRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
-            .iconContact(
-                key = app.key,
-                allowDrag = true,
-                onPhase = {
-                    phase = it
-                    if (it == IconPhase.Rest) drag = Offset.Zero
-                    onContact(it, drag)
-                },
-                onLaunch = {
-                    scope.launch {
-                        onLaunch()
-                        delay(180)
-                        if (phase == IconPhase.Launching) {
-                            phase = IconPhase.Rest
-                            onContact(IconPhase.Rest, Offset.Zero)
-                        }
-                    }
-                },
-                onLongPress = {
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    onMenu()
-                },
-                onLift = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                },
-                onDrag = {
-                    drag = it
-                    onContact(IconPhase.Dragging, it)
-                },
-                onDragEnd = onDragEnd
-            )
-            .onGloballyPositioned { coords ->
-                onLocated(coords.boundsInWindow().topLeft)
-            }
             .padding(vertical = 8.dp, horizontal = 2.dp)
     ) {
         AppIcon(
@@ -615,13 +580,48 @@ private fun DrawerAppRow(
             } else {
                 phase
             },
-            modifier = Modifier.then(
-                if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
-                    Modifier.graphicsLayer { alpha = 0f }
-                } else {
-                    Modifier
+            modifier = Modifier
+                .then(
+                    if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
+                        Modifier.graphicsLayer { alpha = 0f }
+                    } else {
+                        Modifier
+                    }
+                )
+                .iconContact(
+                    key = app.key,
+                    allowDrag = true,
+                    onPhase = {
+                        phase = it
+                        if (it == IconPhase.Rest) drag = Offset.Zero
+                        onContact(it, drag)
+                    },
+                    onLaunch = {
+                        scope.launch {
+                            onLaunch()
+                            delay(180)
+                            if (phase == IconPhase.Launching) {
+                                phase = IconPhase.Rest
+                                onContact(IconPhase.Rest, Offset.Zero)
+                            }
+                        }
+                    },
+                    onLongPress = {
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        onMenu()
+                    },
+                    onLift = {
+                        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    },
+                    onDrag = {
+                        drag = it
+                        onContact(IconPhase.Dragging, it)
+                    },
+                    onDragEnd = onDragEnd
+                )
+                .onGloballyPositioned { coords ->
+                    onLocated(coords.boundsInWindow().topLeft)
                 }
-            )
         )
         Spacer(Modifier.width(14.dp))
         Text(
