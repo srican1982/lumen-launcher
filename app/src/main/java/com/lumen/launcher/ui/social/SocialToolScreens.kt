@@ -155,7 +155,13 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                     fontFamily = Outfit,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (bgMode == i) Lumen.AccentFill else Color.White.copy(0.08f))
+                        .then(
+                            if (bgMode == i) {
+                                Modifier.background(Lumen.AccentFill, RoundedCornerShape(10.dp))
+                            } else {
+                                Modifier.background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                            }
+                        )
                         .clickable { bgMode = i }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 )
@@ -193,7 +199,7 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                         .size(22.dp)
                         .clip(CircleShape)
                         .background(c)
-                        .border(1.dp, Color.White.copy(0.4f), CircleShape)
+                        .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
                         .clickable { penColor = c; erasing = false }
                 )
             }
@@ -205,7 +211,7 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                 .padding(16.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(bgColors[bgMode].takeIf { it != Color.Transparent } ?: Color(0xFF1A1028))
-                .border(0.6.dp, Color.White.copy(0.15f), RoundedCornerShape(24.dp))
+                .border(0.6.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
                 .onSizeChanged { canvasSize = it }
                 .pointerInput(erasing, penColor) {
                     detectDragGestures(
@@ -279,7 +285,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(0.08f))
+                .background(Color.White.copy(alpha = 0.08f))
                 .padding(14.dp)
         )
         Spacer(Modifier.height(12.dp))
@@ -292,7 +298,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
                         .background(Brush.linearGradient(listOf(templates[i][0], templates[i][1])))
                         .border(
                             if (template == i) 2.dp else 0.dp,
-                            Color.White.copy(0.7f),
+                            Color.White.copy(alpha = 0.7f),
                             CircleShape
                         )
                         .clickable { template = i }

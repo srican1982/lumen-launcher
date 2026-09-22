@@ -72,6 +72,7 @@ class CreationRepository(private val context: Context) {
             }
             .sortedByDescending { it.createdAt }
             .take(MAX_ITEMS)
+            .toList()
 
     private fun encodeIndex(items: List<CreationItem>): String =
         items.joinToString("\n") { "${it.id}|${it.kind.name}|${it.filePath}|${it.createdAt}" }
