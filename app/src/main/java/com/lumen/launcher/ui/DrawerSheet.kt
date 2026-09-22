@@ -429,7 +429,6 @@ fun DrawerSheet(
                             index = alphabetIndex,
                             activeLetter = scrubLetter,
                             scrubbing = scrubbing,
-                            space = state.activeSpace,
                             icons = viewModel.icons,
                             onLetter = ::jumpToLetter,
                             onScrubbingChange = { active ->
