@@ -1,5 +1,6 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -26,17 +27,43 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import com.lumen.launcher.data.IconTreatment
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.lumen.launcher.data.IconCache
 import com.lumen.launcher.ui.theme.Lumen
+import java.io.File
 
 /** Rounded square: straight sides, round corners (not an ellipse). */
 val Squircle: Shape = RoundedCornerShape(percent = 30)
 
 @Composable
+fun SpaceBackdrop(path: String?) {
+    val context = LocalContext.current
+    Crossfade(targetState = path, modifier = Modifier.fillMaxSize(), label = "space-wallpaper") { current ->
+        if (!current.isNullOrBlank()) {
+            val file = File(current)
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(file)
+                    .memoryCacheKey("${file.absolutePath}-${file.lastModified()}")
+                    .crossfade(false)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
 fun AmbientBackdrop() {
+    val glass = LocalGlass.current
     Box(
         Modifier
             .fillMaxSize()
@@ -47,6 +74,7 @@ fun AmbientBackdrop() {
                     1f to Color.Transparent
                 )
             )
+            .background(glass.veil)
     )
 }
 
@@ -58,28 +86,29 @@ fun Glass(
     airy: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
+    val glass = LocalGlass.current
     Box(modifier) {
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .shadow(
-                    elevation = if (airy) 10.dp else 18.dp,
+                    elevation = if (airy) 8.dp else 14.dp,
                     shape = shape,
-                    spotColor = Color(0x66000000),
-                    ambientColor = Color(0x33000000)
+                    spotColor = Color(0x44000000),
+                    ambientColor = Color(0x22000000)
                 )
                 .clip(shape)
                 .background(
                     Brush.verticalGradient(
-                        0f to if (airy) Color(0x4DFFFFFF) else Color(0x73FFFFFF),
-                        1f to if (airy) Color(0x1AFFFFFF) else Color(0x33FFFFFF)
+                        0f to if (airy) glass.airyTop else glass.cardTop,
+                        1f to if (airy) glass.airyBottom else glass.cardBottom
                     )
                 )
                 .border(
                     width = 0.8.dp,
                     brush = Brush.verticalGradient(
-                        0f to Color(0x88FFFFFF),
-                        1f to Color(0x22FFFFFF)
+                        0f to glass.strokeTop,
+                        1f to glass.strokeBottom
                     ),
                     shape = shape
                 ),
@@ -88,11 +117,31 @@ fun Glass(
     }
 }
 
-fun Modifier.glass(shape: Shape = RoundedCornerShape(Lumen.PillRadius)): Modifier = this
-    .shadow(18.dp, shape, spotColor = Color(0x55000000), ambientColor = Color(0x22000000))
+fun Modifier.glass(
+    shape: Shape = RoundedCornerShape(Lumen.PillRadius),
+    colors: GlassColors = GlassColors.OnDark
+): Modifier = this
+    .shadow(14.dp, shape, spotColor = Color(0x44000000), ambientColor = Color(0x22000000))
     .clip(shape)
-    .background(Brush.verticalGradient(0f to Color(0x5AFFFFFF), 1f to Color(0x24FFFFFF)))
-    .border(0.8.dp, Brush.verticalGradient(0f to Color(0x7AFFFFFF), 1f to Color(0x18FFFFFF)), shape)
+    .background(Brush.verticalGradient(0f to colors.filmTop, 1f to colors.filmBottom))
+    .border(
+        0.8.dp,
+        Brush.verticalGradient(0f to colors.strokeTop, 1f to colors.strokeBottom),
+        shape
+    )
+
+/** Small controls need an edge of their own once the wallpaper turns bright. */
+fun Modifier.glassPill(
+    shape: Shape = RoundedCornerShape(Lumen.PillRadius),
+    colors: GlassColors = GlassColors.OnDark
+): Modifier = this
+    .clip(shape)
+    .background(colors.pill)
+    .border(
+        0.8.dp,
+        Brush.verticalGradient(0f to colors.strokeTop, 1f to colors.strokeBottom),
+        shape
+    )
 
 fun Modifier.denseGlass(shape: Shape = RoundedCornerShape(Lumen.SheetRadius)): Modifier = this
     .shadow(24.dp, shape, spotColor = Color(0x66000000), ambientColor = Color(0x33000000))
@@ -120,10 +169,11 @@ fun AppIcon(
         bitmap = icons.get(packageName, activityName)
     }
     val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
+    val treatment = LocalIconTreatment.current
     if (phase == IconPhase.Rest) {
-        RestAppIcon(bitmap, size, iconShape, modifier)
+        RestAppIcon(bitmap, size, iconShape, treatment, modifier)
     } else {
-        MotionAppIcon(bitmap, size, iconShape, phase, modifier)
+        MotionAppIcon(bitmap, size, iconShape, phase, treatment, modifier)
     }
 }
 
@@ -132,6 +182,7 @@ private fun RestAppIcon(
     bitmap: ImageBitmap?,
     size: Dp,
     iconShape: Shape,
+    treatment: IconTreatment,
     modifier: Modifier
 ) {
     Box(modifier = modifier.size(size)) {
@@ -140,13 +191,28 @@ private fun RestAppIcon(
                 bitmap = bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = iconColorFilter(treatment),
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        shadowElevation = 8f
+                        shadowElevation = iconElevation(treatment, 8f)
                         shape = iconShape
                         clip = true
                     }
+                    .then(
+                        if (iconHasGlass(treatment)) {
+                            Modifier.border(
+                                width = 0.8.dp,
+                                brush = Brush.verticalGradient(
+                                    0f to Color.White.copy(alpha = if (treatment == IconTreatment.Contrast) 0.62f else 0.38f),
+                                    1f to Color.White.copy(alpha = 0.10f)
+                                ),
+                                shape = iconShape
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
             )
         } else {
             Box(Modifier.fillMaxSize().clip(iconShape).background(Color.White.copy(alpha = 0.16f)))
@@ -160,6 +226,7 @@ private fun MotionAppIcon(
     size: Dp,
     iconShape: Shape,
     phase: IconPhase,
+    treatment: IconTreatment,
     modifier: Modifier
 ) {
     val motion = when (phase) {
@@ -240,7 +307,7 @@ private fun MotionAppIcon(
                     scaleX = animScale
                     scaleY = animScale
                     translationY = dropY
-                    shadowElevation = elev
+                    shadowElevation = iconElevation(treatment, elev)
                     this.shape = iconShape
                     clip = false
                 }
@@ -250,6 +317,7 @@ private fun MotionAppIcon(
                     bitmap = bitmap!!,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    colorFilter = iconColorFilter(treatment),
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(iconShape)

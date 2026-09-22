@@ -2,12 +2,14 @@ package com.lumen.launcher.ui
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
@@ -77,6 +79,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
@@ -92,7 +95,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.DockApp
 import com.lumen.launcher.data.IconCache
@@ -366,6 +371,11 @@ fun HomeScreen(
                 userScrollEnabled = !editing,
                 verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
+                if (state.smartCluster && !editing && state.clusterApps.isNotEmpty()) {
+                    item(key = "smart-cluster", span = { GridItemSpan(state.gridColumns) }) {
+                        SmartClusterCard(state, viewModel)
+                    }
+                }
                 item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
                     val lead = state.homeApps.filter { it.key !in state.folderAppKeys }.take(4)
                     Row(
@@ -645,6 +655,78 @@ private fun ActionBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SmartClusterCard(
+    state: LauncherUiState,
+    viewModel: LauncherViewModel,
+    modifier: Modifier = Modifier
+) {
+    val apps = state.clusterApps
+    val kicker = if (state.focusing) "FOCUS" else state.activeSpace.title.uppercase()
+    Glass(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), airy = true) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(
+                kicker,
+                color = Lumen.Accent,
+                fontFamily = Outfit,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                "Apps that matter now",
+                color = Lumen.Faint,
+                fontFamily = Outfit,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
+            )
+            Crossfade(targetState = "${state.activeSpace.name}:${state.focusing}", label = "cluster") {
+                ClusterRing(apps = state.clusterApps, viewModel = viewModel)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ClusterRing(apps: List<AppInfo>, viewModel: LauncherViewModel) {
+    val count = apps.size.coerceAtLeast(1)
+    Box(
+        modifier = Modifier.fillMaxWidth().height(168.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(148.dp)) {
+            val radius = size.minDimension / 2f - 6f
+            drawCircle(Color.White.copy(alpha = 0.05f), radius = radius)
+            drawCircle(
+                color = Color.White.copy(alpha = 0.16f),
+                radius = radius,
+                style = Stroke(width = 1.2.dp.toPx())
+            )
+        }
+        apps.forEachIndexed { index, app ->
+            val angle = Math.toRadians((-90.0 + 360.0 * index / count))
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = (cos(angle) * 58.0).toFloat().dp,
+                        y = (sin(angle) * 58.0).toFloat().dp
+                    )
+                    .size(40.dp)
+                    .iconContact(
+                        key = app.key,
+                        allowDrag = false,
+                        onPhase = {},
+                        onLaunch = { viewModel.launch(app) },
+                        onLongPress = { viewModel.showAppActions(app) }
+                    )
+            ) {
+                AppIcon(app.packageName, app.activityName, 40.dp, viewModel.icons)
+            }
+        }
+    }
+}
+
 @Composable
 private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
     val left = ((state.focusUntil - System.currentTimeMillis()).coerceAtLeast(0L) / 60000L).toInt()
@@ -683,7 +765,7 @@ private fun HomeSetupCard(onSetDefault: () -> Unit) {
             .fillMaxWidth()
             .padding(top = 16.dp)
             .clip(RoundedCornerShape(22.dp))
-            .glass(RoundedCornerShape(22.dp))
+            .glass(RoundedCornerShape(22.dp), LocalGlass.current)
             .clickable(onClick = onSetDefault)
             .padding(16.dp)
     ) {
@@ -729,7 +811,7 @@ private fun OverlayWarningCard(
             .fillMaxWidth()
             .padding(top = 12.dp)
             .clip(RoundedCornerShape(22.dp))
-            .glass(RoundedCornerShape(22.dp))
+            .glass(RoundedCornerShape(22.dp), LocalGlass.current)
             .padding(16.dp)
     ) {
         Text(
@@ -771,7 +853,7 @@ fun PrivateLockCard(onUnlock: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .glass(RoundedCornerShape(24.dp))
+            .glass(RoundedCornerShape(24.dp), LocalGlass.current)
             .clickable(onClick = onUnlock)
             .padding(20.dp),
         verticalArrangement = Arrangement.Center
@@ -1018,7 +1100,7 @@ private fun ListedAppOrb(
                 ambientColor = ListedGold.copy(alpha = 0.10f)
             )
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(LocalGlass.current.pill)
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(

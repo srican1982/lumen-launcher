@@ -63,7 +63,7 @@ fun Modifier.iconContact(
                     if (!change.pressed || change.changedToUpIgnoreConsumed()) {
                         return@withTimeoutOrNull "up"
                     }
-                    if ((finger - down.position).getDistance() > slop) {
+                    if ((finger - down.position).getDistance() > slop * 2.25f) {
                         return@withTimeoutOrNull "swipe"
                     }
                 }

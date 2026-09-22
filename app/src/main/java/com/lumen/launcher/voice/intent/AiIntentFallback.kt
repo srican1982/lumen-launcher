@@ -1,13 +1,12 @@
 package com.lumen.launcher.voice.intent
 
+import com.lumen.launcher.data.LlmClient
 import com.lumen.launcher.data.SpaceKind
 import com.lumen.launcher.flow.flowModuleFromSpeech
 import com.lumen.launcher.search.FuzzySearch
 import com.lumen.launcher.search.VoiceMatch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Gemini turns leftover speech into a Lumen action or a spoken answer.
@@ -17,6 +16,10 @@ object AiIntentFallback {
 
     const val MODEL = "gemini-3-flash-preview"
     private val models = listOf(MODEL, "gemini-2.5-flash")
+    private val openRouterModels = listOf(
+        "google/gemini-2.5-flash",
+        "google/gemini-2.0-flash-001"
+    )
 
     private val destructive = setOf(
         VoiceAction.REMOVE_FROM_DOCK,
@@ -53,11 +56,11 @@ object AiIntentFallback {
 
     fun spokenError(error: Error): String {
         return when (error) {
-            Error.NO_KEY -> "Add a Gemini API key in Lumen settings so I can understand more."
-            Error.UNAUTHORIZED -> "That Gemini key isn't working. Check it in Lumen settings."
-            Error.QUOTA -> "Gemini is out of quota right now. Try again in a bit."
+            Error.NO_KEY -> "Add a Gemini or OpenRouter key in Lumen settings so I can understand more."
+            Error.UNAUTHORIZED -> "That API key isn't working. Save it again in Lumen settings."
+            Error.QUOTA -> "The model is out of quota right now. Try again in a bit."
             Error.OFFLINE -> "I need a network to think that through."
-            Error.MODEL -> "Gemini isn't available on this key yet. Try again, or check the model in settings later."
+            Error.MODEL -> "That key's model isn't available right now. Try again, or check the key in settings."
             Error.EMPTY -> "I heard you, but I didn't get a usable answer back."
         }
     }
@@ -73,25 +76,81 @@ object AiIntentFallback {
         if (apiKey.isBlank()) return Outcome.Failed(Error.NO_KEY)
         val said = candidates.firstOrNull { it.isNotBlank() } ?: return Outcome.Failed(Error.EMPTY)
         val saidContext = context.copy(transcripts = candidates.filter { it.isNotBlank() })
+        return if (LlmClient.kind(apiKey) == LlmClient.Kind.OpenRouter) {
+            interpretOpenRouter(apiKey, said, saidContext, context.apps)
+        } else {
+            interpretGemini(apiKey, said, saidContext, context.apps)
+        }
+    }
+
+    private fun interpretGemini(
+        apiKey: String,
+        said: String,
+        saidContext: Context,
+        apps: List<String>
+    ): Outcome {
         var last = Error.EMPTY
         for (model in models) {
             for (body in requestBodies(said, saidContext, model)) {
-                val reply = post(apiKey, body, model) ?: return Outcome.Failed(Error.OFFLINE)
-                when {
-                    reply.code in 200..299 -> {
-                        val text = extractText(reply.body) ?: continue
-                        val intent = parse(text, said, context.apps)
-                            ?: VoiceIntent(VoiceAction.ANSWER, 0.72f, said, textValue = spokenFallback(text))
-                        return Outcome.Ok(intent)
+                val reply = LlmClient.postGemini(apiKey, model, body) ?: return Outcome.Failed(Error.OFFLINE)
+                when (val outcome = readReply(reply, said, apps, last)) {
+                    is Outcome.Ok -> return outcome
+                    is Outcome.Failed -> {
+                        if (outcome.error == Error.UNAUTHORIZED || outcome.error == Error.QUOTA) {
+                            return outcome
+                        }
+                        last = outcome.error
                     }
-                    reply.code == 401 || reply.code == 403 -> return Outcome.Failed(Error.UNAUTHORIZED)
-                    reply.code == 429 -> return Outcome.Failed(Error.QUOTA)
-                    reply.code == 404 -> last = Error.MODEL
-                    else -> last = Error.MODEL
                 }
             }
         }
         return Outcome.Failed(last)
+    }
+
+    private fun interpretOpenRouter(
+        apiKey: String,
+        said: String,
+        saidContext: Context,
+        apps: List<String>
+    ): Outcome {
+        val prompt = requestPrompt(said, saidContext)
+        var last = Error.EMPTY
+        for (model in openRouterModels) {
+            for (json in listOf(true, false)) {
+                val reply = LlmClient.postOpenRouter(apiKey, model, prompt, json, 2048)
+                    ?: return Outcome.Failed(Error.OFFLINE)
+                when (val outcome = readReply(reply, said, apps, last)) {
+                    is Outcome.Ok -> return outcome
+                    is Outcome.Failed -> {
+                        if (outcome.error == Error.UNAUTHORIZED || outcome.error == Error.QUOTA) {
+                            return outcome
+                        }
+                        last = outcome.error
+                    }
+                }
+            }
+        }
+        return Outcome.Failed(last)
+    }
+
+    private fun readReply(
+        reply: LlmClient.Reply,
+        said: String,
+        apps: List<String>,
+        last: Error
+    ): Outcome {
+        return when {
+            reply.code in 200..299 -> {
+                val text = extractText(reply.body) ?: return Outcome.Failed(Error.EMPTY)
+                val intent = parse(text, said, apps)
+                    ?: VoiceIntent(VoiceAction.ANSWER, 0.72f, said, textValue = spokenFallback(text))
+                Outcome.Ok(intent)
+            }
+            reply.code == 401 || reply.code == 403 -> Outcome.Failed(Error.UNAUTHORIZED)
+            reply.code == 429 -> Outcome.Failed(Error.QUOTA)
+            reply.code == 404 -> Outcome.Failed(Error.MODEL)
+            else -> Outcome.Failed(if (last == Error.EMPTY) Error.MODEL else last)
+        }
     }
 
     fun parse(raw: String, original: String, appLabels: List<String> = emptyList()): VoiceIntent? {
@@ -247,51 +306,7 @@ object AiIntentFallback {
         return payload
     }
 
-    private data class Reply(val code: Int, val body: String)
-
-    private fun post(apiKey: String, body: String, model: String): Reply? {
-        val url = URL(
-            "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
-        )
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 8_000
-            readTimeout = 18_000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("x-goog-api-key", apiKey)
-        }
-        return try {
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader()?.readText().orEmpty()
-            Reply(code, text)
-        } catch (_: Exception) {
-            null
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    internal fun extractText(raw: String): String? {
-        val root = jsonObject(raw) ?: return raw.takeIf { it.isNotBlank() }
-        val parts = root.optJSONArray("candidates")
-            ?.optJSONObject(0)
-            ?.optJSONObject("content")
-            ?.optJSONArray("parts")
-        if (parts == null) {
-            return raw.takeIf { it.contains("\"action\"") || looksLikeSpeech(raw) }
-        }
-        val texts = (0 until parts.length()).mapNotNull { index ->
-            val part = parts.optJSONObject(index) ?: return@mapNotNull null
-            if (part.optBoolean("thought") || part.optBoolean("thoughts")) return@mapNotNull null
-            part.optString("text").trim().takeIf { it.isNotBlank() }
-        }
-        texts.firstOrNull { it.contains("\"action\"") }?.let { return it }
-        val joined = texts.joinToString("\n").trim()
-        return joined.takeIf { it.isNotBlank() }
-    }
+    internal fun extractText(raw: String): String? = LlmClient.extractText(raw)
 
     private fun spokenFallback(text: String): String {
         val cleaned = text
@@ -299,11 +314,6 @@ object AiIntentFallback {
             .replace(Regex("\\s+"), " ")
             .trim()
         return cleaned.take(220).ifBlank { "I heard you, but I couldn't turn that into an action." }
-    }
-
-    private fun looksLikeSpeech(raw: String): Boolean {
-        val trimmed = raw.trim()
-        return trimmed.isNotBlank() && !trimmed.startsWith("{") && trimmed.length < 400
     }
 
     private fun jsonObject(raw: String): JSONObject? {

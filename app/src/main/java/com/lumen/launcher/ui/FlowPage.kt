@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -55,8 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -164,13 +167,33 @@ fun FlowPage(
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
-                Text("Flow", color = Lumen.Accent, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 42.sp)
-                Text(greeting, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 22.sp, modifier = Modifier.padding(top = 2.dp))
-                Text("Here's what matters right now.", color = Lumen.Faint, fontFamily = Outfit, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    "Flow",
+                    color = Color(0xFFE9D5FF),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Light,
+                    fontSize = 44.sp,
+                    letterSpacing = (-0.5).sp
+                )
+                Text(
+                    greeting,
+                    color = Lumen.Text,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    "Here's what matters right now.",
+                    color = Color.White.copy(alpha = 0.62f),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Light,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FlowRoundIcon(Icons.Outlined.AutoAwesome) { viewModel.openCapture() }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FlowRoundIcon(Icons.Outlined.PersonOutline) { viewModel.openSettings() }
                     FlowRoundIcon(Icons.Outlined.Settings) { viewModel.openSettings() }
                 }
@@ -201,14 +224,14 @@ fun FlowPage(
             FocusFlowCard(state, viewModel)
         }
         state.upNext?.let { item ->
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             UpNextCard(item) { viewModel.openUpNext(item) }
         }
         modules.forEach { module ->
             when (module) {
                 FlowModule.Alarms -> {
                     if (state.upcomingAlarms.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         AlarmsCard(state.upcomingAlarms.take(3), viewModel)
                     }
                 }
@@ -216,38 +239,38 @@ fun FlowPage(
                     val event = state.upcomingEvents.firstOrNull() ?: state.nextEvent
                     val same = event != null && state.upNext?.event?.id == event.id && event.id != 0L
                     if (event != null && !same) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         NextCard(event) { viewModel.openCalendarEvent(event) }
                     }
                 }
                 FlowModule.Missed -> {
                     if (state.missedCalls.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         MissedCallsCard(state.missedCalls.take(3), viewModel::callBack, viewModel::openCallLog)
                     }
                 }
                 FlowModule.Inbox -> {
                     val mail = state.inbox.filterNot { it.isDigest }
                     if (mail.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         InboxCard(mail.take(2), mail.size, state.inboxDigest, viewModel, state.apps)
                     }
                 }
                 FlowModule.Weather -> {
                     state.weather?.let {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         WeatherCard(it)
                     }
                 }
                 FlowModule.Review -> {
                     if (state.dailyReview.visible) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         ReviewCard(state, viewModel)
                     }
                 }
                 FlowModule.Later -> {
                     if (state.later.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         LaterCard(state, viewModel)
                     }
                 }
@@ -257,13 +280,13 @@ fun FlowPage(
                 }
                 FlowModule.NeedNow -> {
                     if (state.needNowHints.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         NeedNowCard(state.needNowHints, viewModel)
                     }
                 }
                 FlowModule.Continue -> {
                     continueApp?.let {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         ContinueCard(
                             app = it,
                             lastUsedAt = state.launchTimes[it.key],
@@ -274,13 +297,13 @@ fun FlowPage(
                 }
                 FlowModule.Reminders -> {
                     if (state.openTasks.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         RemindersCard(state.openTasks.take(3), state.openTasks.size, viewModel::completeTask, viewModel::openTodoList)
                     }
                 }
                 FlowModule.News -> {
                     if (news.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         NewsCard(
                             items = news,
                             topics = state.selectedNewsTopics.joinToString(" · ") { it.title },
@@ -291,19 +314,36 @@ fun FlowPage(
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
+        val glass = LocalGlass.current
         Row(
             modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.12f))
+                .fillMaxWidth()
+                .glass(RoundedCornerShape(28.dp), glass)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF4A2D75).copy(alpha = 0.45f),
+                            Color(0xFF2A1848).copy(alpha = 0.35f)
+                        )
+                    )
+                )
                 .clickable { personalize = true }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.Tune, null, tint = Lumen.Accent, modifier = Modifier.size(15.dp))
-            Text("Personalize Flow", color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-            Icon(Icons.Outlined.ChevronRight, null, tint = Lumen.Faint, modifier = Modifier.size(15.dp))
+            Icon(Icons.Outlined.Tune, null, tint = Color(0xFFE9D5FF), modifier = Modifier.size(18.dp))
+            Text(
+                "Personalize Flow",
+                color = Lumen.Text,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            )
+            Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -311,27 +351,61 @@ fun FlowPage(
 
 @Composable
 private fun FlowRoundIcon(icon: ImageVector, onClick: () -> Unit) {
+    val glass = LocalGlass.current
     Box(
         modifier = Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .size(42.dp)
+            .glassPill(CircleShape, glass)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(20.dp))
     }
 }
 
 @Composable
-private fun FlowCard(content: @Composable () -> Unit) {
-    Column(
+private fun Modifier.flowWell(): Modifier {
+    val glass = LocalGlass.current
+    val shape = RoundedCornerShape(18.dp)
+    return clip(shape)
+        .background(glass.well)
+        .border(
+            0.6.dp,
+            Brush.verticalGradient(0f to glass.strokeTop.copy(alpha = 0.55f), 1f to glass.strokeBottom),
+            shape
+        )
+}
+
+@Composable
+private fun FlowCard(
+    tint: Color? = null,
+    content: @Composable () -> Unit
+) {
+    val glass = LocalGlass.current
+    val shape = RoundedCornerShape(28.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.10f))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) { content() }
+            .glass(shape, glass)
+    ) {
+        if (tint != null) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(shape)
+                    .background(
+                        Brush.verticalGradient(
+                            0f to tint.copy(alpha = 0.26f),
+                            0.55f to tint.copy(alpha = 0.12f),
+                            1f to tint.copy(alpha = 0.04f)
+                        )
+                    )
+            )
+        }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            content()
+        }
+    }
 }
 
 @Composable
@@ -346,12 +420,13 @@ private fun LeadIcon(
     } else {
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(background),
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(background)
+                .border(0.5.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -378,13 +453,13 @@ private fun SeeAll(onClick: () -> Unit) {
 
 @Composable
 private fun ActionPill(onClick: () -> Unit, content: @Composable () -> Unit) {
+    val glass = LocalGlass.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .glassPill(RoundedCornerShape(18.dp), glass)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 9.dp)
     ) { content() }
 }
 
@@ -450,14 +525,18 @@ private fun NextCard(
     onClick: () -> Unit
 ) {
     val away = minutesAway(event.begin)
-    FlowCard {
+    FlowCard(tint = Color(0xFF6D3FA8)) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LeadIcon(Icons.Outlined.CalendarMonth)
+            LeadIcon(
+                Icons.Outlined.CalendarMonth,
+                tint = Color.White,
+                background = Color(0xFF7C3AED).copy(alpha = 0.85f)
+            )
             Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {
                 Kicker("NEXT")
                 Text(
@@ -501,21 +580,33 @@ private fun NextCard(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Lumen.Accent.copy(alpha = 0.22f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF9B5DE5), Color(0xFF7C3AED))
+                        )
+                    )
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 if (away.first != null) {
-                    Text(away.first!!, color = Lumen.Accent, fontFamily = Outfit, fontSize = 10.sp)
+                    Text(away.first!!, color = Color.White.copy(alpha = 0.85f), fontFamily = Outfit, fontSize = 10.sp)
                 }
                 Text(
                     away.second,
-                    color = Lumen.Accent,
+                    color = Color.White,
                     fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                     fontSize = 13.sp
                 )
             }
+            Icon(
+                Icons.Outlined.ChevronRight,
+                null,
+                tint = Color.White.copy(alpha = 0.45f),
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(18.dp)
+            )
         }
     }
 }
@@ -550,8 +641,7 @@ private fun MissedCallsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .flowWell()
                     .clickable { onCall(call) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -694,8 +784,7 @@ private fun InboxCard(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .flowWell()
                         .clickable { viewModel.openInboxItem(item) }
                         .padding(8.dp),
                     verticalAlignment = Alignment.Top
@@ -747,9 +836,13 @@ private fun InboxCard(
 
 @Composable
 private fun WeatherCard(weather: WeatherSnapshot) {
-    FlowCard {
+    FlowCard(tint = Color(0xFF1F6B52)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            LeadIcon(weatherGlyph(weather.summary), tint = Color(0xFFFFD56A))
+            LeadIcon(
+                weatherGlyph(weather.summary),
+                tint = Color(0xFFFFE08A),
+                background = Color(0xFF2D8B66).copy(alpha = 0.75f)
+            )
             Column(Modifier.padding(start = 10.dp, end = 8.dp)) {
                 Kicker("WEATHER")
                 Text(
@@ -1085,8 +1178,7 @@ private fun NewsCard(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .flowWell()
                         .clickable { onOpen(item) }
                 ) {
                     Box(
