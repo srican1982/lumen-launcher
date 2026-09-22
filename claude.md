@@ -15,6 +15,7 @@ Lumen is an Android home-screen launcher built with Jetpack Compose. It combines
 | `app/src/main/java/com/lumen/launcher/alarm/` | Alarms and scheduling |
 | `app/src/test/java/` | Unit tests (JUnit + Truth) |
 | `site/` | Static landing page (HTML/CSS/JS) for GitHub Pages |
+| `Lumen.apk` | Prebuilt debug APK committed on the `Site` branch for download |
 
 Entry points: `LauncherActivity.kt`, `LumenApp.kt`, root composable `ui/LauncherRoot.kt`.
 
@@ -42,7 +43,15 @@ From repo root (Windows or Unix):
 ./gradlew :app:testDebugUnitTest
 ```
 
-Install debug APK after assemble: `app/build/outputs/apk/debug/`.
+Install debug APK after assemble: `app/build/outputs/apk/debug/app-debug.apk`.
+
+For a shareable build on GitHub, copy the debug APK to the repo root as `Lumen.apk` (this path is gitignored-excepted; other `*.apk` / `*.aab` stay ignored):
+
+```bash
+cp app/build/outputs/apk/debug/app-debug.apk Lumen.apk
+```
+
+Download of the committed binary: `https://github.com/srican1982/lumen-launcher/raw/Site/Lumen.apk`
 
 ## Secrets and local config
 
@@ -57,13 +66,14 @@ Install debug APK after assemble: `app/build/outputs/apk/debug/`.
 1. **Minimize scope** — match existing naming, file placement, and Compose style in neighboring code.
 2. **No drive-by refactors** — especially in `LauncherViewModel.kt` (large file); touch only what the task needs.
 3. **Tests** — add or update unit tests under `app/src/test/` for non-trivial logic in `data/`, `search/`, and `voice/intent/`.
-4. **Do not commit** — `tmp/`, `app/build/`, keystores, or `local.properties`.
+4. **Do not commit** — `tmp/`, `app/build/`, keystores, or `local.properties`. Do commit root `Lumen.apk` when refreshing the public debug build.
 5. **Marketing site** — keep `site/` self-contained; assets live under `site/img/`.
 
 ## Git / GitHub
 
 - Remote: `https://github.com/srican1982/lumen-launcher.git`
-- Active feature branch is often `Site` (includes `site/` and recent UI work); `main` is the default integration branch.
+- Active feature branch is often `Site` (includes `site/`, `Lumen.apk`, and recent UI work); `main` is the default integration branch.
+- `Lumen.apk` is tracked via a `.gitignore` exception (`*.apk` + `!Lumen.apk`). Refresh and push it after meaningful launcher builds.
 - Commit messages: short imperative sentence describing *why*, consistent with existing history.
 
 ## Product vocabulary
