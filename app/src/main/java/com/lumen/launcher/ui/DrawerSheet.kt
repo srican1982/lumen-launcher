@@ -3,6 +3,8 @@ package com.lumen.launcher.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,18 +19,15 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MicNone
@@ -41,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,27 +51,39 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.lumen.launcher.data.AlphabetIndex
+import com.lumen.launcher.data.AppCategory
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.IconCache
 import com.lumen.launcher.search.FuzzySearch
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
-import com.lumen.launcher.vm.DrawerFilter
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import android.view.HapticFeedbackConstants
+
+private enum class DrawerTab(val label: String) {
+    AZ("A-Z"),
+    MOST_USED("Most used"),
+    CATEGORIES("Categories"),
+    RECENT("Recent")
+}
 
 @Composable
 fun DrawerSheet(
@@ -79,6 +91,7 @@ fun DrawerSheet(
     viewModel: LauncherViewModel,
     onDismiss: () -> Unit
 ) {
+    var selectedDrawerTab by remember { mutableStateOf(DrawerTab.AZ) }
     var dragApp by remember { mutableStateOf<AppInfo?>(null) }
     var dragPhase by remember { mutableStateOf(IconPhase.Rest) }
     var dragDelta by remember { mutableStateOf(Offset.Zero) }
@@ -93,28 +106,47 @@ fun DrawerSheet(
     val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
     var drawerQuery by remember { mutableStateOf("") }
     val query = drawerQuery.trim()
-    val sections = remember(state.drawerSections, query, state.aliases) {
-        if (query.isBlank()) state.drawerSections
-        else {
-            val normalized = FuzzySearch.normalize(query)
-            val aliasKey = state.aliases[normalized]
-            state.drawerSections.map { (title, apps) ->
-                title to apps.map { app ->
-                    val score = maxOf(
-                        FuzzySearch.score(query, app.label),
-                        if (app.key == aliasKey) 1200 else 0,
-                        if (normalized.length >= 4 &&
-                            app.packageName.contains(normalized.replace(" ", ""), ignoreCase = true)
-                        ) 620 else 0
-                    )
-                    app to score
-                }.filter { it.second >= 300 }
-                    .sortedByDescending { it.second }
-                    .map { it.first }
-            }.filter { it.second.isNotEmpty() }
-        }
+    val azBase = remember(state.visibleApps, state.activeSpace, state.recents) {
+        AlphabetIndex.buildAz(
+            apps = state.visibleApps,
+            space = state.activeSpace,
+            recents = state.recents
+        )
     }
-    val showRecents = query.isBlank() && state.recentApps.isNotEmpty() && state.drawerFilter == DrawerFilter.Az
+    val azSections = remember(azBase, query, state.aliases) {
+        filterSections(azBase.first, query, state.aliases)
+    }
+    val recentSections = remember(state.recentApps, query, state.aliases) {
+        filterSections(listOf("Recent" to state.recentApps), query, state.aliases)
+    }
+    val categorySectionsBase = remember(state.visibleApps) {
+        categorySections(state.visibleApps)
+    }
+    val categorySectionsFiltered = remember(categorySectionsBase, query, state.aliases) {
+        filterSections(categorySectionsBase, query, state.aliases)
+    }
+    val displaySections = when (selectedDrawerTab) {
+        DrawerTab.AZ -> azSections
+        DrawerTab.RECENT -> recentSections
+        DrawerTab.CATEGORIES -> categorySectionsFiltered
+        DrawerTab.MOST_USED -> emptyList()
+    }
+    val showAlphabet = selectedDrawerTab == DrawerTab.AZ && query.isBlank()
+    val alphabetIndex = remember(azSections, showAlphabet, azBase) {
+        if (!showAlphabet) AlphabetIndex.build(emptyList())
+        else AlphabetIndex.build(azSections, leadingItems = 0)
+            .copy(spaceBoosted = azBase.second.spaceBoosted)
+    }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var scrubLetter by remember { mutableStateOf<Char?>(null) }
+    var scrubbing by remember { mutableStateOf(false) }
+
+    fun jumpToLetter(letter: Char) {
+        scrubLetter = letter
+        val target = alphabetIndex.firstVisibleIndex(letter) ?: return
+        scope.launch { listState.scrollToItem(target) }
+    }
 
     fun dropPoint(delta: Offset = dragDelta): Offset {
         return liftWindow + delta + Offset(iconPx / 2f, iconPx / 2f)
@@ -167,7 +199,6 @@ fun DrawerSheet(
             dragPhase = phase
             dragDelta = drag
         }
-        if (phase == IconPhase.Lifted) viewModel.showAppActions(app)
         if (phase == IconPhase.Dragging) {
             dropArmed = overPad(drag)
             viewModel.dismissPopups()
@@ -308,109 +339,74 @@ fun DrawerSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(DrawerFilter.entries.toList()) { filter ->
-                    val active = state.drawerFilter == filter
-                    val label = when (filter) {
-                        DrawerFilter.Az -> "A-Z"
-                        DrawerFilter.MostUsed -> "Most used"
-                        DrawerFilter.Categories -> "Categories"
+            Spacer(Modifier.height(14.dp))
+            DrawerTabRow(
+                selected = selectedDrawerTab,
+                onSelect = { selectedDrawerTab = it }
+            )
+            Spacer(Modifier.height(12.dp))
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (selectedDrawerTab == DrawerTab.MOST_USED) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Most used is coming soon",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontFamily = Outfit,
+                            fontSize = 15.sp
+                        )
                     }
-                    Text(
-                        text = label,
-                        color = if (active) Lumen.OnAccent else Color.White.copy(alpha = 0.9f),
-                        fontSize = 14.sp,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
+                } else {
+                    LazyColumn(
+                        state = listState,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(50.dp))
-                            .then(
-                                if (active) Modifier.background(Color(0xFFE6D4FA))
-                                else Modifier
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(50.dp))
-                            )
-                            .clickable { viewModel.selectDrawerFilter(filter) }
-                            .padding(horizontal = 18.dp, vertical = 10.dp)
-                    )
-                }
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(state.drawerColumns),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 28.dp, top = 8.dp),
-                userScrollEnabled = !holding,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (showRecents) {
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-h") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 18.dp, bottom = 10.dp)
-                                .clickable { viewModel.selectDrawerFilter(DrawerFilter.MostUsed) },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "RECENTLY USED",
-                                color = Color.White.copy(alpha = 0.42f),
-                                fontSize = 11.sp,
-                                fontFamily = Outfit,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 1.8.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.38f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "recently-used-row") {
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            state.recentApps.take(5).forEach { app ->
-                                DrawerAppIcon(
+                            .fillMaxSize()
+                            .padding(end = 20.dp),
+                        contentPadding = PaddingValues(bottom = 28.dp, top = 4.dp),
+                        userScrollEnabled = !holding && !scrubbing
+                    ) {
+                        displaySections.forEach { (title, apps) ->
+                            if (apps.isEmpty()) return@forEach
+                            item(key = "h-${selectedDrawerTab.name}-$title") {
+                                Text(
+                                    title,
+                                    color = Color.White.copy(alpha = 0.72f),
+                                    fontSize = 26.sp,
+                                    fontFamily = Outfit,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.5.sp,
+                                    modifier = Modifier.padding(top = 18.dp, bottom = 10.dp)
+                                )
+                            }
+                            items(apps, key = { "${selectedDrawerTab.name}-${it.key}" }) { app ->
+                                DrawerAppRow(
                                     app = app,
-                                    iconSize = 58.dp,
                                     icons = viewModel.icons,
                                     dimmed = moving && dragApp?.key != app.key,
+                                    lifted = holding && dragApp?.key == app.key,
                                     onLaunch = { viewModel.launch(app) },
                                     onMenu = { viewModel.showAppActions(app) },
                                     onLocated = { slotWindows[app.key] = it },
                                     onContact = { phase, drag -> onContact(app, phase, drag) },
-                                    onDragEnd = { finishDrag(app) },
-                                    modifier = Modifier.weight(1f)
+                                    onDragEnd = { finishDrag(app) }
                                 )
                             }
                         }
                     }
-                }
-                sections.forEach { (title, apps) ->
-                    if (apps.isEmpty()) return@forEach
-                    item(span = { GridItemSpan(state.drawerColumns) }, key = "h-$title") {
-                        Text(
-                            title,
-                            color = Color.White.copy(alpha = 0.42f),
-                            fontSize = 13.sp,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 4.dp)
-                        )
-                    }
-                    items(apps, key = { it.key }) { app ->
-                        DrawerAppIcon(
-                            app = app,
-                            iconSize = 58.dp,
+                    if (showAlphabet && alphabetIndex.available.isNotEmpty()) {
+                        AlphabetRail(
+                            index = alphabetIndex,
+                            activeLetter = scrubLetter,
+                            scrubbing = scrubbing,
+                            space = state.activeSpace,
                             icons = viewModel.icons,
-                            dimmed = moving && dragApp?.key != app.key,
-                            onLaunch = { viewModel.launch(app) },
-                            onMenu = { viewModel.showAppActions(app) },
-                            onLocated = { slotWindows[app.key] = it },
-                            onContact = { phase, drag -> onContact(app, phase, drag) },
-                            onDragEnd = { finishDrag(app) }
+                            onLetter = ::jumpToLetter,
+                            onScrubbingChange = { active ->
+                                scrubbing = active
+                                if (!active) scrubLetter = null
+                            },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .zIndex(4f)
                         )
                     }
                 }
@@ -461,36 +457,181 @@ fun DrawerSheet(
     }
 }
 
+/** Applies the drawer search query to any (title, apps) section list — shared by all tabs. */
+private fun filterSections(
+    base: List<Pair<String, List<AppInfo>>>,
+    query: String,
+    aliases: Map<String, String>
+): List<Pair<String, List<AppInfo>>> {
+    if (query.isBlank()) return base
+    val normalized = FuzzySearch.normalize(query)
+    val aliasKey = aliases[normalized]
+    return base.map { (title, apps) ->
+        title to apps.map { app ->
+            val score = maxOf(
+                FuzzySearch.score(query, app.label),
+                if (app.key == aliasKey) 1200 else 0,
+                if (normalized.length >= 4 &&
+                    app.packageName.contains(normalized.replace(" ", ""), ignoreCase = true)
+                ) 620 else 0
+            )
+            app to score
+        }.filter { it.second >= 300 }
+            .sortedByDescending { it.second }
+            .map { it.first }
+    }.filter { it.second.isNotEmpty() }
+}
+
+/** Groups apps by AppCategory for the Categories tab; empty categories are dropped. */
+private fun categorySections(apps: List<AppInfo>): List<Pair<String, List<AppInfo>>> {
+    val order = listOf(
+        AppCategory.Work,
+        AppCategory.Social,
+        AppCategory.Entertainment,
+        AppCategory.Finance,
+        AppCategory.Food,
+        AppCategory.Shopping,
+        AppCategory.Travel,
+        AppCategory.Utilities,
+        AppCategory.Games
+    )
+    val grouped = apps.groupBy { it.category }
+    return order.mapNotNull { category ->
+        val bucket = grouped[category].orEmpty()
+        if (bucket.isEmpty()) return@mapNotNull null
+        category.label to bucket.sortedBy { it.label.lowercase() }
+    }
+}
+
+/**
+ * A-Z / Most used / Categories / Recent pill row under the search field.
+ * A-Z, Recent, and Categories drive real content; Most used is a
+ * placeholder until usage-frequency tracking exists.
+ */
 @Composable
-private fun DrawerAppIcon(
+private fun DrawerTabRow(
+    selected: DrawerTab,
+    onSelect: (DrawerTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        DrawerTab.entries.forEach { tab ->
+            val isSelected = tab == selected
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (isSelected) Lumen.Accent else Color.White.copy(alpha = 0.12f))
+                    .border(
+                        width = 1.dp,
+                        color = if (isSelected) Color.Transparent else Color.White.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .clickable { onSelect(tab) }
+                    .padding(horizontal = 16.dp, vertical = 9.dp)
+            ) {
+                Text(
+                    text = tab.label,
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.72f),
+                    fontFamily = Outfit,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerAppRow(
     app: AppInfo,
-    iconSize: Dp,
     icons: IconCache,
     dimmed: Boolean,
+    lifted: Boolean,
     onLaunch: () -> Unit,
     onMenu: () -> Unit,
     onLocated: (Offset) -> Unit,
     onContact: (IconPhase, Offset) -> Unit,
-    onDragEnd: () -> Unit,
-    modifier: Modifier = Modifier
+    onDragEnd: () -> Unit
 ) {
-    IconSlot(
-        label = app.label,
-        packageName = app.packageName,
-        activityName = app.activityName,
-        iconSize = iconSize,
-        icons = icons,
-        labelSize = 12.sp,
-        showLabel = true,
-        allowDrag = true,
-        onClick = onLaunch,
-        onLongClick = onMenu,
-        onContact = onContact,
-        onDragEnd = onDragEnd,
-        modifier = modifier
-            .then(if (dimmed) Modifier.blur(10.dp) else Modifier)
+    var phase by remember(app.key) { mutableStateOf(IconPhase.Rest) }
+    var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
+    val scope = rememberCoroutineScope()
+    val view = LocalView.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+            .iconContact(
+                key = app.key,
+                allowDrag = true,
+                onPhase = {
+                    phase = it
+                    if (it == IconPhase.Rest) drag = Offset.Zero
+                    onContact(it, drag)
+                },
+                onLaunch = {
+                    scope.launch {
+                        onLaunch()
+                        delay(180)
+                        if (phase == IconPhase.Launching) {
+                            phase = IconPhase.Rest
+                            onContact(IconPhase.Rest, Offset.Zero)
+                        }
+                    }
+                },
+                onLongPress = {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    onMenu()
+                },
+                onLift = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                },
+                onDrag = {
+                    drag = it
+                    onContact(IconPhase.Dragging, it)
+                },
+                onDragEnd = onDragEnd
+            )
             .onGloballyPositioned { coords ->
                 onLocated(coords.boundsInWindow().topLeft)
             }
-    )
+            .padding(vertical = 8.dp, horizontal = 2.dp)
+    ) {
+        AppIcon(
+            packageName = app.packageName,
+            activityName = app.activityName,
+            size = 44.dp,
+            icons = icons,
+            corner = 12.dp,
+            phase = if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
+                IconPhase.Lifted
+            } else {
+                phase
+            },
+            modifier = Modifier.then(
+                if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
+                    Modifier.graphicsLayer { alpha = 0f }
+                } else {
+                    Modifier
+                }
+            )
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = app.label,
+            color = Color.White.copy(alpha = if (lifted) 0.35f else 0.94f),
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Light,
+            fontSize = 17.sp,
+            maxLines = 1,
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
