@@ -52,7 +52,6 @@ import androidx.compose.ui.window.PopupProperties
 import com.lumen.launcher.data.AlphabetIndex
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.IconCache
-import com.lumen.launcher.data.SpaceKind
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 
@@ -65,7 +64,6 @@ fun AlphabetRail(
     index: AlphabetIndex,
     activeLetter: Char?,
     scrubbing: Boolean,
-    space: SpaceKind,
     icons: IconCache,
     onLetter: (Char) -> Unit,
     onScrubbingChange: (Boolean) -> Unit,
@@ -167,12 +165,12 @@ fun AlphabetRail(
                         text = letter.toString(),
                         color = when {
                             selected -> Color.White
-                            present -> Color.White.copy(alpha = 0.78f)
-                            else -> Color.White.copy(alpha = 0.22f)
+                            present -> Color.White.copy(alpha = 0.92f)
+                            else -> Color.White.copy(alpha = 0.30f)
                         },
                         fontFamily = Outfit,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Light,
-                        fontSize = if (selected) 12.sp else 10.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        fontSize = if (selected) 12.sp else 11.sp,
                         modifier = Modifier.semantics {
                             contentDescription = if (present) {
                                 "Jump to apps starting with $letter"
@@ -201,10 +199,7 @@ fun AlphabetRail(
                     visible = true,
                     letter = activeLetter,
                     apps = index.previews[activeLetter].orEmpty(),
-                    icons = icons,
-                    spaceBadge = activeLetter
-                        .takeIf { it in index.spaceBoosted }
-                        ?.let { space.title.uppercase() }
+                    icons = icons
                 )
             }
         }
@@ -217,7 +212,6 @@ private fun AlphabetPreviewBubble(
     letter: Char?,
     apps: List<AppInfo>,
     icons: IconCache,
-    spaceBadge: String?,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -254,54 +248,37 @@ private fun AlphabetPreviewBubble(
                     contentDescription = "Letter $letter. $names"
                 }
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
-                    Box(
-                        Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(
-                                        Lumen.Accent.copy(alpha = 0.95f),
-                                        Lumen.Accent.copy(alpha = 0.40f),
-                                        Color.Transparent
-                                    )
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Lumen.Accent.copy(alpha = 0.95f),
+                                    Lumen.Accent.copy(alpha = 0.40f),
+                                    Color.Transparent
                                 )
                             )
-                    )
-                    Box(
-                        Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Lumen.Accent.copy(alpha = 0.90f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = letter?.toString().orEmpty(),
-                            color = Color.White,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 26.sp
                         )
-                    }
-                }
-                if (!spaceBadge.isNullOrBlank()) {
-                    Spacer(Modifier.width(10.dp))
+                )
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Lumen.Accent.copy(alpha = 0.90f)),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = spaceBadge,
-                        color = Lumen.OnAccent,
+                        text = letter?.toString().orEmpty(),
+                        color = Color.White,
                         fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 9.sp,
-                        letterSpacing = 1.2.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Lumen.Accent.copy(alpha = 0.92f))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 26.sp
                     )
                 }
             }
