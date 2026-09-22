@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,15 +22,16 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
-      - name: Accept SDK licenses
-        run: yes | sdkmanager --licenses || true
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: chmod +x gradlew && ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Prepare Lumen.apk
         run: cp app/build/outputs/apk/debug/app-debug.apk Lumen.apk
