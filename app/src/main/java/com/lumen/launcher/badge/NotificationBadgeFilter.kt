@@ -4,7 +4,6 @@ import android.app.Notification
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import androidx.core.app.NotificationCompat
 
 /**
  * Decides which active notifications contribute to launcher icon badge counts.
@@ -28,11 +27,21 @@ object NotificationBadgeFilter {
         val byGroup = notes.groupBy { groupBucket(it) }
         var total = 0
         for (group in byGroup.values) {
-            val children = group.filterNot { it.isGroupSummary() }
-            val summaries = group.filter { it.isGroupSummary() }
-            total += if (children.isNotEmpty()) children.size else summaries.size
+            total += countGroup(group)
         }
         return total
+    }
+
+    private fun countGroup(group: List<StatusBarNotification>): Int {
+        val children = group.filterNot { it.isGroupSummary() }
+        if (children.isNotEmpty()) return children.size
+        val summaries = group.filter { it.isGroupSummary() }
+        if (summaries.isNotEmpty()) {
+            return summaries.sumOf { sbn ->
+                sbn.notification.number.coerceAtLeast(1)
+            }.coerceAtLeast(summaries.size)
+        }
+        return group.size
     }
 
     private fun groupBucket(sbn: StatusBarNotification): String {
@@ -41,8 +50,12 @@ object NotificationBadgeFilter {
         return group ?: sbn.key
     }
 
-    private fun StatusBarNotification.isGroupSummary(): Boolean =
-        (notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+    private fun StatusBarNotification.isGroupSummary(): Boolean {
+        val flags = notification.flags
+        return (flags and Notification.FLAG_GROUP_SUMMARY) != 0 ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
+                (flags and Notification.FLAG_AUTOGROUP_SUMMARY) != 0)
+    }
 
     private fun shouldCount(
         sbn: StatusBarNotification,
@@ -53,23 +66,33 @@ object NotificationBadgeFilter {
         if (ranking != null) {
             val rank = NotificationListenerService.Ranking()
             if (ranking.getRanking(sbn.key, rank)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && !rank.canShowBadge()) return false
+                if (rank.importance <= NotificationListenerService.Ranking.IMPORTANCE_MIN) return false
                 if (rank.isSuspended) return false
             }
         }
         val n = sbn.notification
+        val category = n.category.orEmpty()
+        if (category in PERSISTENT_CATEGORIES) return false
         if (sbn.isOngoing) {
-            val category = n.category.orEmpty()
             if (category in PERSISTENT_CATEGORIES) return false
             if (n.flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return false
             if (category == Notification.CATEGORY_CALL) return false
+            // Ongoing chat / message notifications should still badge.
+            if (category == Notification.CATEGORY_MESSAGE || category == Notification.CATEGORY_EMAIL) {
+                return true
+            }
+            if (!sbn.isClearable) return false
         }
-        if (n.flags and Notification.FLAG_LOCAL_ONLY != 0) return false
-        val category = n.category.orEmpty()
-        if (category in PERSISTENT_CATEGORIES) return false
-        if (NotificationCompat.getLocalOnly(n)) return false
-        if (n.extras.getBoolean("android.reduced.images", false)) return false
+        if (sbn.isGroupSummary() && notificationBodyEmpty(n)) return false
         return true
+    }
+
+    private fun notificationBodyEmpty(n: Notification): Boolean {
+        val extras = n.extras
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim()
+        val big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()
+        return title.isNullOrEmpty() && text.isNullOrEmpty() && big.isNullOrEmpty()
     }
 
     private val PERSISTENT_CATEGORIES = setOf(

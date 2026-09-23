@@ -16,6 +16,7 @@ import android.provider.CalendarContract
 import android.provider.CallLog
 import android.provider.MediaStore
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.ContextCompat
@@ -357,9 +358,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         refreshWeather()
         refreshCalendar()
         refreshMissedCalls()
+        val inboxAccess = InboxHub.hasAccess(getApplication())
+        if (inboxAccess) {
+            val component = ComponentName(getApplication(), LumenNotificationListener::class.java)
+            runCatching { NotificationListenerService.requestRebind(component) }
+        }
         _state.update {
             it.copy(
-                inboxAccess = InboxHub.hasAccess(getApplication()),
+                inboxAccess = inboxAccess,
                 calendarAccess = ContextCompat.checkSelfPermission(
                     getApplication(),
                     Manifest.permission.READ_CALENDAR
