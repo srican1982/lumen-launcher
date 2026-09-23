@@ -49,6 +49,41 @@ class SocialCreateCoordinator(
         }
     }
 
+    /** Saves the die-cut sticker (transparent PNG, 512x512) to Pictures/Lumen. */
+    fun saveStickerToGallery(kind: CreationKind, transparentBitmap: Bitmap) {
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                val sticker = StickerMaker.make(transparentBitmap)
+                val png = ByteArrayOutputStream().use { s ->
+                    sticker.compress(Bitmap.CompressFormat.PNG, 100, s)
+                    s.toByteArray()
+                }
+                share.saveToGallery(png, "lumen_sticker_${System.currentTimeMillis()}.png", "image/png")
+            }
+            saveBitmap(kind, transparentBitmap)
+            toast(if (ok) "Sticker saved to Pictures/Lumen" else "Couldn't save — needs Android 10 or newer")
+        }
+    }
+
+    /** Saves the full image (with its chosen background) to Pictures/Lumen. */
+    fun saveImageToGallery(kind: CreationKind, bitmap: Bitmap) {
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                val png = ByteArrayOutputStream().use { s ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, s)
+                    s.toByteArray()
+                }
+                share.saveToGallery(png, "lumen_${kind.name.lowercase()}_${System.currentTimeMillis()}.png", "image/png")
+            }
+            saveBitmap(kind, bitmap)
+            toast(if (ok) "Saved to Pictures/Lumen" else "Couldn't save — needs Android 10 or newer")
+        }
+    }
+
+    private fun toast(message: String) {
+        android.widget.Toast.makeText(application, message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     fun share(file: File) {
         share.shareImage(file)
     }

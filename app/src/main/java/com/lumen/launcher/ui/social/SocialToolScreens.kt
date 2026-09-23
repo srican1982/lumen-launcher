@@ -253,6 +253,8 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                             onClose()
                         }
                     },
+                    onSaveSticker = { bmp -> coordinator.saveStickerToGallery(CreationKind.Scribble, bmp) },
+                    onSaveImage = { bmp -> coordinator.saveImageToGallery(CreationKind.Scribble, bmp) },
                     onDismiss = { showExportSheet = false }
                 )
             }
@@ -376,6 +378,18 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         coordinator.shareAsSticker(CreationKind.Quote, bmp) { onClose() }
     }
 
+    fun saveQuote(asSticker: Boolean) {
+        val bmp = com.lumen.launcher.social.quote.QuoteStyleRenderer.render(
+            context = context,
+            text = text.ifBlank { "Hello" },
+            style = style,
+            aspect = if (asSticker) com.lumen.launcher.social.quote.QuoteAspect.Square else aspect,
+            background = if (asSticker) com.lumen.launcher.social.quote.QuoteBackgroundKind.Transparent else background
+        )
+        if (asSticker) coordinator.saveStickerToGallery(CreationKind.Quote, bmp)
+        else coordinator.saveImageToGallery(CreationKind.Quote, bmp)
+    }
+
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
@@ -458,8 +472,26 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf("Save sticker" to true, "Save image" to false).forEach { (label, asSticker) ->
+                Text(
+                    label,
+                    color = Lumen.Text,
+                    fontFamily = Outfit,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+                        .clickable { saveQuote(asSticker) }
+                        .padding(vertical = 12.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
         Text(
-            "Sticker ignores the background choice and adds a cut-out border.",
+            "Saved files go to Gallery → Pictures/Lumen. Sticker ignores the background choice and adds a cut-out border.",
             color = Lumen.Faint,
             fontFamily = Outfit,
             fontSize = 11.sp,

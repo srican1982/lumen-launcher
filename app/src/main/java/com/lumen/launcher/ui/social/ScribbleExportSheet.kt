@@ -46,6 +46,8 @@ fun ScribbleExportSheet(
     initialStyle: ScribbleBrushStyle = ScribbleBrushStyle.Sketch,
     onShare: (android.graphics.Bitmap) -> Unit,
     onSticker: (android.graphics.Bitmap) -> Unit = {},
+    onSaveSticker: (android.graphics.Bitmap) -> Unit = {},
+    onSaveImage: (android.graphics.Bitmap) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val styles = ScribbleBrushStyle.entries
@@ -111,7 +113,16 @@ fun ScribbleExportSheet(
                 onShare(bmp)
             }
         }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Chip("Save sticker", false, modifier = Modifier.weight(1f)) {
+                onSaveSticker(ScribbleExport.render(strokes, style, ScribbleExportBackground.Transparent, sticker = true))
+            }
+            Chip("Save image", false, modifier = Modifier.weight(1f)) {
+                onSaveImage(ScribbleExport.render(strokes, style, bg))
+            }
+        }
         Text(
+            "Saved files go to Gallery → Pictures/Lumen. " +
             "Sticker = no background with a cut-out border. Works as a sticker in Telegram, Signal and Discord; " +
                 "in WhatsApp open it and tap ⋮ → Create sticker.",
             color = Lumen.Faint,
