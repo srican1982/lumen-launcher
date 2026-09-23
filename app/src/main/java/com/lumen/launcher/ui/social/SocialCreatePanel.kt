@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,6 +69,7 @@ import com.lumen.launcher.social.CreationItem
 import com.lumen.launcher.social.CreationKind
 import com.lumen.launcher.social.ShareContentManager
 import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.social.stickers.StickerLibrary
 import com.lumen.launcher.ui.theme.Outfit
 import java.io.File
 
@@ -86,6 +88,9 @@ fun SocialCreatePanel(
     if (!open) return
     var dragX by remember { mutableFloatStateOf(0f) }
     var showAll by remember { mutableStateOf(false) }
+    var showStickers by remember { mutableStateOf(false) }
+    val stickerPacks by StickerLibrary.packs.collectAsState()
+    val stickerCount = stickerPacks.sumOf { it.stickers.size }
     val view = LocalView.current
     val blockTouches = remember { MutableInteractionSource() }
 
@@ -213,6 +218,8 @@ fun SocialCreatePanel(
                         icon = Icons.Outlined.Image,
                         gradient = listOf(Color(0xFFE59A2F), Color(0xFF9A5A3A), Color(0xFF4B3560))
                     ) { onOpenTool(SocialCreateTool.Photo) }
+                    Spacer(Modifier.height(12.dp))
+                    StickerPackEntry(count = stickerCount) { showStickers = true }
 
                     Box(
                         Modifier
@@ -287,6 +294,44 @@ fun SocialCreatePanel(
                 }
             }
         }
+        if (showStickers) {
+            StickerPackScreen(onClose = { showStickers = false })
+        }
+    }
+}
+
+/** Compact row that opens the Lumen Stickers screen. */
+@Composable
+private fun StickerPackEntry(count: Int, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color(0x559D63EE), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(CreateIcons.Sticker, null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Lumen Stickers", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(
+                if (count == 0) "For WhatsApp" else "$count stickers · WhatsApp",
+                color = Color.White.copy(alpha = 0.65f),
+                fontFamily = Outfit,
+                fontSize = 11.sp,
+                maxLines = 1
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            null,
+            tint = Color.White.copy(alpha = 0.8f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 

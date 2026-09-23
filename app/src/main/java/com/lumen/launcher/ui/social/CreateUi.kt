@@ -389,3 +389,19 @@ object CreateIcons {
         }.build()
     }
 }
+
+/** Small text action: "＋ Add to Lumen Stickers" (goes into the WhatsApp sticker pack). */
+@Composable
+fun AddToStickersLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(CreateIcons.Sticker, null, tint = CreatePalette.Accent, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Add to Lumen Stickers", color = CreatePalette.Accent, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    }
+}

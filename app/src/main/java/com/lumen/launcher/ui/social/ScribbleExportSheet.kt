@@ -62,6 +62,7 @@ fun ScribbleExportSheet(
     onShare: (android.graphics.Bitmap) -> Unit,
     onSticker: (android.graphics.Bitmap) -> Unit = {},
     onSaveSticker: (android.graphics.Bitmap) -> Unit = {},
+    onAddToPack: (android.graphics.Bitmap) -> Unit = {},
     @Suppress("UNUSED_PARAMETER") onSaveImage: (android.graphics.Bitmap) -> Unit = {},
     onDismiss: () -> Unit
 ) {
@@ -188,6 +189,12 @@ fun ScribbleExportSheet(
             Spacer(Modifier.width(6.dp))
             Text("Save sticker to Gallery", color = CreatePalette.Subtitle, fontFamily = Outfit, fontSize = 13.sp)
         }
+        AddToStickersLink(
+            onClick = {
+                onAddToPack(ScribbleExport.render(strokes, style, ScribbleExportBackground.Transparent, sticker = true))
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
         Text(
             "Cancel",
             color = Color.White.copy(alpha = 0.55f),

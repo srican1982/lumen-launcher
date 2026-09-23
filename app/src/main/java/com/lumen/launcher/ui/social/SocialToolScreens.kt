@@ -259,6 +259,9 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                         }
                     },
                     onSaveSticker = { bmp -> coordinator.saveStickerToGallery(CreationKind.Scribble, bmp) },
+                    onAddToPack = { bmp ->
+                        coordinator.addToStickerPack(CreationKind.Scribble, bmp, "A hand-drawn scribble")
+                    },
                     onDismiss = { showExportSheet = false }
                 )
             }
@@ -494,6 +497,23 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
                     }
                 }
             }
+            AddToStickersLink(
+                onClick = {
+                    val bmp = QuoteStyleRenderer.render(
+                        context = context,
+                        text = text.ifBlank { "Hello" },
+                        style = style,
+                        aspect = QuoteAspect.Square,
+                        background = QuoteBackgroundKind.Transparent
+                    )
+                    coordinator.addToStickerPack(
+                        CreationKind.Quote,
+                        bmp,
+                        "The words ${text.ifBlank { "Hello" }.take(90)} in sticker lettering"
+                    )
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
             if (isSticker) {
                 Text(
                     "Clear = sticker: no background, with a cut-out border.",
@@ -744,6 +764,12 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             }
         }
 
+        AddToStickersLink(
+            onClick = {
+                rendered()?.let { coordinator.addToStickerPack(CreationKind.Photo, it, "A photo with drawn marks") }
+            },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
         CreateSectionLabel("Tools", Modifier.padding(horizontal = 20.dp))
         Row(
             Modifier

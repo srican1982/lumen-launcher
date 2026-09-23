@@ -205,6 +205,14 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Lumen sticker packs for WhatsApp (read only by WhatsApp; see social/stickers/). -->
+        <provider
+            android:name=".social.stickers.LumenStickerProvider"
+            android:authorities="${applicationId}.stickercontentprovider"
+            android:enabled="true"
+            android:exported="true"
+            android:readPermission="com.whatsapp.sticker.READ" />
+
         <receiver
             android:name=".lock.LockAdminReceiver"
             android:exported="true"

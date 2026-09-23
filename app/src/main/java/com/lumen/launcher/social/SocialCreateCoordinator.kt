@@ -5,7 +5,11 @@ import android.graphics.Bitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.lumen.launcher.social.stickers.AddStickerResult
+import com.lumen.launcher.social.stickers.LumenStickerPack
+import com.lumen.launcher.social.stickers.StickerLibrary
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -18,6 +22,52 @@ class SocialCreateCoordinator(
     val share = ShareContentManager(application)
 
     val creations: Flow<List<CreationItem>> = repository.items
+
+    /** Lumen's sticker packs (also what WhatsApp reads via LumenStickerProvider). */
+    val stickerPacks: StateFlow<List<LumenStickerPack>> = StickerLibrary.packs
+
+    init {
+        // Loads the library and renders the 3 starter stickers on first run.
+        scope.launch(Dispatchers.IO) { runCatching { StickerLibrary.ensureReady(application) } }
+    }
+
+    /**
+     * Adds a sticker (built from a transparent-background bitmap) to the Lumen sticker pack.
+     * If that pack is already in WhatsApp, the version bump tells WhatsApp to refresh it.
+     */
+    fun addToStickerPack(
+        kind: CreationKind,
+        transparentBitmap: Bitmap,
+        accessibilityText: String,
+        onDone: (Boolean) -> Unit = {}
+    ) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                StickerLibrary.add(
+                    context = application,
+                    transparentBitmap = transparentBitmap,
+                    emoji = when (kind) {
+                        CreationKind.Scribble -> "✨"
+                        CreationKind.Quote -> "💬"
+                        CreationKind.Photo -> "📸"
+                    },
+                    accessibilityText = accessibilityText,
+                    source = kind.name
+                )
+            }
+            when (result) {
+                is AddStickerResult.Added -> {
+                    val p = result.pack
+                    toast("Added to ${p.name} (${p.stickers.size}/${StickerLibrary.MAX_STICKERS})")
+                    onDone(true)
+                }
+                is AddStickerResult.Failed -> {
+                    toast("Couldn't add sticker: ${result.reason}")
+                    onDone(false)
+                }
+            }
+        }
+    }
 
     fun saveBitmap(kind: CreationKind, bitmap: Bitmap, onSaved: (CreationItem) -> Unit = {}) {
         scope.launch {

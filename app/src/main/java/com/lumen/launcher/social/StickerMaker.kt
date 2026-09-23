@@ -20,7 +20,11 @@ import kotlin.math.sin
 object StickerMaker {
     const val SIZE = 512
     private const val MARGIN = 16
-    private const val BORDER = 10f
+    /** Thin dark line hugging the art, so white drawings stay visible inside the white outline. */
+    private const val INNER_BORDER = 3f
+    /** WhatsApp recommends an 8px white (#FFFFFF) stroke around every sticker. */
+    private const val OUTER_BORDER = 8f
+    private const val BORDER = INNER_BORDER + OUTER_BORDER
     private const val MAX_BYTES = 100 * 1024
 
     fun make(source: Bitmap): Bitmap {
@@ -37,12 +41,13 @@ object StickerMaker {
         // Die-cut border: stamp the content's alpha mask in a ring around it.
         val mask = Bitmap.createScaledBitmap(trimmed, w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), true)
             .extractAlpha()
-        val borderColor = if (edgeIsLight(trimmed)) 0xFF6D28D9.toInt() else 0xFFFFFFFF.toInt()
-
-        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40000000 }
+        // Double border: soft shadow, 8px white outer stroke, then a thin dark inner line.
+        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33000000 }
         stampRing(canvas, mask, dst.left, dst.top + 4f, BORDER, shadow)
-        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = borderColor }
-        stampRing(canvas, mask, dst.left, dst.top, BORDER, border)
+        val outer = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+        stampRing(canvas, mask, dst.left, dst.top, BORDER, outer)
+        val inner = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A1048.toInt() }
+        stampRing(canvas, mask, dst.left, dst.top, INNER_BORDER, inner)
 
         canvas.drawBitmap(trimmed, null, dst, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
         return out
@@ -60,8 +65,16 @@ object StickerMaker {
             }
             return bytes
         }
+        // Android 8–10: the legacy WEBP format; lower quality until it fits WhatsApp's 100KB limit.
+        var q = 95
         @Suppress("DEPRECATION")
-        return compress(sticker, Bitmap.CompressFormat.WEBP, 90)
+        var bytes = compress(sticker, Bitmap.CompressFormat.WEBP, q)
+        while (bytes.size > MAX_BYTES && q > 40) {
+            q -= 10
+            @Suppress("DEPRECATION")
+            bytes = compress(sticker, Bitmap.CompressFormat.WEBP, q)
+        }
+        return bytes
     }
 
     private fun compress(bmp: Bitmap, format: Bitmap.CompressFormat, quality: Int): ByteArray =
@@ -71,7 +84,7 @@ object StickerMaker {
         }
 
     private fun stampRing(canvas: Canvas, mask: Bitmap, x: Float, y: Float, radius: Float, paint: Paint) {
-        val steps = 24
+        val steps = 36
         for (r in listOf(radius, radius * 0.5f)) {
             for (i in 0 until steps) {
                 val a = (i * 2 * Math.PI / steps)
@@ -104,38 +117,4 @@ object StickerMaker {
         return Bitmap.createBitmap(src, r.left, r.top, r.width(), r.height())
     }
 
-    /**
-     * Looks at the outermost visible pixels. White scribbles get a dark border,
-     * colored/dark edges (e.g. the Bubble quote rim) get the classic white one.
-     */
-    private fun edgeIsLight(src: Bitmap): Boolean {
-        val w = src.width
-        val h = src.height
-        val px = IntArray(w * h)
-        src.getPixels(px, 0, w, 0, 0, w, h)
-        fun alpha(x: Int, y: Int) =
-            if (x < 0 || y < 0 || x >= w || y >= h) 0 else px[y * w + x] ushr 24
-        var sum = 0.0
-        var n = 0
-        val step = maxOf(1, min(w, h) / 200)
-        var y = 0
-        while (y < h) {
-            var x = 0
-            while (x < w) {
-                val c = px[y * w + x]
-                if ((c ushr 24) > 128 &&
-                    (alpha(x - 3, y) < 16 || alpha(x + 3, y) < 16 || alpha(x, y - 3) < 16 || alpha(x, y + 3) < 16)
-                ) {
-                    val r = (c shr 16) and 0xFF
-                    val g = (c shr 8) and 0xFF
-                    val b = c and 0xFF
-                    sum += (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
-                    n++
-                }
-                x += step
-            }
-            y += step
-        }
-        return n > 0 && sum / n > 0.6
-    }
 }
