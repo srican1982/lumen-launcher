@@ -14,7 +14,7 @@ object ScribbleExport {
 
     fun render(
         strokes: List<InkStroke>,
-        style: ScribbleBrushStyle,
+        brushStyle: ScribbleBrushStyle,
         background: ScribbleExportBackground
     ): Bitmap {
         val allPoints = strokes.flatMap { it.points }
@@ -42,14 +42,14 @@ object ScribbleExport {
                 Offset((p.x - bounds.left) * scale, (p.y - bounds.top) * scale)
             }
             val path = StrokeSmoothing.toPath(mapped).asAndroidPath()
-            val w = ScribbleRenderer.widthFor(style, stroke.erase) * scale
+            val w = ScribbleRenderer.widthFor(brushStyle, stroke.erase) * scale
             paint.strokeWidth = w
             if (stroke.erase) {
                 paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
                 canvas.drawPath(path, paint)
                 paint.xfermode = null
             } else {
-                when (style) {
+                when (brushStyle) {
                     ScribbleBrushStyle.Glow -> {
                         paint.color = stroke.color.copy(alpha = 0.35f).toArgb()
                         paint.strokeWidth = w * 2.2f

@@ -217,7 +217,7 @@ object QuoteStyleRenderer {
         canvas.drawRoundRect(left, top, left + panelW, top + panelH, 48f, 48f, paint)
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.MEDIUM)
+            typeface = Typeface.create(Typeface.SANS_SERIF, 500, false)
             textSize = autoTextSize(lines, w, 64f, 34f)
         }
         val layout = staticLayout(lines.joinToString("\n"), textPaint, (panelW * 0.85f).toInt())
@@ -231,7 +231,7 @@ object QuoteStyleRenderer {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color(0x55FFFFFF).toArgb()
             textSize = 28f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.MEDIUM)
+            typeface = Typeface.create(Typeface.SANS_SERIF, 500, false)
         }
         canvas.drawText("Lumen", w - 140f, h - 48f, paint)
     }

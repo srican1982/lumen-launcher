@@ -375,13 +375,13 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         )
         Spacer(Modifier.height(12.dp))
         Text("Style", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
-        QuoteStylePicker(style) { style = it }
+        QuoteStylePicker(selected = style, onSelect = { style = it })
         Spacer(Modifier.height(8.dp))
         Text("Background", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
-        QuoteBackgroundPicker(background) { background = it }
+        QuoteBackgroundPicker(selected = background, onSelect = { background = it })
         Spacer(Modifier.height(8.dp))
         Text("Size", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
-        QuoteAspectPicker(aspect) { aspect = it }
+        QuoteAspectPicker(selected = aspect, onSelect = { aspect = it })
         Spacer(Modifier.height(14.dp))
         QuoteLivePreview(text, style, background)
     }
