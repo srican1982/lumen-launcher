@@ -222,6 +222,9 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("App labels  ·  ${if (state.showLabels) "On" else "Off"}") {
             viewModel.setShowLabels(!state.showLabels)
         }
+        MenuRow("Notification badges  ·  ${state.notificationBadges.title}") {
+            viewModel.cycleNotificationBadges()
+        }
         MenuRow("Icons  ·  ${state.iconSkin.title}") { viewModel.cycleIconSkin() }
         MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }
         MenuRow("Smart Cluster  ·  ${if (state.smartCluster) "On" else "Off"}") {

@@ -154,6 +154,28 @@ fun Modifier.denseGlass(shape: Shape = RoundedCornerShape(Lumen.SheetRadius)): M
     )
     .border(0.8.dp, Brush.verticalGradient(0f to Color(0x55FFFFFF), 1f to Color(0x12FFFFFF)), shape)
 
+/** Launcher app icon with optional notification badge (see [showNotificationBadge]). */
+@Composable
+fun AppIconWithBadge(
+    packageName: String,
+    activityName: String,
+    size: Dp,
+    icons: IconCache,
+    modifier: Modifier = Modifier,
+    corner: Dp = 0.dp,
+    phase: IconPhase = IconPhase.Rest,
+    showNotificationBadge: Boolean = true
+) = AppIcon(
+    packageName,
+    activityName,
+    size,
+    icons,
+    modifier,
+    corner,
+    phase,
+    showNotificationBadge
+)
+
 @Composable
 fun AppIcon(
     packageName: String,
@@ -162,7 +184,8 @@ fun AppIcon(
     icons: IconCache,
     modifier: Modifier = Modifier,
     corner: Dp = 0.dp,
-    phase: IconPhase = IconPhase.Rest
+    phase: IconPhase = IconPhase.Rest,
+    showNotificationBadge: Boolean = true
 ) {
     var bitmap by remember(packageName, activityName) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(packageName, activityName) {
@@ -170,10 +193,16 @@ fun AppIcon(
     }
     val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
     val treatment = LocalIconTreatment.current
-    if (phase == IconPhase.Rest) {
-        RestAppIcon(bitmap, size, iconShape, treatment, modifier)
+    val badgeMode = LocalNotificationBadgeMode.current
+    val badgeCount = if (showNotificationBadge) {
+        LocalNotificationBadgeCounts.current[packageName] ?: 0
     } else {
-        MotionAppIcon(bitmap, size, iconShape, phase, treatment, modifier)
+        0
+    }
+    if (phase == IconPhase.Rest) {
+        RestAppIcon(bitmap, size, iconShape, treatment, modifier, badgeCount, badgeMode)
+    } else {
+        MotionAppIcon(bitmap, size, iconShape, phase, treatment, modifier, badgeCount, badgeMode)
     }
 }
 
@@ -183,7 +212,9 @@ private fun RestAppIcon(
     size: Dp,
     iconShape: Shape,
     treatment: IconTreatment,
-    modifier: Modifier
+    modifier: Modifier,
+    badgeCount: Int,
+    badgeMode: com.lumen.launcher.badge.NotificationBadgeMode
 ) {
     Box(modifier = modifier.size(size)) {
         if (bitmap != null) {
@@ -217,6 +248,7 @@ private fun RestAppIcon(
         } else {
             Box(Modifier.fillMaxSize().clip(iconShape).background(Color.White.copy(alpha = 0.16f)))
         }
+        AppNotificationBadge(badgeCount, badgeMode, size)
     }
 }
 
@@ -227,7 +259,9 @@ private fun MotionAppIcon(
     iconShape: Shape,
     phase: IconPhase,
     treatment: IconTreatment,
-    modifier: Modifier
+    modifier: Modifier,
+    badgeCount: Int,
+    badgeMode: com.lumen.launcher.badge.NotificationBadgeMode
 ) {
     val motion = when (phase) {
         IconPhase.Pressed -> spring<Float>(stiffness = 1400f, dampingRatio = 0.90f)
@@ -339,5 +373,6 @@ private fun MotionAppIcon(
                     )
             )
         }
+        AppNotificationBadge(badgeCount, badgeMode, size)
     }
 }

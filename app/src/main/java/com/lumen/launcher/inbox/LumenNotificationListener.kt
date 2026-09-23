@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
+import com.lumen.launcher.badge.NotificationBadgeRepository
 import com.lumen.launcher.data.CalendarEvent
 import com.lumen.launcher.data.CallLogRepository
 import com.lumen.launcher.data.MissedCall
@@ -14,6 +15,11 @@ class LumenNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         publishActive()
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        NotificationBadgeRepository.clear()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -26,6 +32,8 @@ class LumenNotificationListener : NotificationListenerService() {
 
     private fun publishActive() {
         val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
+        val ranking = runCatching { currentRanking }.getOrNull()
+        NotificationBadgeRepository.rebuild(notes, packageName, ranking)
         val items = ArrayList<InboxItem>()
         val intents = LinkedHashMap<String, PendingIntent>()
         val meetings = ArrayList<CalendarEvent>()

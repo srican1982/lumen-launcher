@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lumen.launcher.alarm.AlarmTones
+import com.lumen.launcher.badge.NotificationBadgeMode
 import com.lumen.launcher.alarm.LumenAlarm
 import com.lumen.launcher.flow.defaultFlowEnabled
 import com.lumen.launcher.flow.defaultFlowNames
@@ -74,7 +75,8 @@ class LauncherPreferences(private val context: Context) {
             focusUntil = prefs[FOCUS_UNTIL] ?: 0L,
             focusTaskId = prefs[FOCUS_TASK].orEmpty(),
             focusPins = decodeSpaceDocks(prefs[FOCUS_PINS].orEmpty()),
-            spaceWallpapers = decodeAliases(prefs[SPACE_WALLS].orEmpty())
+            spaceWallpapers = decodeAliases(prefs[SPACE_WALLS].orEmpty()),
+            notificationBadges = NotificationBadgeMode.parse(prefs[NOTIFICATION_BADGES])
         )
     }
 
@@ -114,6 +116,10 @@ class LauncherPreferences(private val context: Context) {
 
     suspend fun setShowLabels(show: Boolean) {
         context.launcherStore.edit { it[SHOW_LABELS] = show }
+    }
+
+    suspend fun setNotificationBadges(mode: NotificationBadgeMode) {
+        context.launcherStore.edit { it[NOTIFICATION_BADGES] = mode.name }
     }
 
     suspend fun setIconSkin(skin: String) {
@@ -583,6 +589,7 @@ class LauncherPreferences(private val context: Context) {
         val FOCUS_TASK = stringPreferencesKey("focus_task")
         val FOCUS_PINS = stringPreferencesKey("focus_pins")
         val SPACE_WALLS = stringPreferencesKey("space_wallpapers")
+        val NOTIFICATION_BADGES = stringPreferencesKey("notification_badges")
     }
 }
 
@@ -634,7 +641,8 @@ data class LauncherState(
     val focusUntil: Long = 0L,
     val focusTaskId: String = "",
     val focusPins: Map<String, List<String>> = emptyMap(),
-    val spaceWallpapers: Map<String, String> = emptyMap()
+    val spaceWallpapers: Map<String, String> = emptyMap(),
+    val notificationBadges: NotificationBadgeMode = NotificationBadgeMode.Number
 )
 
 object TouchpadHaptics {

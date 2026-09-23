@@ -31,6 +31,8 @@ import com.lumen.launcher.data.DeviceFirstName
 import com.lumen.launcher.data.MissedCall
 import com.lumen.launcher.data.MissedSnapshot
 import com.lumen.launcher.data.PhoneAccount
+import com.lumen.launcher.badge.NotificationBadgeMode
+import com.lumen.launcher.badge.NotificationBadgeRepository
 import com.lumen.launcher.inbox.InboxHub
 import com.lumen.launcher.inbox.InboxItem
 import com.lumen.launcher.inbox.LumenNotificationListener
@@ -166,6 +168,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_PACKAGE_REMOVED &&
+                intent.getBooleanExtra(Intent.EXTRA_REPLACING, false) == false
+            ) {
+                intent.data?.schemeSpecificPart?.let { NotificationBadgeRepository.removePackage(it) }
+            }
             refreshApps()
         }
     }
@@ -280,7 +287,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         focusUntil = stored.focusUntil,
                         focusTaskId = stored.focusTaskId,
                         focusPins = stored.focusPins,
-                        spaceWallpapers = stored.spaceWallpapers
+                        spaceWallpapers = stored.spaceWallpapers,
+                        notificationBadges = stored.notificationBadges
                     )
                 }
                 _state.update { applyContext(it) }
@@ -2757,6 +2765,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.setShowLabels(show) }
     }
 
+    fun cycleNotificationBadges() {
+        val next = _state.value.notificationBadges.next()
+        _state.update { it.copy(notificationBadges = next) }
+        viewModelScope.launch { preferences.setNotificationBadges(next) }
+    }
+
     fun cycleIconSkin() {
         val next = IconSkin.next(_state.value.iconSkin)
         _state.update { it.copy(iconSkin = next) }
@@ -3037,7 +3051,8 @@ data class LauncherUiState(
     val captureKind: CaptureKind = CaptureKind.Task,
     val duePickerTodoId: String = "",
     val spaceWallpapers: Map<String, String> = emptyMap(),
-    val wallpaperPickPulse: Int = 0
+    val wallpaperPickPulse: Int = 0,
+    val notificationBadges: NotificationBadgeMode = NotificationBadgeMode.Number
 ) {
     val selectedNewsTopics: List<NewsTopic>
         get() = NewsTopic.entries.filter { it.name in newsInterests }

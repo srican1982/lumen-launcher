@@ -62,6 +62,8 @@ import com.lumen.launcher.ui.social.SocialCreatePanel
 import com.lumen.launcher.ui.social.SocialToolOverlay
 import com.lumen.launcher.vm.Sheet
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lumen.launcher.badge.NotificationBadgeRepository
 import kotlinx.coroutines.launch
 
 @Composable
@@ -116,10 +118,13 @@ fun LauncherRoot(
             privateExpand.animateTo(0f, tween(200))
         }
     }
+    val badgeCounts by NotificationBadgeRepository.countsByPackage.collectAsStateWithLifecycle()
     LumenTheme {
         CompositionLocalProvider(
             LocalIconTreatment provides IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing),
-            LocalGlass provides rememberGlassColors(state.spaceWallpaper, state.glassDepth)
+            LocalGlass provides rememberGlassColors(state.spaceWallpaper, state.glassDepth),
+            LocalNotificationBadgeMode provides state.notificationBadges,
+            LocalNotificationBadgeCounts provides badgeCounts
         ) {
         Box(
             modifier = Modifier
