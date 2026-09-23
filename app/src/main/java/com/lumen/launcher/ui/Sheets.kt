@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,6 +44,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
@@ -98,6 +101,7 @@ fun BottomMenu(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(12.dp)
                 .denseGlass(RoundedCornerShape(Lumen.SheetRadius))
                 .padding(horizontal = 20.dp, vertical = 16.dp)
@@ -690,6 +694,13 @@ fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
 fun CaptureSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
     var draft by remember { mutableStateOf("") }
     var kind by remember(state.captureKind) { mutableStateOf(state.captureKind) }
+    val captureFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(120)
+        captureFocus.requestFocus()
+        keyboard?.show()
+    }
     BottomMenu("Capture", "Task, note, or reminder — no extra apps", onDismiss = viewModel::closeSheet) {
         BasicTextField(
             value = draft,
@@ -701,6 +712,7 @@ fun CaptureSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             keyboardActions = KeyboardActions(onDone = { viewModel.capture(kind, draft) }),
             modifier = Modifier
                 .fillMaxWidth()
+                .focusRequester(captureFocus)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Color.White.copy(alpha = 0.08f))
                 .padding(horizontal = 14.dp, vertical = 12.dp),

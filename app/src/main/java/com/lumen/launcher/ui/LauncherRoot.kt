@@ -58,6 +58,8 @@ import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.LumenTheme
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
+import com.lumen.launcher.ui.social.SocialCreatePanel
+import com.lumen.launcher.ui.social.SocialToolOverlay
 import com.lumen.launcher.vm.Sheet
 import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.launch
@@ -103,7 +105,8 @@ fun LauncherRoot(
     LaunchedEffect(pagerState.settledPage) {
         if (pagerState.settledPage != 2) listTyping = false
     }
-    val homeIdle = state.sheet == Sheet.None && !state.privatePageActive
+    val createUiOpen = state.recentsOpen || state.socialCreateTool != null
+    val homeIdle = state.sheet == Sheet.None && !state.privatePageActive && !createUiOpen
     val privateExpand = remember { Animatable(0f) }
     LaunchedEffect(state.privatePageActive) {
         if (state.privatePageActive) {
@@ -338,6 +341,23 @@ fun LauncherRoot(
                 exit = fadeOut(tween(120))
             ) {
                 FolderEditorSheet(state, viewModel)
+            }
+            if (state.recentsOpen) {
+                SocialCreatePanel(
+                    open = true,
+                    creations = state.socialCreations,
+                    activeSpace = state.activeSpace,
+                    shareManager = viewModel.socialCreate.share,
+                    onDismiss = { viewModel.setRecentsOpen(false) },
+                    onOpenTool = viewModel::openSocialTool
+                )
+            }
+            state.socialCreateTool?.let { tool ->
+                SocialToolOverlay(
+                    tool = tool,
+                    coordinator = viewModel.socialCreate,
+                    onClose = viewModel::closeSocialTool
+                )
             }
         }
         }

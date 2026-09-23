@@ -107,8 +107,6 @@ import com.lumen.launcher.data.WeatherSnapshot
 import com.lumen.launcher.util.CompetingLauncher
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
-import com.lumen.launcher.ui.social.SocialCreatePanel
-import com.lumen.launcher.ui.social.SocialToolOverlay
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import kotlinx.coroutines.delay
@@ -506,21 +504,6 @@ fun HomeScreen(
                     modifier = Modifier.padding(top = 6.dp)
                 )
             }
-        }
-        SocialCreatePanel(
-            open = recentsOpen,
-            creations = state.socialCreations,
-            activeSpace = state.activeSpace,
-            shareManager = viewModel.socialCreate.share,
-            onDismiss = { viewModel.setRecentsOpen(false) },
-            onOpenTool = viewModel::openSocialTool
-        )
-        state.socialCreateTool?.let { tool ->
-            SocialToolOverlay(
-                tool = tool,
-                coordinator = viewModel.socialCreate,
-                onClose = viewModel::closeSocialTool
-            )
         }
     }
 }
