@@ -124,8 +124,8 @@ object QuoteStyleRenderer {
      */
     private fun drawBubble(canvas: Canvas, w: Int, h: Int, lines: List<String>, typeface: Typeface) {
         val body = lines.joinToString("\n")
-        val size = autoTextSize(lines, w, 118f, 52f)
-        val layoutW = (w * 0.88f).toInt()
+        val size = fitTextSize(lines, typeface, w, h, max = 300f, min = 56f)
+        val layoutW = (w * 0.92f).toInt()
 
         val fillPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
@@ -156,7 +156,7 @@ object QuoteStyleRenderer {
         val extrusionSteps = 8
         for (step in extrusionSteps downTo 1) {
             canvas.save()
-            canvas.translate(step * 1.35f, step * 2.1f)
+            canvas.translate(step * size * 0.011f, step * size * 0.018f)
             staticLayout(body, extrusionPaint, layoutW).draw(canvas)
             canvas.restore()
         }
@@ -253,6 +253,28 @@ object QuoteStyleRenderer {
             typeface = Typeface.create(Typeface.SANS_SERIF, 500, false)
         }
         canvas.drawText("Lumen", w - 140f, h - 48f, paint)
+    }
+
+    /**
+     * Sizes text by actual measured width so short quotes fill the card
+     * (leaves room for the Bubble rim + extrusion around the letters).
+     */
+    private fun fitTextSize(
+        lines: List<String>,
+        typeface: Typeface,
+        w: Int,
+        h: Int,
+        max: Float,
+        min: Float
+    ): Float {
+        val probe = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+            textSize = 100f
+        }
+        val widest = lines.maxOf { probe.measureText(it) }.coerceAtLeast(1f)
+        val byWidth = 100f * (w * 0.76f) / widest
+        val byHeight = (h * 0.62f) / (lines.size * 1.25f)
+        return minOf(byWidth, byHeight).coerceIn(min, max)
     }
 
     private fun autoTextSize(lines: List<String>, width: Int, max: Float, min: Float): Float {

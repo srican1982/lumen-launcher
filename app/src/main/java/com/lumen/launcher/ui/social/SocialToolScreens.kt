@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,7 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +77,9 @@ import androidx.compose.ui.zIndex
 import com.lumen.launcher.social.CreationKind
 import com.lumen.launcher.social.SocialCreateCoordinator
 import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.social.scribble.InkStroke
+import com.lumen.launcher.social.scribble.ScribbleBrushStyle
+import com.lumen.launcher.social.scribble.ScribbleRenderer
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 
@@ -133,132 +136,148 @@ private fun ToolTopBar(title: String, onClose: () -> Unit, onShare: () -> Unit) 
 
 @Composable
 private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
-    val strokes = remember { mutableStateListOf<StrokeLine>() }
-    val undo = remember { mutableStateListOf<StrokeLine>() }
+    val strokes = remember { mutableStateListOf<InkStroke>() }
+    val undo = remember { mutableStateListOf<InkStroke>() }
     val livePoints = remember { mutableStateListOf<Offset>() }
     var penColor by remember { mutableStateOf(Color.White) }
     var erasing by remember { mutableStateOf(false) }
-    var bgMode by remember { mutableIntStateOf(0) }
+    var brushStyle by remember { mutableStateOf(ScribbleBrushStyle.Sketch) }
     var canvasSize by remember { mutableStateOf(IntSize(1080, 1080)) }
-    val bgColors = listOf(
-        Color.Transparent,
-        Color(0xFFF4F0FA),
-        Color(0xFF14121C)
-    )
+    var showExportSheet by remember { mutableStateOf(false) }
     val penColors = listOf(Color.White, Color.Black, Color(0xFFB794F4), Color(0xFFFFD56A))
 
-    fun exportAndShare() {
-        val bmp = renderStrokes(canvasSize.width, canvasSize.height, bgColors[bgMode], strokes)
-        coordinator.saveBitmap(CreationKind.Scribble, bmp) { item ->
-            coordinator.share(coordinator.repository.fileFor(item))
-            onClose()
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            ToolTopBar("Scribble", onClose, { showExportSheet = true })
+            Row(
+                Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ScribbleBrushStyle.entries.forEach { s ->
+                    Text(
+                        s.name,
+                        color = if (brushStyle == s) Lumen.OnAccent else Lumen.Muted,
+                        fontSize = 11.sp,
+                        fontFamily = Outfit,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .then(
+                                if (brushStyle == s) {
+                                    Modifier.background(Lumen.AccentFill, RoundedCornerShape(10.dp))
+                                } else {
+                                    Modifier.background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                }
+                            )
+                            .clickable { brushStyle = s }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+            Row(
+                Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Pen", color = if (!erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = false })
+                Text("Eraser", color = if (erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = true })
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = Lumen.Text, modifier = Modifier
+                    .size(22.dp)
+                    .clickable {
+                        if (strokes.isNotEmpty()) {
+                            undo.add(strokes.removeAt(strokes.lastIndex))
+                        }
+                    })
+                Icon(Icons.Outlined.Redo, null, tint = Lumen.Text, modifier = Modifier
+                    .size(22.dp)
+                    .clickable {
+                        if (undo.isNotEmpty()) strokes.add(undo.removeAt(undo.lastIndex))
+                    })
+                Text("Clear", color = Lumen.Faint, modifier = Modifier.clickable {
+                    strokes.clear()
+                    undo.clear()
+                })
+            }
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                penColors.forEach { c ->
+                    Box(
+                        Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(c)
+                            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                            .clickable { penColor = c; erasing = false }
+                    )
+                }
+            }
+            ScribbleInkPad(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                strokes = strokes,
+                undo = undo,
+                livePoints = livePoints,
+                penColor = penColor,
+                erasing = erasing,
+                brushStyle = brushStyle,
+                onSize = { canvasSize = it },
+                onStrokeCommitted = { undo.clear() }
+            )
         }
-    }
 
-    Column(Modifier.fillMaxSize()) {
-        ToolTopBar("Scribble", onClose, ::exportAndShare)
-        Row(
-            Modifier.padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("Clear", "Light", "Dark").forEachIndexed { i, label ->
-                Text(
-                    label,
-                    color = if (bgMode == i) Lumen.OnAccent else Lumen.Muted,
-                    fontSize = 11.sp,
-                    fontFamily = Outfit,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .then(
-                            if (bgMode == i) {
-                                Modifier.background(Lumen.AccentFill, RoundedCornerShape(10.dp))
-                            } else {
-                                Modifier.background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-                            }
-                        )
-                        .clickable { bgMode = i }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+        if (showExportSheet) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { showExportSheet = false },
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                ScribbleExportSheet(
+                    strokes = strokes,
+                    initialStyle = brushStyle,
+                    onShare = { bmp ->
+                        coordinator.saveBitmap(CreationKind.Scribble, bmp) { item ->
+                            coordinator.share(coordinator.repository.fileFor(item))
+                            showExportSheet = false
+                            onClose()
+                        }
+                    },
+                    onDismiss = { showExportSheet = false }
                 )
             }
         }
-        Row(
-            Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Pen", color = if (!erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = false })
-            Text("Eraser", color = if (erasing) Lumen.Text else Lumen.Faint, modifier = Modifier.clickable { erasing = true })
-            Spacer(Modifier.weight(1f))
-            Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = Lumen.Text, modifier = Modifier
-                .size(22.dp)
-                .clickable {
-                    if (strokes.isNotEmpty()) {
-                        undo.add(strokes.removeAt(strokes.lastIndex))
-                    }
-                })
-            Icon(Icons.Outlined.Redo, null, tint = Lumen.Text, modifier = Modifier
-                .size(22.dp)
-                .clickable {
-                    if (undo.isNotEmpty()) strokes.add(undo.removeAt(undo.lastIndex))
-                })
-            Text("Clear", color = Lumen.Faint, modifier = Modifier.clickable {
-                strokes.clear()
-                undo.clear()
-            })
-        }
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            penColors.forEach { c ->
-                Box(
-                    Modifier
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(c)
-                        .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
-                        .clickable { penColor = c; erasing = false }
-                )
-            }
-        }
-        ScribbleInkPad(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(16.dp),
-            backgroundColor = bgColors[bgMode].takeIf { it != Color.Transparent } ?: Color(0xFF1A1028),
-            strokes = strokes,
-            undo = undo,
-            livePoints = livePoints,
-            penColor = penColor,
-            erasing = erasing,
-            onSize = { canvasSize = it },
-            onStrokeCommitted = { undo.clear() }
-        )
     }
 }
 
 @Composable
 private fun ScribbleInkPad(
     modifier: Modifier,
-    backgroundColor: Color,
-    strokes: SnapshotStateList<StrokeLine>,
-    undo: SnapshotStateList<StrokeLine>,
+    strokes: SnapshotStateList<InkStroke>,
+    undo: SnapshotStateList<InkStroke>,
     livePoints: SnapshotStateList<Offset>,
     penColor: Color,
     erasing: Boolean,
+    brushStyle: ScribbleBrushStyle,
     onSize: (IntSize) -> Unit,
     onStrokeCommitted: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
-    val strokeWidth = if (erasing) 28f else 6f
+    val strokeWidth = ScribbleRenderer.widthFor(brushStyle, erasing)
     val eraseMode = erasing
 
     Box(
         modifier
             .clip(shape)
-            .background(backgroundColor)
+            .background(Color(0xFF1A1028))
             .border(0.6.dp, Color.White.copy(alpha = 0.15f), shape)
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
             .onSizeChanged(onSize)
-            .pointerInput(eraseMode, penColor) {
+            .pointerInput(eraseMode, penColor, brushStyle) {
                 detectDragGestures(
                     onDragStart = { offset ->
                         livePoints.clear()
@@ -270,8 +289,14 @@ private fun ScribbleInkPad(
                     },
                     onDragEnd = {
                         if (livePoints.size >= 2) {
-                            val path = pathFromPoints(livePoints)
-                            strokes.add(StrokeLine(path, penColor, strokeWidth, eraseMode))
+                            strokes.add(
+                                InkStroke(
+                                    points = livePoints.toList(),
+                                    color = penColor,
+                                    width = strokeWidth,
+                                    erase = eraseMode
+                                )
+                            )
                             onStrokeCommitted()
                         }
                         livePoints.clear()
@@ -281,21 +306,20 @@ private fun ScribbleInkPad(
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            strokes.forEach { line ->
-                drawPath(
-                    line.path,
-                    color = if (line.erase) Color.Transparent else line.color,
-                    style = Stroke(line.width, cap = StrokeCap.Round, join = StrokeJoin.Round),
-                    blendMode = if (line.erase) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver
-                )
+            strokes.forEach { stroke ->
+                ScribbleRenderer.drawStroke(this, stroke, brushStyle)
             }
             if (livePoints.size >= 2) {
-                val livePath = pathFromPoints(livePoints)
-                drawPath(
-                    livePath,
-                    color = if (eraseMode) Color.Transparent else penColor,
-                    style = Stroke(strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
-                    blendMode = if (eraseMode) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver
+                ScribbleRenderer.drawStroke(
+                    this,
+                    InkStroke(
+                        points = livePoints.toList(),
+                        color = penColor,
+                        width = strokeWidth,
+                        erase = eraseMode
+                    ),
+                    brushStyle,
+                    live = true
                 )
             }
         }

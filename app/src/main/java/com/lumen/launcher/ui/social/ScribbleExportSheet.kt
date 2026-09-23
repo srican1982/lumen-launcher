@@ -32,13 +32,14 @@ import com.lumen.launcher.ui.theme.Outfit
 @Composable
 fun ScribbleExportSheet(
     strokes: List<InkStroke>,
+    initialStyle: ScribbleBrushStyle = ScribbleBrushStyle.Sketch,
     onShare: (android.graphics.Bitmap) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var styleIdx by remember { mutableIntStateOf(0) }
-    var bgIdx by remember { mutableIntStateOf(0) }
     val styles = ScribbleBrushStyle.entries
     val backgrounds = ScribbleExportBackground.entries
+    var styleIdx by remember { mutableIntStateOf(styles.indexOf(initialStyle).coerceAtLeast(0)) }
+    var bgIdx by remember { mutableIntStateOf(0) }
     val style = styles[styleIdx]
     val bg = backgrounds[bgIdx]
 
