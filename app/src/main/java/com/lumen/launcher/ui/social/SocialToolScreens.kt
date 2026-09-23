@@ -247,6 +247,12 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                             onClose()
                         }
                     },
+                    onSticker = { bmp ->
+                        coordinator.shareAsSticker(CreationKind.Scribble, bmp) {
+                            showExportSheet = false
+                            onClose()
+                        }
+                    },
                     onDismiss = { showExportSheet = false }
                 )
             }
@@ -359,6 +365,17 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         }
     }
 
+    fun exportSticker() {
+        val bmp = com.lumen.launcher.social.quote.QuoteStyleRenderer.render(
+            context = context,
+            text = text.ifBlank { "Hello" },
+            style = style,
+            aspect = com.lumen.launcher.social.quote.QuoteAspect.Square,
+            background = com.lumen.launcher.social.quote.QuoteBackgroundKind.Transparent
+        )
+        coordinator.shareAsSticker(CreationKind.Quote, bmp) { onClose() }
+    }
+
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
@@ -411,6 +428,43 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         QuoteAspectPicker(selected = aspect, onSelect = { aspect = it })
         Spacer(Modifier.height(14.dp))
         QuoteLivePreview(text, style, background)
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                "Share as sticker",
+                color = Lumen.Text,
+                fontFamily = Outfit,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                    .clickable { exportSticker() }
+                    .padding(vertical = 12.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
+                "Share image",
+                color = Lumen.OnAccent,
+                fontFamily = Outfit,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Lumen.Accent)
+                    .clickable { exportAndShare() }
+                    .padding(vertical = 12.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+        Text(
+            "Sticker ignores the background choice and adds a cut-out border.",
+            color = Lumen.Faint,
+            fontFamily = Outfit,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 

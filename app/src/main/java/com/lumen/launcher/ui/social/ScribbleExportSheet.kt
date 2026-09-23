@@ -34,6 +34,7 @@ fun ScribbleExportSheet(
     strokes: List<InkStroke>,
     initialStyle: ScribbleBrushStyle = ScribbleBrushStyle.Sketch,
     onShare: (android.graphics.Bitmap) -> Unit,
+    onSticker: (android.graphics.Bitmap) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val styles = ScribbleBrushStyle.entries
@@ -67,11 +68,24 @@ fun ScribbleExportSheet(
         }
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Chip("Cancel", false, modifier = Modifier.weight(1f)) { onDismiss() }
+            Chip("Sticker", false, modifier = Modifier.weight(1f)) {
+                // Stickers always render without a background; the cut-out border is added later.
+                val bmp = ScribbleExport.render(strokes, style, ScribbleExportBackground.Transparent)
+                onSticker(bmp)
+            }
             Chip("Share", true, modifier = Modifier.weight(1f)) {
                 val bmp = ScribbleExport.render(strokes, style, bg)
                 onShare(bmp)
             }
         }
+        Text(
+            "Sticker = no background with a cut-out border. Works as a sticker in Telegram, Signal and Discord; " +
+                "in WhatsApp open it and tap ⋮ → Create sticker.",
+            color = Lumen.Faint,
+            fontFamily = Outfit,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 10.dp)
+        )
     }
 }
 

@@ -24,6 +24,17 @@ class ShareContentManager(private val context: Context) {
         context.startActivity(Intent.createChooser(intent, chooserTitle).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /** Shares a WebP sticker; apps that support stickers keep the transparency. */
+    fun shareSticker(file: File) {
+        val uri = uriFor(file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/webp"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Share sticker").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     fun copyImageUri(file: File): Boolean {
         val uri = uriFor(file)
         val clip = ClipData.newUri(context.contentResolver, "image", uri)

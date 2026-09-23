@@ -30,6 +30,13 @@ class LumenNotificationListener : NotificationListenerService() {
         publishActive()
     }
 
+    /** Channel importance / badge settings changed: recount badges only (cheap, no inbox reparse). */
+    override fun onNotificationRankingUpdate(rankingMap: RankingMap?) {
+        super.onNotificationRankingUpdate(rankingMap)
+        val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
+        NotificationBadgeRepository.rebuild(notes.toList(), packageName, rankingMap ?: currentRanking)
+    }
+
     private fun publishActive() {
         val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
         val ranking = runCatching { currentRanking }.getOrNull()

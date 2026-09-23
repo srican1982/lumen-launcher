@@ -45,11 +45,13 @@ object NotificationBadgeFilter {
         return group.size
     }
 
-    private fun groupBucket(sbn: StatusBarNotification): String {
-        val group = sbn.notification.group?.takeIf { it.isNotBlank() }
-            ?: sbn.groupKey?.takeIf { it.isNotBlank() }
-        return group ?: sbn.key
-    }
+    /**
+     * Uses Android's groupKey, which is identical for a summary and all its children —
+     * including system auto-groups, where children carry an override group but no
+     * Notification.group of their own. Ungrouped notifications get their own bucket.
+     */
+    private fun groupBucket(sbn: StatusBarNotification): String =
+        if (sbn.isGroup) sbn.groupKey ?: sbn.key else sbn.key
 
     private fun StatusBarNotification.isGroupSummary(): Boolean {
         val flags = notification.flags
@@ -68,6 +70,8 @@ object NotificationBadgeFilter {
             if (ranking.getRanking(sbn.key, rank)) {
                 if (rank.importance < NotificationManager.IMPORTANCE_LOW) return false
                 if (rank.isSuspended) return false
+                // Respect the user's / app's per-channel "Show notification dot" setting.
+                if (!rank.canShowBadge()) return false
             }
         }
         val n = sbn.notification
