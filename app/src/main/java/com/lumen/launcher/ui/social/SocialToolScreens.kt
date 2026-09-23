@@ -315,17 +315,17 @@ private fun pathFromPoints(points: List<Offset>): Path {
 @Composable
 private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
     var text by remember { mutableStateOf("") }
-    var template by remember { mutableIntStateOf(0) }
-    val templates = listOf(
-        listOf(Color(0xFF2A1848), Color(0xFF7C3AED), Color.White),
-        listOf(Color(0xFF0F172A), Color(0xFF38BDF8), Color(0xFFE2E8F0)),
-        listOf(Color(0xFF1A0F14), Color(0xFFE879A8), Color(0xFFFFF1F2)),
-        listOf(Color(0xFF102A1E), Color(0xFF34D399), Color(0xFFECFDF5))
-    )
+    var style by remember { mutableStateOf(com.lumen.launcher.social.quote.QuoteStyle.Bubble) }
+    var aspect by remember { mutableStateOf(com.lumen.launcher.social.quote.QuoteAspect.Square) }
+    var background by remember { mutableStateOf(com.lumen.launcher.social.quote.QuoteBackgroundKind.SocialBlue) }
 
     fun exportAndShare() {
-        val colors = templates[template]
-        val bmp = renderQuoteBitmap(text.ifBlank { "…" }, colors[0], colors[1], colors[2])
+        val bmp = com.lumen.launcher.social.quote.QuoteStyleRenderer.render(
+            text = text.ifBlank { "Hello" },
+            style = style,
+            aspect = aspect,
+            background = background
+        )
         coordinator.saveBitmap(CreationKind.Quote, bmp) { item ->
             coordinator.share(coordinator.repository.fileFor(item))
             onClose()
@@ -347,7 +347,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
     ) {
         ToolTopBar("Quote", onClose, ::exportAndShare)
         Text(
-            "Type your line, pick a style, then tap Share.",
+            "Sticker-style text for shares — try Bubble on Sky.",
             color = Lumen.Faint,
             fontFamily = Outfit,
             fontSize = 13.sp,
@@ -374,42 +374,16 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
             }
         )
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            templates.indices.forEach { i ->
-                Box(
-                    Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(templates[i][0], templates[i][1])))
-                        .border(
-                            if (template == i) 2.dp else 0.dp,
-                            Color.White.copy(alpha = 0.7f),
-                            CircleShape
-                        )
-                        .clickable { template = i }
-                )
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        val c = templates[template]
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(Brush.verticalGradient(listOf(c[0], c[1])))
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text.ifBlank { "Your quote" },
-                color = c[2],
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 22.sp,
-                lineHeight = 30.sp
-            )
-        }
+        Text("Style", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
+        QuoteStylePicker(style) { style = it }
+        Spacer(Modifier.height(8.dp))
+        Text("Background", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
+        QuoteBackgroundPicker(background) { background = it }
+        Spacer(Modifier.height(8.dp))
+        Text("Size", color = Lumen.Faint, fontFamily = Outfit, fontSize = 11.sp)
+        QuoteAspectPicker(aspect) { aspect = it }
+        Spacer(Modifier.height(14.dp))
+        QuoteLivePreview(text, style, background)
     }
 }
 
@@ -551,33 +525,3 @@ private fun renderStrokes(w: Int, h: Int, bg: Color, strokes: List<StrokeLine>):
     return bmp
 }
 
-private fun renderQuoteBitmap(
-    quote: String,
-    top: Color,
-    bottom: Color,
-    textColor: Color
-): Bitmap {
-    val w = 1080
-    val h = 1080
-    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-    val canvas = AndroidCanvas(bmp)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    paint.shader = android.graphics.LinearGradient(
-        0f, 0f, 0f, h.toFloat(),
-        top.toArgb(), bottom.toArgb(),
-        android.graphics.Shader.TileMode.CLAMP
-    )
-    canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
-    paint.shader = null
-    paint.color = textColor.toArgb()
-    paint.textSize = 64f
-    paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
-    val lines = quote.chunked(28)
-    var y = h / 2f - lines.size * 40f
-    lines.forEach { line ->
-        val tw = paint.measureText(line)
-        canvas.drawText(line, (w - tw) / 2f, y, paint)
-        y += 80f
-    }
-    return bmp
-}
