@@ -37,6 +37,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -225,6 +226,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("Notification badges  ·  ${state.notificationBadges.title}") {
             viewModel.cycleNotificationBadges()
         }
+        BadgeStatusLine(inboxAccess = state.inboxAccess, onFix = viewModel::requestInboxAccess)
         MenuRow("Icons  ·  ${state.iconSkin.title}") { viewModel.cycleIconSkin() }
         MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }
         MenuRow("Smart Cluster  ·  ${if (state.smartCluster) "On" else "Off"}") {
@@ -764,5 +766,33 @@ private fun MenuRow(label: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(18.dp))
             .clickable(enabled = armed, onClick = onClick)
             .padding(vertical = 14.dp, horizontal = 4.dp)
+    )
+}
+
+/** Build marker so it's obvious which APK is installed. Bump when shipping badge/sticker changes. */
+private const val LUMEN_BUILD_TAG = "build 23-Sep-c · badges v3 · stickers"
+
+/** Small diagnostic under the badge setting: is data actually arriving from the listener? */
+@Composable
+private fun BadgeStatusLine(inboxAccess: Boolean, onFix: () -> Unit) {
+    val badge by com.lumen.launcher.badge.NotificationBadgeRepository.state.collectAsStateWithLifecycle()
+    val top = badge.countsByPackage.entries.sortedByDescending { it.value }.take(3)
+        .joinToString { "${it.key.substringAfterLast('.')} ${it.value}" }
+    val (text, fixable) = when {
+        !inboxAccess -> "Notification access is off — tap to allow" to true
+        !badge.listenerConnected -> "Access granted, but listener not connected — tap to reopen access" to true
+        badge.countsByPackage.isEmpty() ->
+            "Listener connected · ${badge.seenCount} notifications seen, 0 counted" to false
+        else -> "Listener connected · ${badge.seenCount} seen · ${badge.countsByPackage.size} apps: $top" to false
+    }
+    Text(
+        text = "$text\n$LUMEN_BUILD_TAG",
+        color = if (fixable) Color(0xFFFF8A80) else Lumen.Faint,
+        fontSize = 12.sp,
+        fontFamily = Outfit,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (fixable) Modifier.clickable(onClick = onFix) else Modifier)
+            .padding(start = 4.dp, bottom = 8.dp)
     )
 }

@@ -26,5 +26,7 @@ enum class NotificationBadgeMode {
 
 data class BadgeState(
     val countsByPackage: Map<String, Int> = emptyMap(),
-    val listenerConnected: Boolean = false
+    val listenerConnected: Boolean = false,
+    /** Active notifications Android handed us (before filtering) — for the settings status line. */
+    val seenCount: Int = 0
 )

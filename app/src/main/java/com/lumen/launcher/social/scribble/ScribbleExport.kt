@@ -12,18 +12,44 @@ import kotlin.math.min
 object ScribbleExport {
     private const val EXPORT_MAX = 1080
 
+    /** Sticker line weight: ~4% of the export size, i.e. roughly 18px once fitted into 512px. */
+    private const val STICKER_LINE_FRACTION = 0.04f
+
+    private fun scaleFor(width: Float, height: Float): Float {
+        val bw = width.coerceAtLeast(40f)
+        val bh = height.coerceAtLeast(40f)
+        return min(EXPORT_MAX / bw, EXPORT_MAX / bh).coerceAtMost(4f)
+    }
+
+    private fun stickerBoost(style: ScribbleBrushStyle, scale: Float): Float {
+        val penWidth = ScribbleRenderer.widthFor(style, erasing = false) * scale
+        return (EXPORT_MAX * STICKER_LINE_FRACTION / penWidth).coerceAtLeast(1f)
+    }
+
     fun render(
         strokes: List<InkStroke>,
         brushStyle: ScribbleBrushStyle,
-        background: ScribbleExportBackground
+        background: ScribbleExportBackground,
+        sticker: Boolean = false
     ): Bitmap {
         val allPoints = strokes.flatMap { it.points }
-        val bounds = StrokeSmoothing.bounds(allPoints, pad = 28f)
+        var bounds = StrokeSmoothing.bounds(allPoints, pad = 28f)
             ?: return Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+
+        var scale = scaleFor(bounds.width, bounds.height)
+        // Stickers get shrunk to 512px later, which would leave hairline strokes under a
+        // fat die-cut border. Give them a minimum line weight relative to the output size.
+        var boost = 1f
+        if (sticker) {
+            boost = stickerBoost(brushStyle, scale)
+            // Thicker lines need more padding so round caps are not clipped at the edges.
+            bounds = StrokeSmoothing.bounds(allPoints, pad = 28f * boost) ?: bounds
+            scale = scaleFor(bounds.width, bounds.height)
+            boost = stickerBoost(brushStyle, scale)
+        }
 
         val bw = bounds.width.coerceAtLeast(40f)
         val bh = bounds.height.coerceAtLeast(40f)
-        val scale = min(EXPORT_MAX / bw, EXPORT_MAX / bh).coerceAtMost(4f)
         val outW = (bw * scale).toInt().coerceIn(256, EXPORT_MAX)
         val outH = (bh * scale).toInt().coerceIn(256, EXPORT_MAX)
 
@@ -42,7 +68,7 @@ object ScribbleExport {
                 Offset((p.x - bounds.left) * scale, (p.y - bounds.top) * scale)
             }
             val path = StrokeSmoothing.toPath(mapped).asAndroidPath()
-            val w = ScribbleRenderer.widthFor(brushStyle, stroke.erase) * scale
+            val w = ScribbleRenderer.widthFor(brushStyle, stroke.erase) * scale * boost
             paint.strokeWidth = w
             if (stroke.erase) {
                 paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)

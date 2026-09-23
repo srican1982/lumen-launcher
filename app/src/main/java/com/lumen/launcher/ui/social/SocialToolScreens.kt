@@ -94,7 +94,7 @@ fun SocialToolOverlay(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xF0100818))
+            .background(Color(0xFF100818))
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()

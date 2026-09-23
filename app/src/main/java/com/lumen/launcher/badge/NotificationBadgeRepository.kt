@@ -24,11 +24,11 @@ object NotificationBadgeRepository {
         ranking: NotificationListenerService.RankingMap? = null
     ) {
         val next = NotificationBadgeFilter.countsByPackage(notifications, selfPackage, ranking)
-        publish(next, listenerConnected = true)
+        publish(next, listenerConnected = true, seen = notifications.size)
     }
 
     fun clear() {
-        publish(emptyMap(), listenerConnected = false)
+        publish(emptyMap(), listenerConnected = false, seen = 0)
     }
 
     fun removePackage(packageName: String) {
@@ -40,8 +40,8 @@ object NotificationBadgeRepository {
         }
     }
 
-    private fun publish(counts: Map<String, Int>, listenerConnected: Boolean) {
+    private fun publish(counts: Map<String, Int>, listenerConnected: Boolean, seen: Int = _state.value.seenCount) {
         _counts.value = counts
-        _state.value = BadgeState(countsByPackage = counts, listenerConnected = listenerConnected)
+        _state.value = BadgeState(countsByPackage = counts, listenerConnected = listenerConnected, seenCount = seen)
     }
 }

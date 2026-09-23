@@ -20,7 +20,7 @@ import kotlin.math.sin
 object StickerMaker {
     const val SIZE = 512
     private const val MARGIN = 16
-    private const val BORDER = 12f
+    private const val BORDER = 10f
     private const val MAX_BYTES = 100 * 1024
 
     fun make(source: Bitmap): Bitmap {
@@ -37,7 +37,7 @@ object StickerMaker {
         // Die-cut border: stamp the content's alpha mask in a ring around it.
         val mask = Bitmap.createScaledBitmap(trimmed, w.toInt().coerceAtLeast(1), h.toInt().coerceAtLeast(1), true)
             .extractAlpha()
-        val borderColor = if (edgeIsLight(trimmed)) 0xFF2A1048.toInt() else 0xFFFFFFFF.toInt()
+        val borderColor = if (edgeIsLight(trimmed)) 0xFF6D28D9.toInt() else 0xFFFFFFFF.toInt()
 
         val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x40000000 }
         stampRing(canvas, mask, dst.left, dst.top + 4f, BORDER, shadow)

@@ -1,6 +1,17 @@
 package com.lumen.launcher.ui.social
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +65,28 @@ fun ScribbleExportSheet(
             .padding(18.dp)
     ) {
         Text("Preview", color = Lumen.Text, fontFamily = Outfit, fontSize = 18.sp)
+        val preview = remember(strokes.size, style, bg) {
+            ScribbleExport.render(strokes, style, bg).asImageBitmap()
+        }
+        Box(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth()
+                .height(190.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .then(
+                    if (bg == ScribbleExportBackground.Transparent) Modifier.drawBehind { checkerboard() }
+                    else Modifier.background(Color.White.copy(alpha = 0.05f))
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                bitmap = preview,
+                contentDescription = "Preview of your scribble",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().padding(8.dp)
+            )
+        }
         Text("Style", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             styles.forEachIndexed { i, s ->
@@ -63,14 +96,14 @@ fun ScribbleExportSheet(
         Text("Background", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             backgrounds.forEachIndexed { i, b ->
-                Chip(b.name.replace(Regex("([a-z])([A-Z])"), "$1 $2"), i == bgIdx) { bgIdx = i }
+                Chip(backgroundLabel(b), i == bgIdx) { bgIdx = i }
             }
         }
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Chip("Cancel", false, modifier = Modifier.weight(1f)) { onDismiss() }
             Chip("Sticker", false, modifier = Modifier.weight(1f)) {
                 // Stickers always render without a background; the cut-out border is added later.
-                val bmp = ScribbleExport.render(strokes, style, ScribbleExportBackground.Transparent)
+                val bmp = ScribbleExport.render(strokes, style, ScribbleExportBackground.Transparent, sticker = true)
                 onSticker(bmp)
             }
             Chip("Share", true, modifier = Modifier.weight(1f)) {
@@ -107,4 +140,29 @@ private fun Chip(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     )
+}
+
+private fun backgroundLabel(b: ScribbleExportBackground): String = when (b) {
+    ScribbleExportBackground.Transparent -> "Clear"
+    ScribbleExportBackground.LumenGradient -> "Gradient"
+    else -> b.name
+}
+
+/** Grey checkerboard so a transparent export visibly reads as "no background". */
+private fun DrawScope.checkerboard() {
+    val cell = 12.dp.toPx()
+    val light = Color(0xFF3A3346)
+    val dark = Color(0xFF2A2436)
+    drawRect(dark)
+    var y = 0f
+    var row = 0
+    while (y < size.height) {
+        var x = if (row % 2 == 0) 0f else cell
+        while (x < size.width) {
+            drawRect(light, topLeft = Offset(x, y), size = Size(cell, cell))
+            x += cell * 2
+        }
+        y += cell
+        row++
+    }
 }
