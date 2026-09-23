@@ -1,6 +1,7 @@
 package com.lumen.launcher.badge
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -53,8 +54,7 @@ object NotificationBadgeFilter {
     private fun StatusBarNotification.isGroupSummary(): Boolean {
         val flags = notification.flags
         return (flags and Notification.FLAG_GROUP_SUMMARY) != 0 ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N &&
-                (flags and Notification.FLAG_AUTOGROUP_SUMMARY) != 0)
+            (flags and FLAG_AUTOGROUP_SUMMARY) != 0
     }
 
     private fun shouldCount(
@@ -66,7 +66,7 @@ object NotificationBadgeFilter {
         if (ranking != null) {
             val rank = NotificationListenerService.Ranking()
             if (ranking.getRanking(sbn.key, rank)) {
-                if (rank.importance <= NotificationListenerService.Ranking.IMPORTANCE_MIN) return false
+                if (rank.importance < NotificationManager.IMPORTANCE_LOW) return false
                 if (rank.isSuspended) return false
             }
         }
@@ -94,6 +94,9 @@ object NotificationBadgeFilter {
         val big = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim()
         return title.isNullOrEmpty() && text.isNullOrEmpty() && big.isNullOrEmpty()
     }
+
+    /** @see android.app.Notification.FLAG_AUTOGROUP_SUMMARY */
+    private const val FLAG_AUTOGROUP_SUMMARY = 0x00000400
 
     private val PERSISTENT_CATEGORIES = setOf(
         Notification.CATEGORY_TRANSPORT,
