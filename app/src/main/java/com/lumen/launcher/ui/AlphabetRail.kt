@@ -102,7 +102,9 @@ fun AlphabetRail(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(32.dp)
+                .width(30.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(Color(0x4D1A0B1C))
                 .semantics {
                     contentDescription = "Alphabet navigator. Drag to jump to apps by letter."
                 }
@@ -121,7 +123,7 @@ fun AlphabetRail(
                         onDragCancel = { onScrubbingChange(false) }
                     )
                 }
-                .padding(vertical = 2.dp),
+                .padding(vertical = 4.dp),
             verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -131,18 +133,18 @@ fun AlphabetRail(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(if (selected) 22.dp else 14.dp)
+                        .size(if (selected) 24.dp else 16.dp)
                         .graphicsLayer {
                             if (selected) {
-                                scaleX = 1.35f
-                                scaleY = 1.35f
+                                scaleX = 1.3f
+                                scaleY = 1.3f
                             }
                         }
                 ) {
                     if (selected) {
                         Box(
                             Modifier
-                                .size(22.dp)
+                                .size(24.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.radialGradient(
@@ -156,7 +158,7 @@ fun AlphabetRail(
                         )
                         Box(
                             Modifier
-                                .size(16.dp)
+                                .size(17.dp)
                                 .clip(CircleShape)
                                 .background(Lumen.Accent.copy(alpha = 0.70f))
                         )
@@ -165,12 +167,12 @@ fun AlphabetRail(
                         text = letter.toString(),
                         color = when {
                             selected -> Color.White
-                            present -> Color.White.copy(alpha = 0.92f)
-                            else -> Color.White.copy(alpha = 0.30f)
+                            present -> Color.White.copy(alpha = 0.98f)
+                            else -> Color.White.copy(alpha = 0.36f)
                         },
                         fontFamily = Outfit,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        fontSize = if (selected) 12.sp else 11.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.SemiBold,
+                        fontSize = if (selected) 13.sp else 12.sp,
                         modifier = Modifier.semantics {
                             contentDescription = if (present) {
                                 "Jump to apps starting with $letter"

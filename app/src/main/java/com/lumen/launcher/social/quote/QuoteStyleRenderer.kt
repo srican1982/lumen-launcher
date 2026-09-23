@@ -1,5 +1,6 @@
 package com.lumen.launcher.social.quote
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -9,6 +10,8 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.content.res.ResourcesCompat
+import com.lumen.launcher.R
 
 enum class QuoteStyle { Bubble, Sticker, Minimal, Glass }
 
@@ -21,17 +24,34 @@ enum class QuoteAspect(val width: Int, val height: Int) {
 enum class QuoteBackgroundKind { PurpleGradient, LumenDark, Light, SocialBlue, Transparent }
 
 object QuoteStyleRenderer {
+    @Volatile
+    private var cachedBubbleTypeface: Typeface? = null
+
+    /**
+     * Lumen's own rounded display font (Outfit SemiBold) for the Bubble style —
+     * bolder and friendlier than a generic system sans, without bundling a new asset.
+     */
+    private fun bubbleTypeface(context: Context): Typeface {
+        cachedBubbleTypeface?.let { return it }
+        val loaded = ResourcesCompat.getFont(context.applicationContext, R.font.outfit_semibold)
+            ?: Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+        cachedBubbleTypeface = loaded
+        return loaded
+    }
+
     /** Lower-res live preview for the Quote composer UI. */
     fun renderPreview(
+        context: Context,
         text: String,
         style: QuoteStyle,
         background: QuoteBackgroundKind
     ): Bitmap {
-        val full = render(text, style, QuoteAspect.Square, background)
+        val full = render(context, text, style, QuoteAspect.Square, background)
         return Bitmap.createScaledBitmap(full, 540, 540, true)
     }
 
     fun render(
+        context: Context,
         text: String,
         style: QuoteStyle,
         aspect: QuoteAspect,
@@ -45,7 +65,7 @@ object QuoteStyleRenderer {
         val quote = text.trim().ifBlank { "Your quote" }
         val lines = wrapLines(quote, maxChars = if (aspect == QuoteAspect.Landscape) 32 else 22)
         when (style) {
-            QuoteStyle.Bubble -> drawBubble(canvas, w, h, lines)
+            QuoteStyle.Bubble -> drawBubble(canvas, w, h, lines, bubbleTypeface(context))
             QuoteStyle.Sticker -> drawSticker(canvas, w, h, lines)
             QuoteStyle.Minimal -> drawMinimal(canvas, w, h, lines)
             QuoteStyle.Glass -> drawGlass(canvas, w, h, lines)
@@ -102,11 +122,10 @@ object QuoteStyleRenderer {
      * Playful sticker text: white fill, thick colored rim, stacked extrusion, soft shadow
      * (inspired by bold social sticker lettering — not a brand copy).
      */
-    private fun drawBubble(canvas: Canvas, w: Int, h: Int, lines: List<String>) {
+    private fun drawBubble(canvas: Canvas, w: Int, h: Int, lines: List<String>, typeface: Typeface) {
         val body = lines.joinToString("\n")
         val size = autoTextSize(lines, w, 118f, 52f)
         val layoutW = (w * 0.88f).toInt()
-        val typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
 
         val fillPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE

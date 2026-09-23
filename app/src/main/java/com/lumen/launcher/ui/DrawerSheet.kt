@@ -214,12 +214,13 @@ fun DrawerSheet(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0xFF2A1450),
-                    0.38f to Color(0xFF1A0C32),
-                    1f to Color(0xFF0A0614)
+                    0f to Color(0xFFA22E77),
+                    0.35f to Color(0xFF6E1E5C),
+                    0.72f to Color(0xFF3A1236),
+                    1f to Color(0xFF190A18)
                 )
             )
-            .background(Color(0x99080612))
+            .background(Color(0x40200A1C))
             .onGloballyPositioned { root = it }
     ) {
         Column(

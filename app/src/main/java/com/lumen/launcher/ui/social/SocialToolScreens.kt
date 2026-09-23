@@ -319,8 +319,11 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
     var aspect by remember { mutableStateOf(com.lumen.launcher.social.quote.QuoteAspect.Square) }
     var background by remember { mutableStateOf(com.lumen.launcher.social.quote.QuoteBackgroundKind.SocialBlue) }
 
+    val context = LocalContext.current
+
     fun exportAndShare() {
         val bmp = com.lumen.launcher.social.quote.QuoteStyleRenderer.render(
+            context = context,
             text = text.ifBlank { "Hello" },
             style = style,
             aspect = aspect,

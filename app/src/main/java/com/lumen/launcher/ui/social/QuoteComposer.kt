@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -38,8 +39,10 @@ fun QuoteLivePreview(
     background: QuoteBackgroundKind,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val preview = remember(text, style, background) {
         QuoteStyleRenderer.renderPreview(
+            context = context,
             text = text.ifBlank { "Hello" },
             style = style,
             background = background
