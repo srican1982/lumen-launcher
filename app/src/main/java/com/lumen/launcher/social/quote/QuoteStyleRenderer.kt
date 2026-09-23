@@ -43,6 +43,19 @@ enum class QuoteAspect(val width: Int, val height: Int) {
 
 enum class QuoteBackgroundKind { PurpleGradient, LumenDark, Light, SocialBlue, Transparent }
 
+/**
+ * Where the text sits: offsets are fractions of the image size (-0.5..0.5, 0 = centered),
+ * rotation is in degrees, scale multiplies the auto-fitted size.
+ */
+data class QuoteTextTransform(
+    val offsetX: Float = 0f,
+    val offsetY: Float = 0f,
+    val rotation: Float = 0f,
+    val scale: Float = 1f
+) {
+    val isDefault: Boolean get() = this == QuoteTextTransform()
+}
+
 /** Optional shape behind the text; it can be filled with a color or a photo. */
 enum class QuoteShape(val label: String) {
     None("None"),
@@ -149,8 +162,9 @@ object QuoteStyleRenderer {
         aspect: QuoteAspect,
         background: QuoteBackgroundKind,
         shape: QuoteShape = QuoteShape.None,
-        shapePhoto: Bitmap? = null
-    ): Bitmap = renderSized(context, text, style, aspect.width, aspect.height, background, shape, shapePhoto, watermark = true)
+        shapePhoto: Bitmap? = null,
+        transform: QuoteTextTransform = QuoteTextTransform()
+    ): Bitmap = renderSized(context, text, style, aspect.width, aspect.height, background, shape, shapePhoto, watermark = true, transform = transform)
 
     /** Small square thumbnail for the design picker. Everything scales, so it matches the real result. */
     fun renderThumb(
@@ -172,7 +186,8 @@ object QuoteStyleRenderer {
         background: QuoteBackgroundKind,
         shape: QuoteShape,
         shapePhoto: Bitmap?,
-        watermark: Boolean
+        watermark: Boolean,
+        transform: QuoteTextTransform = QuoteTextTransform()
     ): Bitmap {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
@@ -199,6 +214,11 @@ object QuoteStyleRenderer {
         val face = displayTypeface(context)
         val bgIsLight = background == QuoteBackgroundKind.Light && shape == QuoteShape.None
 
+        // User adjustments: move, rotate and resize the text around the text area's center.
+        canvas.save()
+        canvas.translate(transform.offsetX * w, transform.offsetY * h)
+        canvas.rotate(transform.rotation, box.centerX(), box.centerY())
+        canvas.scale(transform.scale, transform.scale, box.centerX(), box.centerY())
         when (style) {
             QuoteStyle.Bubble -> drawBubble(canvas, box, lines, body, face, unit)
             QuoteStyle.Sticker -> drawSticker(canvas, box, lines, body, face, unit)
@@ -209,6 +229,7 @@ object QuoteStyleRenderer {
             QuoteStyle.Minimal -> drawMinimal(canvas, box, lines, body, unit, bgIsLight)
             QuoteStyle.Glass -> drawGlass(canvas, box, lines, body, face, unit)
         }
+        canvas.restore()
         if (watermark && background != QuoteBackgroundKind.Transparent) drawWatermark(canvas, w, h, unit)
         return bmp
     }

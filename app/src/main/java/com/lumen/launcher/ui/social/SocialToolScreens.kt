@@ -10,6 +10,17 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.BlurOn
+import androidx.compose.foundation.gestures.detectTapGestures
+import com.lumen.launcher.social.photo.BlurLevels
+import com.lumen.launcher.social.photo.BlurBox
+import androidx.compose.foundation.layout.fillMaxHeight
+import kotlin.math.roundToInt
+import com.lumen.launcher.social.quote.QuoteTextTransform
 import kotlinx.coroutines.launch
 import com.lumen.launcher.social.quote.QuoteShapes
 import com.lumen.launcher.social.quote.QuoteShape
@@ -363,6 +374,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
     var background by remember { mutableStateOf(QuoteBackgroundKind.SocialBlue) }
     var shape by remember { mutableStateOf(QuoteShape.None) }
     var shapePhoto by remember { mutableStateOf<Bitmap?>(null) }
+    var transform by remember { mutableStateOf(QuoteTextTransform()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isSticker = background == QuoteBackgroundKind.Transparent
@@ -384,7 +396,8 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         aspect = if (forSticker) QuoteAspect.Square else aspect,
         background = if (forSticker) QuoteBackgroundKind.Transparent else background,
         shape = shape,
-        shapePhoto = shapePhoto
+        shapePhoto = shapePhoto,
+        transform = transform
     )
 
     // "Clear" means a see-through sticker; every other background is a normal image.
@@ -413,12 +426,22 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
     }
 
     // Live preview, rendered off the main thread and debounced while typing.
-    val preview by produceState<ImageBitmap?>(null, text, style, aspect, background, shape, shapePhoto) {
-        delay(80)
+    // Half resolution keeps it smooth while dragging the position / size / rotate bars.
+    val preview by produceState<ImageBitmap?>(null, text, style, aspect, background, shape, shapePhoto, transform) {
+        delay(30)
         value = withContext(Dispatchers.Default) {
-            val full = QuoteStyleRenderer.render(context, shown, style, aspect, background, shape, shapePhoto)
-            val scale = 720f / maxOf(full.width, full.height)
-            Bitmap.createScaledBitmap(full, (full.width * scale).toInt(), (full.height * scale).toInt(), true).asImageBitmap()
+            QuoteStyleRenderer.renderSized(
+                context = context,
+                text = shown,
+                style = style,
+                w = aspect.width / 2,
+                h = aspect.height / 2,
+                background = background,
+                shape = shape,
+                shapePhoto = shapePhoto,
+                watermark = true,
+                transform = transform
+            ).asImageBitmap()
         }
     }
 
@@ -448,6 +471,8 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
             onBackground = { background = it },
             aspect = aspect,
             onAspect = { aspect = it },
+            transform = transform,
+            onTransform = { transform = it },
             isSticker = isSticker,
             onEditText = { step = QuoteStep.Write },
             onClose = onClose,
@@ -554,6 +579,8 @@ private fun QuoteDesignStep(
     onBackground: (QuoteBackgroundKind) -> Unit,
     aspect: QuoteAspect,
     onAspect: (QuoteAspect) -> Unit,
+    transform: QuoteTextTransform,
+    onTransform: (QuoteTextTransform) -> Unit,
     isSticker: Boolean,
     onEditText: () -> Unit,
     onClose: () -> Unit,
@@ -574,14 +601,40 @@ private fun QuoteDesignStep(
 
     Column(Modifier.fillMaxSize()) {
         CreateToolHeader("Quote", onClose, onShare, subtitle = "Step 2 of 2 · Design")
-        QuotePreviewCard(
-            preview = preview,
-            aspect = aspect,
-            isSticker = isSticker,
-            modifier = Modifier
+        // Preview with a vertical bar (move up/down) on the right…
+        Row(
+            Modifier
                 .fillMaxWidth()
                 .height(250.dp)
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(start = 16.dp, end = 6.dp, top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            QuotePreviewCard(
+                preview = preview,
+                aspect = aspect,
+                isSticker = isSticker,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+            DragBar(
+                value = transform.offsetY / 0.8f + 0.5f,
+                onValue = { onTransform(transform.copy(offsetY = (it - 0.5f) * 0.8f)) },
+                vertical = true,
+                modifier = Modifier
+                    .width(40.dp)
+                    .fillMaxHeight()
+            )
+        }
+        // …and a horizontal bar (move left/right) underneath.
+        DragBar(
+            value = transform.offsetX / 0.8f + 0.5f,
+            onValue = { onTransform(transform.copy(offsetX = (it - 0.5f) * 0.8f)) },
+            vertical = false,
+            modifier = Modifier
+                .padding(start = 16.dp, end = 46.dp)
+                .fillMaxWidth()
+                .height(40.dp)
         )
         Row(
             Modifier
@@ -602,6 +655,34 @@ private fun QuoteDesignStep(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CreateSectionLabel("Adjust text", Modifier.weight(1f))
+                if (!transform.isDefault) {
+                    Text(
+                        "Reset",
+                        color = CreatePalette.Accent,
+                        fontFamily = Outfit,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onTransform(QuoteTextTransform()) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
+            LabeledDragBar(
+                label = "Size",
+                valueText = "${(transform.scale * 100).roundToInt()}%",
+                value = scaleToBar(transform.scale),
+                onValue = { onTransform(transform.copy(scale = barToScale(it))) }
+            )
+            LabeledDragBar(
+                label = "Rotate",
+                valueText = "${transform.rotation.roundToInt()}°",
+                value = transform.rotation / 180f + 0.5f,
+                onValue = { onTransform(transform.copy(rotation = (it - 0.5f) * 180f)) }
+            )
+
             CreateSectionLabel("Design")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuoteStyle.entries.forEach { s ->
@@ -676,6 +757,10 @@ private fun QuoteDesignStep(
         CreateActionBar(onSave = onSave, onShare = onShare, onSticker = onSticker)
     }
 }
+
+/** Size bar: left half = 50%–100%, right half = 100%–180%, middle = 100%. */
+private fun barToScale(v: Float): Float = if (v < 0.5f) 0.5f + v else 1f + (v - 0.5f) * 1.6f
+private fun scaleToBar(s: Float): Float = if (s < 1f) s - 0.5f else 0.5f + (s - 1f) / 1.6f
 
 /** Preview card that keeps the chosen size's shape and shows a checkerboard for "Clear". */
 @Composable
@@ -784,6 +869,12 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     var sizeIdx by remember { mutableIntStateOf(2) }
     var showMoreColors by remember { mutableStateOf(false) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    // Blur boxes (e.g. to hide faces); strength 1.0 = unrecognizable.
+    var blurMode by remember { mutableStateOf(false) }
+    val blurBoxes = remember { mutableStateListOf<BlurBox>() }
+    var selectedBlur by remember { mutableStateOf<Long?>(null) }
+    var blurLevels by remember { mutableStateOf<BlurLevels?>(null) }
+    var levelImages by remember { mutableStateOf<List<ImageBitmap>>(emptyList()) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { picked ->
         if (picked != null) uri = picked
@@ -793,8 +884,39 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         val u = uri ?: return@LaunchedEffect
         loading = true
         marks.clear()
+        blurBoxes.clear()
+        selectedBlur = null
+        blurMode = false
+        blurLevels = null
+        levelImages = emptyList()
         photo = withContext(Dispatchers.IO) { decodeForMarkup(context, u) }
         loading = false
+        photo?.let { p ->
+            val levels = withContext(Dispatchers.Default) { BlurLevels.build(p) }
+            blurLevels = levels
+            levelImages = levels.levels.map { it.asImageBitmap() }
+        }
+    }
+
+    fun screenRectOf(b: BlurBox, rect: Rect) = Rect(
+        rect.left + b.left * rect.width,
+        rect.top + b.top * rect.height,
+        rect.left + b.right * rect.width,
+        rect.top + b.bottom * rect.height
+    )
+
+    /** Adds a blur box in the middle of the photo (square on screen) and selects it. */
+    fun addBlurBox() {
+        val bmp = photo ?: return
+        val w = 0.3f
+        val h = (w * bmp.width / bmp.height).coerceIn(0.1f, 0.6f)
+        val shift = (blurBoxes.size % 4) * 0.05f
+        val l = (0.5f - w / 2f + shift).coerceIn(0f, 1f - w)
+        val t = (0.5f - h / 2f + shift).coerceIn(0f, 1f - h)
+        val box = BlurBox(System.nanoTime(), l, t, l + w, t + h)
+        blurBoxes.add(box)
+        selectedBlur = box.id
+        blurMode = true
     }
 
     // Where the photo actually sits inside the drawing box (ContentScale.Fit).
@@ -813,6 +935,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     fun rendered(): Bitmap? {
         val base = photo ?: return null
         val out = base.copy(Bitmap.Config.ARGB_8888, true)
+        blurLevels?.applyTo(out, blurBoxes.toList())
         val canvas = android.graphics.Canvas(out)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -893,7 +1016,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                 .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Draw on photo", color = CreatePalette.Label, fontFamily = Outfit, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(if (blurMode) "Blur areas" else "Draw on photo", color = CreatePalette.Label, fontFamily = Outfit, fontSize = 15.sp, modifier = Modifier.weight(1f))
             if (marks.isNotEmpty()) {
                 Row(
                     Modifier
@@ -939,8 +1062,56 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                     .fillMaxSize()
                     .onSizeChanged { boxSize = it }
                     .clipToBounds()
-                    .pointerInput(bmp, penColor, sizeIdx, imageRect) {
+                    .pointerInput(blurMode, imageRect) {
+                        // Blur mode: tap a box to select it (tap elsewhere to deselect).
                         val rect = imageRect ?: return@pointerInput
+                        if (!blurMode) return@pointerInput
+                        detectTapGestures { o ->
+                            selectedBlur = blurBoxes.lastOrNull { screenRectOf(it, rect).contains(o) }?.id
+                        }
+                    }
+                    .pointerInput(bmp, penColor, sizeIdx, imageRect, blurMode) {
+                        val rect = imageRect ?: return@pointerInput
+                        if (blurMode) {
+                            // Drag a corner handle to resize, drag inside a box to move it.
+                            val handle = 28.dp.toPx()
+                            var activeId: Long? = null
+                            var corner = -1
+                            detectDragGestures(
+                                onDragStart = { o ->
+                                    activeId = null
+                                    corner = -1
+                                    blurBoxes.firstOrNull { it.id == selectedBlur }?.let { sel ->
+                                        val r = screenRectOf(sel, rect)
+                                        val hit = listOf(r.topLeft, r.topRight, r.bottomRight, r.bottomLeft)
+                                            .indexOfFirst { (it - o).getDistance() <= handle }
+                                        if (hit >= 0) {
+                                            activeId = sel.id
+                                            corner = hit
+                                        }
+                                    }
+                                    if (activeId == null) {
+                                        blurBoxes.lastOrNull { screenRectOf(it, rect).contains(o) }?.let {
+                                            activeId = it.id
+                                            selectedBlur = it.id
+                                        }
+                                    }
+                                },
+                                onDrag = { c, d ->
+                                    val id = activeId
+                                    val i = blurBoxes.indexOfFirst { it.id == id }
+                                    if (id != null && i >= 0) {
+                                        c.consume()
+                                        val dx = d.x / rect.width
+                                        val dy = d.y / rect.height
+                                        blurBoxes[i] = if (corner >= 0) blurBoxes[i].resized(corner, dx, dy) else blurBoxes[i].moved(dx, dy)
+                                    }
+                                },
+                                onDragEnd = { activeId = null },
+                                onDragCancel = { activeId = null }
+                            )
+                            return@pointerInput
+                        }
                         fun norm(p: Offset) = Offset((p.x - rect.left) / rect.width, (p.y - rect.top) / rect.height)
                         detectDragGestures(
                             onDragStart = { o ->
@@ -974,6 +1145,23 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                     val rect = imageRect ?: return@Canvas
                     fun toScreen(p: Offset) = Offset(rect.left + p.x * rect.width, rect.top + p.y * rect.height)
                     clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+                        val levels = blurLevels
+                        if (levels != null && levelImages.size == levels.levels.size) {
+                            val dstOffset = IntOffset(rect.left.roundToInt(), rect.top.roundToInt())
+                            val dstSize = IntSize(rect.width.roundToInt(), rect.height.roundToInt())
+                            blurBoxes.forEach { b ->
+                                val r = screenRectOf(b, rect)
+                                val m = levels.mix(b.strength)
+                                clipRect(r.left, r.top, r.right, r.bottom) {
+                                    if (m.lower > 0) {
+                                        drawImage(levelImages[m.lower - 1], dstOffset = dstOffset, dstSize = dstSize, filterQuality = FilterQuality.High)
+                                    }
+                                    if (m.upper > m.lower && m.fraction > 0f) {
+                                        drawImage(levelImages[m.upper - 1], dstOffset = dstOffset, dstSize = dstSize, alpha = m.fraction, filterQuality = FilterQuality.High)
+                                    }
+                                }
+                            }
+                        }
                         marks.forEach { m ->
                             drawPath(
                                 StrokeSmoothing.toPath(m.points.map(::toScreen)),
@@ -989,11 +1177,89 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             )
                         }
                     }
+                    if (blurMode) {
+                        blurBoxes.forEach { b ->
+                            val r = screenRectOf(b, rect)
+                            val sel = b.id == selectedBlur
+                            drawRect(
+                                Color.White.copy(alpha = if (sel) 1f else 0.6f),
+                                topLeft = r.topLeft,
+                                size = r.size,
+                                style = Stroke(
+                                    width = (if (sel) 2f else 1.5f).dp.toPx(),
+                                    pathEffect = if (sel) null else PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+                                )
+                            )
+                            if (sel) {
+                                listOf(r.topLeft, r.topRight, r.bottomRight, r.bottomLeft).forEach { c ->
+                                    drawCircle(Color.White, radius = 9.dp.toPx(), center = c)
+                                    drawCircle(CreatePalette.Accent, radius = 9.dp.toPx(), center = c, style = Stroke(2.dp.toPx()))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        CreateSectionLabel("Tools", Modifier.padding(horizontal = 20.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CreateChip("Draw", !blurMode, leading = {
+                Icon(Icons.Outlined.Edit, null, tint = chipIconTint(!blurMode), modifier = Modifier.size(20.dp))
+            }) {
+                blurMode = false
+                selectedBlur = null
+            }
+            CreateChip("Blur", blurMode, leading = {
+                Icon(Icons.Outlined.BlurOn, null, tint = chipIconTint(blurMode), modifier = Modifier.size(20.dp))
+            }) {
+                if (blurBoxes.isEmpty()) addBlurBox() else blurMode = true
+            }
+        }
+        if (blurMode) {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CreateChip("Add box", false, leading = {
+                        Icon(Icons.Outlined.Add, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
+                    }) { addBlurBox() }
+                    if (selectedBlur != null) {
+                        CreateChip("Remove", false, leading = {
+                            Icon(Icons.Outlined.Delete, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
+                        }) {
+                            blurBoxes.removeAll { it.id == selectedBlur }
+                            selectedBlur = null
+                        }
+                    }
+                }
+                val selIndex = blurBoxes.indexOfFirst { it.id == selectedBlur }
+                if (selIndex >= 0) {
+                    val sel = blurBoxes[selIndex]
+                    LabeledDragBar(
+                        label = "Blur",
+                        valueText = "${(sel.strength * 100).roundToInt()}",
+                        value = sel.strength,
+                        snapTo = null,
+                        onValue = { v ->
+                            val i = blurBoxes.indexOfFirst { it.id == selectedBlur }
+                            if (i >= 0) blurBoxes[i] = blurBoxes[i].copy(strength = v)
+                        },
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                } else {
+                    Text(
+                        "Tap a box to select it, or add one. Drag to move, pull a corner to resize.",
+                        color = CreatePalette.Label,
+                        fontFamily = Outfit,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
+                    )
+                }
+            }
+        } else {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -1078,6 +1344,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                     }
                 }
             }
+        }
         }
 
         CreateActionBar(

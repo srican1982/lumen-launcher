@@ -1,5 +1,20 @@
 package com.lumen.launcher.ui.social
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.abs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,27 +61,33 @@ import com.lumen.launcher.ui.theme.Outfit
 
 /** Colors shared by the Create panel and the Scribble / Quote / Photo screens. */
 object CreatePalette {
-    val Base = Color(0xFF0D0716)
+    val Base = Color(0xFF1B1838)
     val Ink = Color(0xFF2A1048)
-    val Label = Color(0xFFA08BC2)
-    val Subtitle = Color(0xFFB9A2E6)
-    val Accent = Color(0xFFB57BF5)
-    val ChipFill = Color(0x17FFFFFF)
-    val ChipBorder = Color(0x2EC7A6F5)
-    val SelectedFill = Brush.horizontalGradient(listOf(Color(0xFFC99AF2), Color(0xFFF2CFF7)))
-    val ShareFill = Brush.horizontalGradient(listOf(Color(0xFFB57BF5), Color(0xFFE9BEF7)))
+    val Label = Color(0xFFB8AEE6)
+    val Subtitle = Color(0xFFC9BEF7)
+    val Accent = Color(0xFFB9A6F5)
+    val ChipFill = Color(0x1FFFFFFF)
+    val ChipBorder = Color(0x4DC4B5FD)
+    val SelectedFill = Brush.horizontalGradient(listOf(Color(0xFFC7B2FA), Color(0xFFF0D6FA)))
+    val ShareFill = Brush.horizontalGradient(listOf(Color(0xFFA78BFA), Color(0xFFE7C6FA)))
 }
 
-/** Deep purple screen background with a soft glow at the top, as in the mockups. */
+/** Lavender glass background with a soft lilac glow at the top (matches the Create panel). */
 fun DrawScope.createScreenBackground() {
-        drawRect(CreatePalette.Base)
-        drawRect(
-            Brush.radialGradient(
-                colors = listOf(Color(0xAA4A1F8A), Color(0x334A1F8A), Color.Transparent),
-                center = Offset(size.width * 0.5f, -size.width * 0.15f),
-                radius = size.width * 1.05f
-            )
+    drawRect(
+        Brush.verticalGradient(
+            0f to Color(0xFF36306E),
+            0.45f to Color(0xFF221D4A),
+            1f to Color(0xFF120F28)
         )
+    )
+    drawRect(
+        Brush.radialGradient(
+            colors = listOf(Color(0x668B7CF6), Color(0x1A8B7CF6), Color.Transparent),
+            center = Offset(size.width * 0.3f, -size.width * 0.1f),
+            radius = size.width * 1.1f
+        )
+    )
 }
 
 /** Round close button · title (+ optional subtitle) · round share button. */
@@ -429,5 +450,117 @@ fun AddToStickersLink(onClick: () -> Unit, modifier: Modifier = Modifier) {
         Icon(CreateIcons.Sticker, null, tint = CreatePalette.Accent, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text("Add to Lumen Stickers", color = CreatePalette.Accent, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+    }
+}
+
+/**
+ * Thin slider bar for fingers: tap or drag anywhere on it. [value] is 0..1
+ * (vertical: 0 = top). Snaps to [snapTo] with a small haptic tick.
+ * Uses one-direction drag detection so it doesn't fight page scrolling.
+ */
+@Composable
+fun DragBar(
+    value: Float,
+    onValue: (Float) -> Unit,
+    vertical: Boolean,
+    modifier: Modifier = Modifier,
+    snapTo: Float? = 0.5f
+) {
+    val view = LocalView.current
+    val current by rememberUpdatedState(value)
+    val emit by rememberUpdatedState(onValue)
+    var sizePx by remember { mutableStateOf(IntSize.Zero) }
+
+    fun pick(pos: Offset) {
+        val len = if (vertical) sizePx.height else sizePx.width
+        if (len <= 0) return
+        var f = ((if (vertical) pos.y else pos.x) / len).coerceIn(0f, 1f)
+        if (snapTo != null && abs(f - snapTo) < 0.03f) {
+            if (current != snapTo) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            f = snapTo
+        }
+        emit(f)
+    }
+
+    Box(
+        modifier
+            .onSizeChanged { sizePx = it }
+            .pointerInput(vertical) { detectTapGestures(onTap = { pick(it) }) }
+            .pointerInput(vertical) {
+                if (vertical) {
+                    detectVerticalDragGestures(onDragStart = { pick(it) }) { change, _ ->
+                        change.consume()
+                        pick(change.position)
+                    }
+                } else {
+                    detectHorizontalDragGestures(onDragStart = { pick(it) }) { change, _ ->
+                        change.consume()
+                        pick(change.position)
+                    }
+                }
+            }
+            .drawBehind {
+                val thick = 4.dp.toPx()
+                val thumbR = 11.dp.toPx()
+                val pad = thumbR + 2.dp.toPx()
+                val track = Color.White.copy(alpha = 0.18f)
+                val v = current.coerceIn(0f, 1f)
+                if (vertical) {
+                    val x = size.width / 2f
+                    drawLine(track, Offset(x, pad), Offset(x, size.height - pad), strokeWidth = thick, cap = StrokeCap.Round)
+                    if (snapTo != null) {
+                        val cy = pad + (size.height - 2 * pad) * snapTo
+                        drawLine(Color.White.copy(alpha = 0.45f), Offset(x - 6.dp.toPx(), cy), Offset(x + 6.dp.toPx(), cy), strokeWidth = 1.5.dp.toPx())
+                    }
+                    val ty = pad + (size.height - 2 * pad) * v
+                    drawCircle(CreatePalette.Accent.copy(alpha = 0.35f), radius = thumbR + 5.dp.toPx(), center = Offset(x, ty))
+                    drawCircle(Color.White, radius = thumbR, center = Offset(x, ty))
+                    drawCircle(CreatePalette.Accent, radius = thumbR, center = Offset(x, ty), style = Stroke(2.dp.toPx()))
+                } else {
+                    val y = size.height / 2f
+                    drawLine(track, Offset(pad, y), Offset(size.width - pad, y), strokeWidth = thick, cap = StrokeCap.Round)
+                    if (snapTo != null) {
+                        val cx = pad + (size.width - 2 * pad) * snapTo
+                        drawLine(Color.White.copy(alpha = 0.45f), Offset(cx, y - 6.dp.toPx()), Offset(cx, y + 6.dp.toPx()), strokeWidth = 1.5.dp.toPx())
+                    }
+                    val tx = pad + (size.width - 2 * pad) * v
+                    drawCircle(CreatePalette.Accent.copy(alpha = 0.35f), radius = thumbR + 5.dp.toPx(), center = Offset(tx, y))
+                    drawCircle(Color.White, radius = thumbR, center = Offset(tx, y))
+                    drawCircle(CreatePalette.Accent, radius = thumbR, center = Offset(tx, y), style = Stroke(2.dp.toPx()))
+                }
+            }
+    )
+}
+
+/** A horizontal [DragBar] with a label on the left and the current value on the right. */
+@Composable
+fun LabeledDragBar(
+    label: String,
+    valueText: String,
+    value: Float,
+    onValue: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    snapTo: Float? = 0.5f
+) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = CreatePalette.Label, fontFamily = Outfit, fontSize = 14.sp, modifier = Modifier.width(64.dp))
+        DragBar(
+            value = value,
+            onValue = onValue,
+            vertical = false,
+            snapTo = snapTo,
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp)
+        )
+        Text(
+            valueText,
+            color = Color.White,
+            fontFamily = Outfit,
+            fontSize = 14.sp,
+            modifier = Modifier
+                .width(52.dp)
+                .padding(start = 8.dp)
+        )
     }
 }
