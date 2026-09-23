@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 object NotificationBadgeFilter {
 
     fun countsByPackage(
-        notifications: Array<StatusBarNotification>,
+        notifications: List<StatusBarNotification>,
         selfPackage: String,
         ranking: NotificationListenerService.RankingMap? = null
     ): Map<String, Int> {

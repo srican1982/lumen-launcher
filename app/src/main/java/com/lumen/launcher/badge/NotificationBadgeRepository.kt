@@ -19,7 +19,7 @@ object NotificationBadgeRepository {
     val countsByPackage: StateFlow<Map<String, Int>> = _counts.asStateFlow()
 
     fun rebuild(
-        notifications: Array<StatusBarNotification>,
+        notifications: List<StatusBarNotification>,
         selfPackage: String,
         ranking: NotificationListenerService.RankingMap? = null
     ) {

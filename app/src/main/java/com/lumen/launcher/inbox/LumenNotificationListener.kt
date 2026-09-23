@@ -33,7 +33,7 @@ class LumenNotificationListener : NotificationListenerService() {
     private fun publishActive() {
         val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
         val ranking = runCatching { currentRanking }.getOrNull()
-        NotificationBadgeRepository.rebuild(notes, packageName, ranking)
+        NotificationBadgeRepository.rebuild(notes.toList(), packageName, ranking)
         val items = ArrayList<InboxItem>()
         val intents = LinkedHashMap<String, PendingIntent>()
         val meetings = ArrayList<CalendarEvent>()
