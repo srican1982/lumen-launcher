@@ -92,6 +92,33 @@ object QuoteStyleRenderer {
         return lines.ifEmpty { listOf(text) }
     }
 
+    /** Soft sky gradient with blurred clouds in the corners (Sky background). */
+    private fun drawSky(canvas: Canvas, w: Int, h: Int) {
+        val sky = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, h.toFloat(),
+                Color(0xFF4AABF2).toArgb(), Color(0xFF8ED2FF).toArgb(),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), sky)
+        val unit = minOf(w, h).toFloat()
+        val cloud = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            maskFilter = android.graphics.BlurMaskFilter(unit * 0.035f, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        }
+        fun puff(cx: Float, cy: Float, r: Float, alpha: Int) {
+            cloud.alpha = alpha
+            canvas.drawCircle(cx - r * 0.9f, cy + r * 0.15f, r * 0.75f, cloud)
+            canvas.drawCircle(cx, cy - r * 0.2f, r, cloud)
+            canvas.drawCircle(cx + r * 1.0f, cy + r * 0.1f, r * 0.8f, cloud)
+            canvas.drawOval(cx - r * 1.7f, cy, cx + r * 1.8f, cy + r * 0.9f, cloud)
+        }
+        puff(w * 0.10f, h - unit * 0.06f, unit * 0.11f, 150)
+        puff(w * 0.88f, h - unit * 0.13f, unit * 0.10f, 130)
+        puff(w * 0.06f, h * 0.22f, unit * 0.07f, 70)
+    }
+
     private fun drawBackground(canvas: Canvas, w: Int, h: Int, bg: QuoteBackgroundKind, style: QuoteStyle) {
         if (bg == QuoteBackgroundKind.Transparent && style == QuoteStyle.Sticker) return
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -114,7 +141,7 @@ object QuoteStyleRenderer {
                 )
                 canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
             }
-            QuoteBackgroundKind.SocialBlue -> canvas.drawColor(Color(0xFF4FA3E3).toArgb())
+            QuoteBackgroundKind.SocialBlue -> drawSky(canvas, w, h)
         }
     }
 
