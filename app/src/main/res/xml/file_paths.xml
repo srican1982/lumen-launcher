@@ -2,4 +2,6 @@
 <paths>
     <files-path name="social_creations" path="social_creations/" />
     <cache-path name="social_cache" path="." />
+    <!-- Lumen sticker packs, shared with Telegram's sticker import. -->
+    <files-path name="lumen_stickers" path="stickers/" />
 </paths>

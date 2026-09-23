@@ -10,6 +10,14 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.launch
+import com.lumen.launcher.social.quote.QuoteShapes
+import com.lumen.launcher.social.quote.QuoteShape
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -227,7 +235,16 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                         )
                     }
                 },
-                onShare = { if (strokes.isNotEmpty()) showExportSheet = true }
+                onShare = { if (strokes.isNotEmpty()) showExportSheet = true },
+                onSticker = {
+                    if (strokes.isNotEmpty()) {
+                        coordinator.addToStickerPack(
+                            CreationKind.Scribble,
+                            ScribbleExport.render(strokes, brushStyle, ScribbleExportBackground.Transparent, sticker = true),
+                            "A hand-drawn scribble"
+                        )
+                    }
+                }
             )
         }
 
@@ -335,21 +352,39 @@ private fun ScribbleInkPad(
 
 // ───────────────────────────── Quote ─────────────────────────────
 
+private enum class QuoteStep { Write, Design }
+
 @Composable
 private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    var step by remember { mutableStateOf(QuoteStep.Write) }
     var text by remember { mutableStateOf("") }
     var style by remember { mutableStateOf(QuoteStyle.Bubble) }
     var aspect by remember { mutableStateOf(QuoteAspect.Square) }
     var background by remember { mutableStateOf(QuoteBackgroundKind.SocialBlue) }
+    var shape by remember { mutableStateOf(QuoteShape.None) }
+    var shapePhoto by remember { mutableStateOf<Bitmap?>(null) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val isSticker = background == QuoteBackgroundKind.Transparent
+    val shown = text.ifBlank { "Hello" }
+
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { picked ->
+        if (picked != null) {
+            scope.launch {
+                shapePhoto = withContext(Dispatchers.IO) { decodeForMarkup(context, picked, maxSide = 1600) }
+                if (shape == QuoteShape.None) shape = QuoteShape.Circle
+            }
+        }
+    }
 
     fun render(forSticker: Boolean): Bitmap = QuoteStyleRenderer.render(
         context = context,
-        text = text.ifBlank { "Hello" },
+        text = shown,
         style = style,
         aspect = if (forSticker) QuoteAspect.Square else aspect,
-        background = background
+        background = if (forSticker) QuoteBackgroundKind.Transparent else background,
+        shape = shape,
+        shapePhoto = shapePhoto
     )
 
     // "Clear" means a see-through sticker; every other background is a normal image.
@@ -369,74 +404,230 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         else coordinator.saveImageToGallery(CreationKind.Quote, render(forSticker = false))
     }
 
+    fun addSticker() {
+        coordinator.addToStickerPack(
+            CreationKind.Quote,
+            render(forSticker = true),
+            "The words ${shown.take(90)} in sticker lettering"
+        )
+    }
+
+    // Live preview, rendered off the main thread and debounced while typing.
+    val preview by produceState<ImageBitmap?>(null, text, style, aspect, background, shape, shapePhoto) {
+        delay(80)
+        value = withContext(Dispatchers.Default) {
+            val full = QuoteStyleRenderer.render(context, shown, style, aspect, background, shape, shapePhoto)
+            val scale = 720f / maxOf(full.width, full.height)
+            Bitmap.createScaledBitmap(full, (full.width * scale).toInt(), (full.height * scale).toInt(), true).asImageBitmap()
+        }
+    }
+
+    when (step) {
+        QuoteStep.Write -> QuoteWriteStep(
+            text = text,
+            onText = { text = it },
+            preview = preview,
+            aspect = aspect,
+            isSticker = isSticker,
+            onClose = onClose,
+            onShare = ::share,
+            onNext = { step = QuoteStep.Design }
+        )
+        QuoteStep.Design -> QuoteDesignStep(
+            text = shown,
+            preview = preview,
+            style = style,
+            onStyle = { style = it },
+            shape = shape,
+            onShape = { shape = it },
+            hasPhoto = shapePhoto != null,
+            onPickPhoto = { photoPicker.launch("image/*") },
+            onClearPhoto = { shapePhoto = null },
+            shapePhoto = shapePhoto,
+            background = background,
+            onBackground = { background = it },
+            aspect = aspect,
+            onAspect = { aspect = it },
+            isSticker = isSticker,
+            onEditText = { step = QuoteStep.Write },
+            onClose = onClose,
+            onSave = ::save,
+            onSticker = ::addSticker,
+            onShare = ::share
+        )
+    }
+}
+
+/** Step 1: type. The preview stays visible above the keyboard. */
+@Composable
+private fun QuoteWriteStep(
+    text: String,
+    onText: (String) -> Unit,
+    preview: ImageBitmap?,
+    aspect: QuoteAspect,
+    isSticker: Boolean,
+    onClose: () -> Unit,
+    onShare: () -> Unit,
+    onNext: () -> Unit
+) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
         keyboard?.show()
     }
+    Column(Modifier.fillMaxSize()) {
+        CreateToolHeader("Quote", onClose, onShare, subtitle = "Step 1 of 2 · Write")
+        QuotePreviewCard(
+            preview = preview,
+            aspect = aspect,
+            isSticker = isSticker,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        val fieldShape = RoundedCornerShape(30.dp)
+        BasicTextField(
+            value = text,
+            onValueChange = onText,
+            textStyle = TextStyle(color = Color.White, fontFamily = Outfit, fontSize = 19.sp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = {
+                keyboard?.hide()
+                onNext()
+            }),
+            cursorBrush = SolidColor(Color.White),
+            maxLines = 3,
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .clip(fieldShape)
+                .background(Color(0x1FFFFFFF))
+                .border(1.dp, Color(0x40B794F4), fieldShape)
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+            decorationBox = { inner ->
+                if (text.isBlank()) {
+                    Text("Write something short…", color = Color.White.copy(alpha = 0.5f), fontFamily = Outfit, fontSize = 19.sp)
+                }
+                inner()
+            }
+        )
+        val btnShape = RoundedCornerShape(28.dp)
+        Row(
+            Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(54.dp)
+                .shadow(14.dp, btnShape, spotColor = CreatePalette.Accent)
+                .clip(btnShape)
+                .background(CreatePalette.ShareFill)
+                .clickable {
+                    keyboard?.hide()
+                    onNext()
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text("Next: choose a design", color = CreatePalette.Ink, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = CreatePalette.Ink, modifier = Modifier.size(22.dp))
+        }
+    }
+}
 
-    // Render the preview off the main thread, debounced while typing.
-    val preview by produceState<ImageBitmap?>(null, text, style, aspect, background) {
-        delay(90)
+/** Step 2: design (preview pinned at the top, choices scroll below). */
+@Composable
+private fun QuoteDesignStep(
+    text: String,
+    preview: ImageBitmap?,
+    style: QuoteStyle,
+    onStyle: (QuoteStyle) -> Unit,
+    shape: QuoteShape,
+    onShape: (QuoteShape) -> Unit,
+    hasPhoto: Boolean,
+    onPickPhoto: () -> Unit,
+    onClearPhoto: () -> Unit,
+    shapePhoto: Bitmap?,
+    background: QuoteBackgroundKind,
+    onBackground: (QuoteBackgroundKind) -> Unit,
+    aspect: QuoteAspect,
+    onAspect: (QuoteAspect) -> Unit,
+    isSticker: Boolean,
+    onEditText: () -> Unit,
+    onClose: () -> Unit,
+    onSave: () -> Unit,
+    onSticker: () -> Unit,
+    onShare: () -> Unit
+) {
+    val context = LocalContext.current
+    // One small thumbnail per design, drawn with the user's own text.
+    val thumbs by produceState(emptyMap<QuoteStyle, ImageBitmap>(), text, background, shape, shapePhoto) {
+        delay(120)
         value = withContext(Dispatchers.Default) {
-            QuoteStyleRenderer.render(
-                context = context,
-                text = text.ifBlank { "Hello" },
-                style = style,
-                aspect = aspect,
-                background = background
-            ).let { full ->
-                val scale = 720f / maxOf(full.width, full.height)
-                Bitmap.createScaledBitmap(full, (full.width * scale).toInt(), (full.height * scale).toInt(), true)
-            }.asImageBitmap()
+            QuoteStyle.entries.associateWith { s ->
+                QuoteStyleRenderer.renderThumb(context, text, s, background, shape, shapePhoto, size = 220).asImageBitmap()
+            }
         }
     }
 
     Column(Modifier.fillMaxSize()) {
-        CreateToolHeader("Quote", onClose, ::share, subtitle = "Sticker-style text for shares.")
+        CreateToolHeader("Quote", onClose, onShare, subtitle = "Step 2 of 2 · Design")
+        QuotePreviewCard(
+            preview = preview,
+            aspect = aspect,
+            isSticker = isSticker,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp)
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        )
+        Row(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(14.dp))
+                .clickable(onClick = onEditText)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.Edit, null, tint = CreatePalette.Accent, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Edit text", color = CreatePalette.Accent, fontFamily = Outfit, fontSize = 14.sp)
+        }
+
         Column(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            val fieldShape = RoundedCornerShape(30.dp)
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = TextStyle(color = Color.White, fontFamily = Outfit, fontSize = 19.sp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { keyboard?.hide() }),
-                cursorBrush = Brush.verticalGradient(listOf(Color.White, Color.White)),
-                modifier = Modifier
-                    .padding(top = 6.dp)
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-                    .clip(fieldShape)
-                    .background(Color(0x1FFFFFFF))
-                    .border(1.dp, Color(0x40B794F4), fieldShape)
-                    .padding(horizontal = 22.dp, vertical = 20.dp),
-                decorationBox = { inner ->
-                    if (text.isBlank()) {
-                        Text("Write something short…", color = Color.White.copy(alpha = 0.5f), fontFamily = Outfit, fontSize = 19.sp)
-                    }
-                    inner()
-                }
-            )
-
-            CreateSectionLabel("Style")
+            CreateSectionLabel("Design")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuoteStyle.entries.forEach { s ->
-                    val sel = style == s
-                    CreateChip(s.name, sel, leading = {
-                        when (s) {
-                            QuoteStyle.Bubble -> Icon(Icons.Outlined.AutoAwesome, null, tint = chipIconTint(sel), modifier = Modifier.size(20.dp))
-                            QuoteStyle.Sticker -> Icon(CreateIcons.Sticker, null, tint = chipIconTint(sel), modifier = Modifier.size(22.dp))
-                            QuoteStyle.Minimal -> Text("Aa", color = chipIconTint(sel), fontFamily = Outfit, fontSize = 16.sp)
-                            QuoteStyle.Glass -> GlassOrb()
-                        }
-                    }) { style = s }
+                    DesignThumb(label = s.label, image = thumbs[s], selected = style == s) { onStyle(s) }
+                }
+            }
+
+            CreateSectionLabel("Shape")
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuoteShape.entries.forEach { sh ->
+                    val sel = shape == sh
+                    CreateChip(sh.label, sel, leading = { ShapeGlyph(sh, chipIconTint(sel)) }) { onShape(sh) }
+                }
+            }
+            Row(
+                Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                CreateChip(
+                    if (hasPhoto) "Change photo" else "Photo in shape",
+                    hasPhoto,
+                    leading = { Icon(Icons.Outlined.Image, null, tint = chipIconTint(hasPhoto), modifier = Modifier.size(20.dp)) },
+                    onClick = onPickPhoto
+                )
+                if (hasPhoto) {
+                    CreateChip("Remove photo", false, onClick = onClearPhoto)
                 }
             }
 
@@ -458,7 +649,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
                             QuoteBackgroundKind.Light -> Icon(Icons.Outlined.WbSunny, null, tint = chipIconTint(sel), modifier = Modifier.size(20.dp))
                             QuoteBackgroundKind.Transparent -> CheckerSwatch()
                         }
-                    }) { background = kind }
+                    }) { onBackground(kind) }
                 }
             }
 
@@ -470,61 +661,99 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
                     Triple(QuoteAspect.Landscape, "16:9", 16f to 9f)
                 ).forEach { (a, label, ratio) ->
                     val sel = aspect == a
-                    CreateChip(label, sel, leading = { AspectGlyph(ratio.first, ratio.second, chipIconTint(sel)) }) { aspect = a }
+                    CreateChip(label, sel, leading = { AspectGlyph(ratio.first, ratio.second, chipIconTint(sel)) }) { onAspect(a) }
                 }
             }
-
-            // Live preview in the chosen size; checkerboard shows "no background".
-            val ratio = aspect.width.toFloat() / aspect.height
-            Box(
-                Modifier
-                    .padding(top = 18.dp, bottom = 8.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                val cardShape = RoundedCornerShape(28.dp)
-                Box(
-                    Modifier
-                        .heightIn(max = 420.dp)
-                        .aspectRatio(ratio, matchHeightConstraintsFirst = ratio < 1f)
-                        .shadow(18.dp, cardShape, spotColor = Color(0xFF6D28D9))
-                        .clip(cardShape)
-                        .then(if (isSticker) Modifier.drawBehind { checkerboard() } else Modifier.background(Color(0xFF1B1030)))
-                        .border(1.dp, Color(0x40B794F4), cardShape)
-                ) {
-                    preview?.let {
-                        Image(it, "Quote preview", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-                    }
-                }
-            }
-            AddToStickersLink(
-                onClick = {
-                    val bmp = QuoteStyleRenderer.render(
-                        context = context,
-                        text = text.ifBlank { "Hello" },
-                        style = style,
-                        aspect = QuoteAspect.Square,
-                        background = QuoteBackgroundKind.Transparent
-                    )
-                    coordinator.addToStickerPack(
-                        CreationKind.Quote,
-                        bmp,
-                        "The words ${text.ifBlank { "Hello" }.take(90)} in sticker lettering"
-                    )
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+            Text(
+                if (isSticker) "Clear = see-through sticker with a cut-out border."
+                else "Sticker always uses a see-through background.",
+                color = CreatePalette.Label,
+                fontFamily = Outfit,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
             )
-            if (isSticker) {
-                Text(
-                    "Clear = sticker: no background, with a cut-out border.",
-                    color = CreatePalette.Label,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+        }
+        CreateActionBar(onSave = onSave, onShare = onShare, onSticker = onSticker)
+    }
+}
+
+/** Preview card that keeps the chosen size's shape and shows a checkerboard for "Clear". */
+@Composable
+private fun QuotePreviewCard(
+    preview: ImageBitmap?,
+    aspect: QuoteAspect,
+    isSticker: Boolean,
+    modifier: Modifier
+) {
+    val ratio = aspect.width.toFloat() / aspect.height
+    Box(modifier, contentAlignment = Alignment.Center) {
+        val cardShape = RoundedCornerShape(26.dp)
+        Box(
+            Modifier
+                .aspectRatio(ratio, matchHeightConstraintsFirst = true)
+                .shadow(18.dp, cardShape, spotColor = Color(0xFF6D28D9))
+                .clip(cardShape)
+                .then(if (isSticker) Modifier.drawBehind { checkerboard() } else Modifier.background(Color(0xFF1B1030)))
+                .border(1.dp, Color(0x40B794F4), cardShape)
+        ) {
+            preview?.let {
+                Image(it, "Quote preview", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
             }
         }
-        CreateActionBar(onSave = ::save, onShare = ::share)
+    }
+}
+
+/** A design option shown as a real mini render of the user's text. */
+@Composable
+private fun DesignThumb(label: String, image: ImageBitmap?, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        Modifier
+            .width(92.dp)
+            .clip(shape)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier
+                .size(88.dp)
+                .clip(shape)
+                .background(Color(0xFF1B1030))
+                .border(if (selected) 2.5.dp else 1.dp, if (selected) CreatePalette.Accent else Color(0x2EC7A6F5), shape)
+        ) {
+            image?.let {
+                Image(it, label, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.dp))
+            }
+        }
+        Text(
+            label,
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
+            fontFamily = Outfit,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+/** Tiny outline of a quote shape for its chip. */
+@Composable
+private fun ShapeGlyph(shape: QuoteShape, color: Color) {
+    Canvas(Modifier.size(20.dp)) {
+        if (shape == QuoteShape.None) {
+            drawLine(color, Offset(size.width * 0.2f, size.height * 0.8f), Offset(size.width * 0.8f, size.height * 0.2f), strokeWidth = 2.dp.toPx())
+            drawCircle(color, radius = size.minDimension * 0.4f, style = Stroke(1.6.dp.toPx()))
+        } else {
+            val path = QuoteShapes.path(shape, android.graphics.RectF(1f, 1f, size.width - 1f, size.height - 1f))
+            drawIntoCanvas { c ->
+                c.nativeCanvas.drawPath(path, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    this.color = color.toArgb()
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 1.8.dp.toPx()
+                    strokeJoin = android.graphics.Paint.Join.ROUND
+                })
+            }
+        }
     }
 }
 
@@ -764,12 +993,6 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             }
         }
 
-        AddToStickersLink(
-            onClick = {
-                rendered()?.let { coordinator.addToStickerPack(CreationKind.Photo, it, "A photo with drawn marks") }
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
         CreateSectionLabel("Tools", Modifier.padding(horizontal = 20.dp))
         Row(
             Modifier
@@ -857,7 +1080,13 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             }
         }
 
-        CreateActionBar(onSave = ::save, onShare = ::share)
+        CreateActionBar(
+            onSave = ::save,
+            onShare = ::share,
+            onSticker = {
+                rendered()?.let { coordinator.addToStickerPack(CreationKind.Photo, it, "A photo with drawn marks") }
+            }
+        )
         }
     }
 }

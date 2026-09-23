@@ -58,6 +58,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.lumen.launcher.social.stickers.LumenSticker
 import com.lumen.launcher.social.stickers.LumenStickerPack
 import com.lumen.launcher.social.stickers.StickerLibrary
+import com.lumen.launcher.social.stickers.TelegramStickers
 import com.lumen.launcher.social.stickers.WhatsAppStickers
 import com.lumen.launcher.social.stickers.WhatsAppTarget
 import com.lumen.launcher.ui.theme.Outfit
@@ -83,6 +84,20 @@ fun StickerPackScreen(onClose: () -> Unit) {
     }
 
     val targets = remember { WhatsAppStickers.installedTargets(context) }
+    val telegram = remember { TelegramStickers.isAvailable(context) }
+
+    fun sendToTelegram(pack: LumenStickerPack) {
+        val intent = TelegramStickers.importIntent(context, pack)
+        if (intent == null) {
+            Toast.makeText(context, "No stickers to send yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, "Telegram isn't installed or is too old for sticker import", Toast.LENGTH_LONG).show()
+        }
+    }
 
     // packId -> (target -> added?) ; null means WhatsApp couldn't tell us.
     val added by produceState(emptyMap<String, Map<WhatsAppTarget, Boolean?>>(), packs, refreshTick) {
@@ -138,7 +153,7 @@ fun StickerPackScreen(onClose: () -> Unit) {
                 }
                 Column(Modifier.padding(horizontal = 16.dp)) {
                     Text("Lumen Stickers", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 24.sp)
-                    Text("Real stickers in WhatsApp — no background.", color = CreatePalette.Subtitle, fontFamily = Outfit, fontSize = 14.sp)
+                    Text("Real stickers for WhatsApp & Telegram.", color = CreatePalette.Subtitle, fontFamily = Outfit, fontSize = 14.sp)
                 }
             }
 
@@ -174,6 +189,8 @@ fun StickerPackScreen(onClose: () -> Unit) {
                         targets = targets,
                         addedState = added[pack.identifier].orEmpty(),
                         onAdd = { target -> addTo(pack, target) },
+                        telegram = telegram,
+                        onTelegram = { sendToTelegram(pack) },
                         onStickerTap = { sticker -> pendingRemove = pack to sticker }
                     )
                     Spacer(Modifier.height(16.dp))
@@ -210,6 +227,8 @@ private fun PackCard(
     targets: List<WhatsAppTarget>,
     addedState: Map<WhatsAppTarget, Boolean?>,
     onAdd: (WhatsAppTarget) -> Unit,
+    telegram: Boolean,
+    onTelegram: () -> Unit,
     onStickerTap: (LumenSticker) -> Unit
 ) {
     val context = LocalContext.current
@@ -306,6 +325,30 @@ private fun PackCard(
                     fontSize = 16.sp
                 )
             }
+        }
+        if (telegram) {
+            val tgShape = RoundedCornerShape(26.dp)
+            Row(
+                Modifier
+                    .padding(top = 10.dp)
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(tgShape)
+                    .background(Color(0x14FFFFFF))
+                    .border(1.dp, Color(0x6629A9EB), tgShape)
+                    .clickable(enabled = pack.stickers.isNotEmpty(), onClick = onTelegram),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text("Send copy to Telegram", color = Color(0xFF7CC8F5), fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+            }
+            Text(
+                "Telegram makes its own copy. Stickers you add later need another send (it creates a new Telegram pack).",
+                color = CreatePalette.Label,
+                fontFamily = Outfit,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 6.dp)
+            )
         }
     }
 }

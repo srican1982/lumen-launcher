@@ -115,7 +115,7 @@ fun SocialCreatePanel(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .width(196.dp)
+                .width(176.dp)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -156,7 +156,7 @@ fun SocialCreatePanel(
                         PanelShape
                     )
                     .clickable(interactionSource = blockTouches, indication = null, onClick = {})
-                    .padding(horizontal = 14.dp)
+                    .padding(horizontal = 12.dp)
             ) {
                 // Drag handle
                 Box(
@@ -169,23 +169,23 @@ fun SocialCreatePanel(
                 )
                 // Header
                 Row(
-                    Modifier.padding(top = 18.dp, bottom = 16.dp, start = 2.dp),
+                    Modifier.padding(top = 14.dp, bottom = 12.dp, start = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         Icons.Outlined.AutoAwesome,
                         null,
                         tint = Color(0xFF9F67F5),
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(26.dp)
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     Column {
                         Text(
                             "Create",
                             color = Color.White,
                             fontFamily = Outfit,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 22.sp
+                            fontSize = 20.sp
                         )
                         Text(
                             "Make something. Share it.",
@@ -204,21 +204,21 @@ fun SocialCreatePanel(
                         icon = Icons.Outlined.Gesture,
                         gradient = listOf(Color(0xFF8E3CF7), Color(0xFFB45CF0), Color(0xFF6B55C9))
                     ) { onOpenTool(SocialCreateTool.Scribble) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
                     CreateToolCard(
                         title = "Quote",
                         subtitle = "Text to sticker",
                         icon = Icons.Outlined.FormatQuote,
                         gradient = listOf(Color(0xFF3B2FD9), Color(0xFF1F6FE0), Color(0xFF2BA3E8))
                     ) { onOpenTool(SocialCreateTool.Quote) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
                     CreateToolCard(
                         title = "Photo",
                         subtitle = "Add text & marks",
                         icon = Icons.Outlined.Image,
                         gradient = listOf(Color(0xFFE59A2F), Color(0xFF9A5A3A), Color(0xFF4B3560))
                     ) { onOpenTool(SocialCreateTool.Photo) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
                     StickerPackEntry(count = stickerCount) { showStickers = true }
 
                     Box(
@@ -346,7 +346,7 @@ private fun CreateToolCard(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(104.dp)
+            .height(84.dp)
             .shadow(14.dp, CardShape, spotColor = gradient[1])
             .clip(CardShape)
             .background(Brush.linearGradient(gradient))
@@ -363,13 +363,13 @@ private fun CreateToolCard(
                 CardShape
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Column(Modifier.align(Alignment.CenterStart)) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(32.dp))
-            Spacer(Modifier.height(8.dp))
-            Text(title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text(subtitle, color = Color.White.copy(alpha = 0.82f), fontFamily = Outfit, fontSize = 12.sp, maxLines = 1)
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(subtitle, color = Color.White.copy(alpha = 0.82f), fontFamily = Outfit, fontSize = 11.sp, maxLines = 1)
         }
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -377,7 +377,7 @@ private fun CreateToolCard(
             tint = Color.White,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .size(26.dp)
+                .size(22.dp)
         )
     }
 }
@@ -399,7 +399,7 @@ private fun RecentCreationThumb(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(92.dp)
+            .height(76.dp)
             .clip(shape)
             .background(Color(0xFF1C1230))
             .border(1.dp, Color.White.copy(alpha = 0.12f), shape)

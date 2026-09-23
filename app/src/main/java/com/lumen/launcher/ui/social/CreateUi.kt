@@ -185,15 +185,24 @@ fun CreateChip(
 /** Tint to use for a chip's leading icon so it reads on both states. */
 fun chipIconTint(selected: Boolean): Color = if (selected) CreatePalette.Ink else Color.White.copy(alpha = 0.9f)
 
-/** Bottom bar: "Save to Gallery" (outlined) + "Share" (gradient). */
+/**
+ * Bottom bar. Two buttons ("Save to Gallery" + "Share"), or three when [onSticker] is given:
+ * "Save" · "Sticker" (adds to Lumen Stickers) · "Share".
+ */
 @Composable
-fun CreateActionBar(onSave: () -> Unit, onShare: () -> Unit, modifier: Modifier = Modifier) {
+fun CreateActionBar(
+    onSave: () -> Unit,
+    onShare: () -> Unit,
+    modifier: Modifier = Modifier,
+    onSticker: (() -> Unit)? = null
+) {
     val shape = RoundedCornerShape(30.dp)
+    val compact = onSticker != null
     Row(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             Modifier
@@ -206,9 +215,26 @@ fun CreateActionBar(onSave: () -> Unit, onShare: () -> Unit, modifier: Modifier 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Outlined.FileDownload, null, tint = Color.White, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("Save to Gallery", color = Color.White, fontFamily = Outfit, fontSize = 16.sp)
+            Icon(Icons.Outlined.FileDownload, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (compact) "Save" else "Save to Gallery", color = Color.White, fontFamily = Outfit, fontSize = 16.sp, maxLines = 1)
+        }
+        if (onSticker != null) {
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(58.dp)
+                    .clip(shape)
+                    .background(Color(0x333A1C63))
+                    .border(1.5.dp, CreatePalette.Accent, shape)
+                    .clickable(onClick = onSticker),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(CreateIcons.Sticker, null, tint = CreatePalette.Accent, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Sticker", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
+            }
         }
         Row(
             Modifier
@@ -221,9 +247,9 @@ fun CreateActionBar(onSave: () -> Unit, onShare: () -> Unit, modifier: Modifier 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Outlined.FileUpload, null, tint = CreatePalette.Ink, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("Share", color = CreatePalette.Ink, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            Icon(Icons.Outlined.FileUpload, null, tint = CreatePalette.Ink, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Share", color = CreatePalette.Ink, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
         }
     }
 }
