@@ -360,7 +360,7 @@ fun HomeScreen(
             Spacer(Modifier.height(10.dp))
             FocusBanner(state, viewModel)
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -374,7 +374,7 @@ fun HomeScreen(
                 columns = GridCells.Fixed(state.gridColumns),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
+                contentPadding = PaddingValues(top = 0.dp, bottom = 12.dp),
                 userScrollEnabled = !editing,
                 verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
@@ -396,7 +396,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
-                            verticalArrangement = Arrangement.SpaceEvenly
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(Modifier.fillMaxWidth()) {
                                 HomeGridIcon(lead.getOrNull(0), Modifier.weight(1f))
@@ -411,7 +411,7 @@ fun HomeScreen(
                         val cardShape = RoundedCornerShape(30.dp)
                         Column(
                             modifier = Modifier
-                                .weight(1.2f)
+                                .weight(1.3f)
                                 .fillMaxHeight()
                                 .padding(start = 6.dp, top = iconSlotPad, bottom = iconSlotPad)
                                 .clip(cardShape)
@@ -451,7 +451,7 @@ fun HomeScreen(
                                 )
                                 Column(
                                     modifier = Modifier
-                                        .width(80.dp)
+                                        .width(88.dp)
                                         .fillMaxHeight(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
@@ -995,13 +995,6 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
             }
         }
     }
-    Text(
-        text = if (automatic) "Auto · ${selected.kicker}" else "${selected.kicker} · pinned",
-        color = Lumen.Faint,
-        fontSize = 11.sp,
-        fontFamily = Outfit,
-        modifier = Modifier.padding(top = 6.dp)
-    )
 }
 
 @Composable

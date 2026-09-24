@@ -191,11 +191,14 @@ fun TouchpadIsland(
                 translationX = stretchX * 3.4f
                 translationY = stretchY * 3.4f
             }
-            .shadow(
-                elevation = if (pressed) 6.dp else 8.dp,
-                shape = Squircle,
-                spotColor = Color(0x66000000),
-                ambientColor = Color(0x33000000)
+            // Only the framed pill casts a shadow; inside the glass card it would show as a pale band.
+            .then(
+                if (framed) Modifier.shadow(
+                    elevation = if (pressed) 6.dp else 8.dp,
+                    shape = Squircle,
+                    spotColor = Color(0x66000000),
+                    ambientColor = Color(0x33000000)
+                ) else Modifier
             )
             .touchpadGestures(
                 enabled = enabled && !state.privatePageActive,

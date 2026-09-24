@@ -66,7 +66,7 @@ class IconCache(private val context: Context) {
     /** White Glass · Color icons: the app's colored logo sitting on a frosted white tile. */
     suspend fun getFrostedColor(packageName: String, activityName: String): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#frostcolor2"
+        val key = "$packageName/$activityName#frostcolor3"
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
@@ -379,35 +379,114 @@ class IconCache(private val context: Context) {
     }.getOrDefault(packageName.substringAfterLast('.'))
 
     /**
-     * White Glass · Color icons: the app's full original icon, in color, with a soft
-     * glass shine on top (like the iPhone home screen). Many apps keep a white logo on a
-     * colored background layer, so the whole icon is used — never just the logo layer.
+     * White Glass · Color icons: the app's colored logo on a frosted glass tile
+     * (like Play Store's triangle or Affirm's blue "a" sitting on glass).
+     * If the logo itself is white (its color lives in the background layer, e.g. WhatsApp),
+     * it is painted in that background color so it stays colorful.
      */
     private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int): Bitmap {
-        val icon = adaptive?.let { renderDimensional(it, size) } ?: renderSculpted(drawable, size)
-        val canvas = Canvas(icon)
-        canvas.save()
-        canvas.clipPath(squircle(size))
-        // Glass shine across the top half.
-        canvas.drawRect(0f, 0f, size.toFloat(), size * 0.48f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, 0f, size * 0.48f, 0x3DFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
-        })
-        // Bright glass edge.
-        canvas.drawRoundRect(
-            size * 0.01f, size * 0.01f, size * 0.99f, size * 0.99f, size * 0.30f, size * 0.30f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeWidth = size * 0.018f
-                shader = LinearGradient(
-                    0f, 0f, 0f, size.toFloat(),
-                    intArrayOf(0x8CFFFFFF.toInt(), 0x1AFFFFFF, 0x33FFFFFF),
-                    floatArrayOf(0f, 0.5f, 1f),
-                    Shader.TileMode.CLAMP
-                )
+        var logo: Bitmap? = null
+        // 1) Two-layer icon: the logo layer.
+        if (adaptive?.foreground != null) {
+            val fg = renderLayer(adaptive.foreground, size)
+            if (analyze(fg, opaqueOnly = true).coverage in 0.02f..0.6f) {
+                logo = if (isPale(fg)) {
+                    val bgColor = adaptive.background?.let { layerColor(it, size) }
+                    if (bgColor != null) recolor(fg, bgColor) else fg
+                } else {
+                    fg
+                }
+            } else {
+                fg.recycle()
             }
-        )
-        canvas.restore()
-        return icon
+        }
+        if (logo == null) {
+            val full = adaptive?.let { renderDimensional(it, size) } ?: renderSculpted(drawable, size)
+            val st = analyze(full, opaqueOnly = true)
+            // 2) Flat icon on a plain background: lift the logo off it (white logo takes the background color).
+            if (st.dominantShare >= 0.30f) {
+                val candidate = colorSymbol(full, st.dominant, scale = 0.80f)
+                if (coverageOf(candidate) in 0.02f..0.55f) {
+                    logo = if (isPale(candidate) && !isPaleColor(st.dominant)) recolor(candidate, st.dominant) else candidate
+                } else {
+                    candidate.recycle()
+                }
+            }
+            // 3) Pure artwork: the whole icon, smaller, sitting on the glass.
+            if (logo == null) {
+                val mini = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                val c = Canvas(mini)
+                val inset = size * 0.16f
+                c.clipPath(squircle(size, inset))
+                c.drawBitmap(full, null, RectF(inset, inset, size - inset, size - inset), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+                logo = mini
+            }
+            full.recycle()
+        }
+        return frostedTile(logo!!, size)
+    }
+
+    /** Keeps the original colors of every pixel that clearly differs from [background]. */
+    private fun colorSymbol(src: Bitmap, background: Int, scale: Float): Bitmap {
+        val w = src.width
+        val h = src.height
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+        for (i in px.indices) {
+            val c = px[i]
+            val a = c ushr 24
+            if (a == 0) continue
+            val keep = ((colorDistance(c, background) - 48f) / 70f).coerceIn(0f, 1f)
+            px[i] = ((keep * a).toInt() shl 24) or (c and 0xFFFFFF)
+        }
+        val symbol = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        symbol.setPixels(px, 0, w, 0, 0, w, h)
+        if (scale >= 0.999f) return symbol
+        val scaled = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val inset = w * (1f - scale) / 2f
+        Canvas(scaled).drawBitmap(symbol, null, RectF(inset, inset, w - inset, h - inset), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        symbol.recycle()
+        return scaled
+    }
+
+    /** True when most visible pixels are white / very light grey (a white logo). */
+    private fun isPale(bmp: Bitmap): Boolean {
+        val w = bmp.width
+        val h = bmp.height
+        val px = IntArray(w * h)
+        bmp.getPixels(px, 0, w, 0, 0, w, h)
+        var opaque = 0
+        var pale = 0
+        for (c in px) {
+            if ((c ushr 24) < 128) continue
+            opaque++
+            if (isPaleColor(c)) pale++
+        }
+        return opaque > 0 && pale > opaque * 0.75f
+    }
+
+    private fun isPaleColor(c: Int): Boolean {
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(c, hsv)
+        return hsv[1] < 0.2f && hsv[2] > 0.8f
+    }
+
+    /** Main color of an icon layer (e.g. WhatsApp's green background). Null if it's pale too. */
+    private fun layerColor(layer: Drawable, size: Int): Int? {
+        val bmp = renderLayer(layer, size)
+        val st = analyze(bmp, opaqueOnly = true)
+        bmp.recycle()
+        return st.dominant.takeUnless { isPaleColor(it) }
+    }
+
+    /** Same shape, filled with [color]. */
+    private fun recolor(src: Bitmap, color: Int): Bitmap {
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        Canvas(out).drawBitmap(src, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = android.graphics.PorterDuffColorFilter(color or 0xFF000000.toInt(), PorterDuff.Mode.SRC_IN)
+        })
+        src.recycle()
+        return out
     }
 
     /** Frosted white tile with [content] on top (soft shadow, glass rim). */

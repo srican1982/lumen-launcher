@@ -24,8 +24,8 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
@@ -153,13 +153,13 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ControlButton(Icons.Filled.SkipPrevious, "Previous", 20.dp) { NowPlayingRepository.previous(context) }
+            ControlButton(Icons.Filled.FastRewind, "Previous", 18.dp) { NowPlayingRepository.previous(context) }
             ControlButton(
                 if (np?.playing == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 if (np?.playing == true) "Pause" else "Play",
-                26.dp
+                22.dp
             ) { NowPlayingRepository.playPause(context) }
-            ControlButton(Icons.Filled.SkipNext, "Next", 20.dp) { NowPlayingRepository.next(context) }
+            ControlButton(Icons.Filled.FastForward, "Next", 18.dp) { NowPlayingRepository.next(context) }
         }
     }
     }
@@ -169,7 +169,7 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
 private fun ControlButton(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(28.dp)
+            .size(24.dp)
             .clip(CircleShape)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
