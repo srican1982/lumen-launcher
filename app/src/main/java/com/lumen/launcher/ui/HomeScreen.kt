@@ -397,22 +397,47 @@ fun HomeScreen(
                                 HomeGridIcon(lead.getOrNull(3), Modifier.weight(1f))
                             }
                         }
-                        TouchpadIsland(
-                            enabled = !recentsOpen && !editing,
-                            state = state,
-                            icons = viewModel.icons,
-                            dropReady = overPad,
-                            onGesture = viewModel::runBlankGesture,
-                            onPrivateArmed = viewModel::armPrivateSpace,
-                            onBoundsInWindow = { l, t, r, b ->
-                                padBox.value = Rect(l, t, r, b)
-                                viewModel.setTouchpadWindow(l, t, r, b)
-                            },
+                        // TouchPad with the mini player and notifications tiles beside it.
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
+                                .weight(1.2f)
                                 .fillMaxHeight()
                                 .padding(start = 6.dp, top = iconSlotPad, bottom = iconSlotPad)
-                        )
+                        ) {
+                            TouchpadIsland(
+                                enabled = !recentsOpen && !editing,
+                                state = state,
+                                icons = viewModel.icons,
+                                dropReady = overPad,
+                                onGesture = viewModel::runBlankGesture,
+                                onPrivateArmed = viewModel::armPrivateSpace,
+                                onBoundsInWindow = { l, t, r, b ->
+                                    padBox.value = Rect(l, t, r, b)
+                                    viewModel.setTouchpadWindow(l, t, r, b)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .width(86.dp)
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                NowPlayingTile(
+                                    Modifier
+                                        .weight(1.25f)
+                                        .fillMaxWidth()
+                                )
+                                NotificationsPreviewTile(
+                                    Modifier
+                                        .weight(0.75f)
+                                        .fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 }
                 if (!state.focusing) items(state.folders, key = { "folder-${it.id}" }) { folder ->

@@ -1,5 +1,6 @@
 package com.lumen.launcher.inbox
 
+import com.lumen.launcher.media.NowPlayingRepository
 import android.app.Notification
 import android.app.PendingIntent
 import android.service.notification.NotificationListenerService
@@ -15,11 +16,14 @@ class LumenNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         publishActive()
+        // Same access lets Lumen follow what is playing (TouchPad mini player).
+        NowPlayingRepository.start(applicationContext)
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         NotificationBadgeRepository.clear()
+        NowPlayingRepository.stop()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
