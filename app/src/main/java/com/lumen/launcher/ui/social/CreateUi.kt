@@ -57,23 +57,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lumen.launcher.ui.theme.LumenPalette
 import com.lumen.launcher.ui.theme.Outfit
 
 /** Colors shared by the Create panel and the Scribble / Quote / Photo screens. */
 object CreatePalette {
-    val Base = Color(0xFF1B1838)
-    val Ink = Color(0xFF2A1048)
-    val Label = Color(0xFFB8AEE6)
-    val Subtitle = Color(0xFFC9BEF7)
-    val Accent = Color(0xFFB9A6F5)
-    val ChipFill = Color(0x1FFFFFFF)
-    val ChipBorder = Color(0x4DC4B5FD)
-    val SelectedFill = Brush.horizontalGradient(listOf(Color(0xFFC7B2FA), Color(0xFFF0D6FA)))
-    val ShareFill = Brush.horizontalGradient(listOf(Color(0xFFA78BFA), Color(0xFFE7C6FA)))
+    private val w: Boolean get() = LumenPalette.whiteGlass
+
+    val Base: Color get() = if (w) Color(0xFF16191E) else Color(0xFF1B1838)
+    val Ink: Color get() = if (w) Color(0xFF1F2430) else Color(0xFF2A1048)
+    val Label: Color get() = if (w) Color(0xFFC9CFD8) else Color(0xFFB8AEE6)
+    val Subtitle: Color get() = if (w) Color(0xFFDDE2E9) else Color(0xFFC9BEF7)
+    val Accent: Color get() = if (w) Color(0xFFFFFFFF) else Color(0xFFB9A6F5)
+    val ChipFill: Color get() = if (w) Color(0x2EFFFFFF) else Color(0x1FFFFFFF)
+    val ChipBorder: Color get() = if (w) Color(0x66FFFFFF) else Color(0x4DC4B5FD)
+
+    private val violetSelected = Brush.horizontalGradient(listOf(Color(0xFFC7B2FA), Color(0xFFF0D6FA)))
+    private val whiteSelected = Brush.horizontalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFE9EDF2)))
+    private val violetShare = Brush.horizontalGradient(listOf(Color(0xFFA78BFA), Color(0xFFE7C6FA)))
+    private val whiteShare = Brush.horizontalGradient(listOf(Color(0xFFF4F6F9), Color(0xFFFFFFFF)))
+
+    val SelectedFill: Brush get() = if (w) whiteSelected else violetSelected
+    val ShareFill: Brush get() = if (w) whiteShare else violetShare
 }
 
-/** Lavender glass background with a soft lilac glow at the top (matches the Create panel). */
+/** Screen background for the Create screens; follows Settings → Theme. */
 fun DrawScope.createScreenBackground() {
+    if (LumenPalette.whiteGlass) {
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color(0xFF3A414B),
+                0.45f to Color(0xFF22272E),
+                1f to Color(0xFF111317)
+            )
+        )
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(Color(0x40FFFFFF), Color(0x0DFFFFFF), Color.Transparent),
+                center = Offset(size.width * 0.3f, -size.width * 0.1f),
+                radius = size.width * 1.1f
+            )
+        )
+        return
+    }
     drawRect(
         Brush.verticalGradient(
             0f to Color(0xFF36306E),

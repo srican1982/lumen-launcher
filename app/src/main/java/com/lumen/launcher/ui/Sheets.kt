@@ -227,7 +227,11 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             viewModel.cycleNotificationBadges()
         }
         BadgeStatusLine(inboxAccess = state.inboxAccess, onFix = viewModel::requestInboxAccess)
-        MenuRow("Icons  ·  ${state.iconSkin.title}") { viewModel.cycleIconSkin() }
+        MenuRow("Theme  ·  ${state.theme.title}") { viewModel.cycleTheme() }
+        MenuRow(
+            if (state.theme == com.lumen.launcher.data.LumenThemeMode.WhiteGlass) "Icons  ·  White glass (theme)"
+            else "Icons  ·  ${state.iconSkin.title}"
+        ) { viewModel.cycleIconSkin() }
         MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }
         MenuRow("Smart Cluster  ·  ${if (state.smartCluster) "On" else "Off"}") {
             viewModel.setSmartCluster(!state.smartCluster)

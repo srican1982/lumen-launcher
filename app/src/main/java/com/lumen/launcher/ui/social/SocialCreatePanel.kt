@@ -69,6 +69,7 @@ import com.lumen.launcher.social.CreationItem
 import com.lumen.launcher.social.ShareContentManager
 import com.lumen.launcher.social.SocialCreateTool
 import com.lumen.launcher.social.stickers.StickerLibrary
+import com.lumen.launcher.ui.theme.LumenPalette
 import com.lumen.launcher.ui.theme.Outfit
 import java.io.File
 
@@ -76,8 +77,8 @@ private val PanelShape = RoundedCornerShape(40.dp)
 private val CardShape = RoundedCornerShape(22.dp)
 private val TileShape = RoundedCornerShape(18.dp)
 
-/** Lilac used for the header sparkle, "See all" and the panel edge. */
-private val Lilac = Color(0xFFC4B5FD)
+/** Lilac (or white in the White Glass theme) for the header sparkle and "See all". */
+private val Lilac: Color get() = if (LumenPalette.whiteGlass) Color.White else Color(0xFFC4B5FD)
 
 @Composable
 fun SocialCreatePanel(
@@ -141,11 +142,20 @@ fun SocialCreatePanel(
                     .clip(PanelShape)
                     // Lavender frosted glass
                     .background(
-                        Brush.verticalGradient(
-                            0f to Color(0xEB4A4586),
-                            0.45f to Color(0xEB33306A),
-                            1f to Color(0xF0221F4A)
-                        )
+                        if (LumenPalette.whiteGlass) {
+                            // White frosted glass
+                            Brush.verticalGradient(
+                                0f to Color(0xCC5B6470),
+                                0.45f to Color(0xD9404751),
+                                1f to Color(0xE62A2F36)
+                            )
+                        } else {
+                            Brush.verticalGradient(
+                                0f to Color(0xEB4A4586),
+                                0.45f to Color(0xEB33306A),
+                                1f to Color(0xF0221F4A)
+                            )
+                        }
                     )
                     .background(
                         Brush.radialGradient(
@@ -156,7 +166,11 @@ fun SocialCreatePanel(
                     )
                     .border(
                         1.5.dp,
-                        Brush.verticalGradient(listOf(Color(0xCCD8CCFF), Color(0x66A78BFA), Color(0xAAC4B5FD))),
+                        if (LumenPalette.whiteGlass) {
+                            Brush.verticalGradient(listOf(Color(0xE6FFFFFF), Color(0x59FFFFFF), Color(0x99FFFFFF)))
+                        } else {
+                            Brush.verticalGradient(listOf(Color(0xCCD8CCFF), Color(0x66A78BFA), Color(0xAAC4B5FD)))
+                        },
                         PanelShape
                     )
                     .clickable(interactionSource = blockTouches, indication = null, onClick = {})

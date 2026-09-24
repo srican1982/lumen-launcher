@@ -53,6 +53,31 @@ data class GlassColors(
         val OnDark = of(GlassDepth.Balanced, BackdropTone.Dark)
         val OnLight = of(GlassDepth.Balanced, BackdropTone.Light)
 
+        /** White Glass theme: bright frosted white instead of smoky dark glass. */
+        fun whiteOf(depth: GlassDepth, tone: BackdropTone): GlassColors {
+            val a = (depth.frostAlpha * 0.9f).coerceIn(0.14f, 0.40f)
+            fun white(alpha: Float) = Color.White.copy(alpha = alpha.coerceIn(0.04f, 0.6f))
+            // A faint dark veil keeps white text readable over bright wallpapers.
+            val veil = if (tone == BackdropTone.Light) Color.Black.copy(alpha = 0.14f) else Color.Transparent
+            return GlassColors(
+                cardTop = white(a + 0.10f),
+                cardBottom = white(a - 0.02f),
+                airyTop = white(a + 0.04f),
+                airyBottom = white(a - 0.06f),
+                filmTop = white(a + 0.08f),
+                filmBottom = white(a - 0.02f),
+                strokeTop = Color.White.copy(alpha = 0.60f),
+                strokeBottom = Color.White.copy(alpha = 0.20f),
+                card = white(a),
+                pill = white(a + 0.04f),
+                well = white(a * 0.6f),
+                veil = veil,
+                padTop = white(a + 0.08f),
+                padMid = white(a),
+                padBottom = white(a - 0.04f)
+            )
+        }
+
         fun of(depth: GlassDepth, tone: BackdropTone): GlassColors {
             val a = depth.frostAlpha.coerceIn(0.10f, 0.55f)
             val top = (a + 0.04f).coerceIn(0.10f, 0.58f)
@@ -90,7 +115,8 @@ val LocalGlass = staticCompositionLocalOf { GlassColors.OnDark }
 @Composable
 fun rememberGlassColors(
     wallpaperPath: String?,
-    depth: GlassDepth = GlassDepth.Balanced
+    depth: GlassDepth = GlassDepth.Balanced,
+    white: Boolean = false
 ): GlassColors {
     val context = LocalContext.current
     val stamp = remember(wallpaperPath) {
@@ -100,7 +126,7 @@ fun rememberGlassColors(
     LaunchedEffect(wallpaperPath, stamp) {
         tone = withContext(Dispatchers.IO) { backdropTone(context, wallpaperPath) }
     }
-    return GlassColors.of(depth, tone)
+    return if (white) GlassColors.whiteOf(depth, tone) else GlassColors.of(depth, tone)
 }
 
 private const val LIGHT_MEAN = 0.42f

@@ -187,12 +187,13 @@ fun AppIcon(
     phase: IconPhase = IconPhase.Rest,
     showNotificationBadge: Boolean = true
 ) {
-    var bitmap by remember(packageName, activityName) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(packageName, activityName) {
-        bitmap = icons.get(packageName, activityName)
+    val treatment = LocalIconTreatment.current
+    val whiteGlass = treatment == IconTreatment.WhiteGlass
+    var bitmap by remember(packageName, activityName, whiteGlass) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(packageName, activityName, whiteGlass) {
+        bitmap = if (whiteGlass) icons.getFrosted(packageName, activityName) else icons.get(packageName, activityName)
     }
     val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
-    val treatment = LocalIconTreatment.current
     val badgeMode = LocalNotificationBadgeMode.current
     val badgeCount = if (showNotificationBadge) {
         LocalNotificationBadgeCounts.current[packageName] ?: 0

@@ -4,6 +4,7 @@ enum class IconSkin(val title: String) {
     Original("Original icons"),
     Glass("Lumen Glass"),
     Mono("Lumen Mono"),
+    WhiteGlass("White glass"),
     MatchSpace("Match current Space");
 
     companion object {
@@ -20,6 +21,7 @@ enum class IconSkin(val title: String) {
                 Original -> IconTreatment.Original
                 Glass -> IconTreatment.Glass
                 Mono -> IconTreatment.Mono
+                WhiteGlass -> IconTreatment.WhiteGlass
                 MatchSpace -> when {
                     focusing || space == SpaceKind.Focus -> IconTreatment.Mono
                     space == SpaceKind.Work -> IconTreatment.Work
@@ -33,5 +35,7 @@ enum class IconSkin(val title: String) {
 }
 
 enum class IconTreatment {
-    Original, Glass, Work, Mono, Contrast
+    Original, Glass, Work, Mono, Contrast,
+    /** White symbol on a frosted-glass tile (colorful logos stay colored). */
+    WhiteGlass
 }

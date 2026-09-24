@@ -54,6 +54,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import com.lumen.launcher.data.IconSkin
+import com.lumen.launcher.data.IconTreatment
+import com.lumen.launcher.ui.theme.LumenPalette
+import androidx.compose.runtime.SideEffect
+import com.lumen.launcher.data.LumenThemeMode
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.LumenTheme
 import com.lumen.launcher.vm.LauncherUiState
@@ -119,10 +123,20 @@ fun LauncherRoot(
         }
     }
     val badgeCounts by NotificationBadgeRepository.countsByPackage.collectAsStateWithLifecycle()
+    // Apply Settings → Theme to Lumen's shared palette (only changes when the theme changes).
+    SideEffect { LumenPalette.whiteGlass = state.theme == LumenThemeMode.WhiteGlass }
     LumenTheme {
         CompositionLocalProvider(
-            LocalIconTreatment provides IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing),
-            LocalGlass provides rememberGlassColors(state.spaceWallpaper, state.glassDepth),
+            LocalIconTreatment provides if (state.theme == LumenThemeMode.WhiteGlass) {
+                IconTreatment.WhiteGlass
+            } else {
+                IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
+            },
+            LocalGlass provides rememberGlassColors(
+                state.spaceWallpaper,
+                state.glassDepth,
+                white = state.theme == LumenThemeMode.WhiteGlass
+            ),
             LocalNotificationBadgeMode provides state.notificationBadges,
             LocalNotificationBadgeCounts provides badgeCounts
         ) {

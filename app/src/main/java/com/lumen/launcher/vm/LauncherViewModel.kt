@@ -21,6 +21,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.ContextCompat
 import com.lumen.launcher.data.AppCategory
+import com.lumen.launcher.data.LumenThemeMode
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.AppRepository
 import com.lumen.launcher.data.CalendarEvent
@@ -249,6 +250,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         dockCapacity = stored.dockCapacity,
                         showLabels = stored.showLabels,
                         iconSkin = IconSkin.parse(stored.iconSkin),
+                        theme = LumenThemeMode.parse(stored.theme),
                         glassDepth = GlassDepth.parse(stored.glassDepth),
                         smartCluster = stored.smartCluster,
                         aliases = stored.aliases,
@@ -2777,6 +2779,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.setNotificationBadges(next) }
     }
 
+    fun cycleTheme() {
+        val next = LumenThemeMode.next(_state.value.theme)
+        _state.update { it.copy(theme = next) }
+        viewModelScope.launch { preferences.setTheme(next.name) }
+    }
+
     fun cycleIconSkin() {
         val next = IconSkin.next(_state.value.iconSkin)
         _state.update { it.copy(iconSkin = next) }
@@ -2971,6 +2979,7 @@ data class LauncherUiState(
     val dockCapacity: Int = 4,
     val showLabels: Boolean = true,
     val iconSkin: IconSkin = IconSkin.MatchSpace,
+    val theme: LumenThemeMode = LumenThemeMode.Violet,
     val glassDepth: GlassDepth = GlassDepth.Balanced,
     val smartCluster: Boolean = true,
     val query: String = "",

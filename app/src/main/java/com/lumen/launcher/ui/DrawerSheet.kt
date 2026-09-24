@@ -74,6 +74,7 @@ import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.IconCache
 import com.lumen.launcher.search.FuzzySearch
 import com.lumen.launcher.ui.theme.Lumen
+import com.lumen.launcher.ui.theme.LumenPalette
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
@@ -213,14 +214,24 @@ fun DrawerSheet(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    0f to Color(0xFFA22E77),
-                    0.35f to Color(0xFF6E1E5C),
-                    0.72f to Color(0xFF3A1236),
-                    1f to Color(0xFF190A18)
-                )
+                if (LumenPalette.whiteGlass) {
+                    // White Glass theme: neutral frosted grey instead of pink
+                    Brush.verticalGradient(
+                        0f to Color(0xFF59616C),
+                        0.35f to Color(0xFF3C434C),
+                        0.72f to Color(0xFF262A30),
+                        1f to Color(0xFF15171B)
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        0f to Color(0xFFA22E77),
+                        0.35f to Color(0xFF6E1E5C),
+                        0.72f to Color(0xFF3A1236),
+                        1f to Color(0xFF190A18)
+                    )
+                }
             )
-            .background(Color(0x40200A1C))
+            .background(if (LumenPalette.whiteGlass) Color(0x26000000) else Color(0x40200A1C))
             .onGloballyPositioned { root = it }
     ) {
         Column(

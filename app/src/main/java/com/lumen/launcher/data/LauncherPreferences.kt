@@ -33,6 +33,7 @@ class LauncherPreferences(private val context: Context) {
             dockCapacity = (prefs[DOCK_CAPACITY] ?: 4).coerceIn(3, 6),
             showLabels = prefs[SHOW_LABELS] ?: true,
             iconSkin = prefs[ICON_SKIN].orEmpty(),
+            theme = prefs[THEME].orEmpty(),
             glassDepth = prefs[GLASS_DEPTH].orEmpty(),
             smartCluster = prefs[SMART_CLUSTER] ?: true,
             aliases = decodeAliases(prefs[ALIASES].orEmpty()),
@@ -120,6 +121,10 @@ class LauncherPreferences(private val context: Context) {
 
     suspend fun setNotificationBadges(mode: NotificationBadgeMode) {
         context.launcherStore.edit { it[NOTIFICATION_BADGES] = mode.name }
+    }
+
+    suspend fun setTheme(theme: String) {
+        context.launcherStore.edit { it[THEME] = theme }
     }
 
     suspend fun setIconSkin(skin: String) {
@@ -551,6 +556,7 @@ class LauncherPreferences(private val context: Context) {
         val DOCK_CAPACITY = intPreferencesKey("dock_capacity")
         val SHOW_LABELS = booleanPreferencesKey("show_labels")
         val ICON_SKIN = stringPreferencesKey("icon_skin")
+        val THEME = stringPreferencesKey("lumen_theme")
         val GLASS_DEPTH = stringPreferencesKey("glass_depth")
         val SMART_CLUSTER = booleanPreferencesKey("smart_cluster")
         val FOLDERS = stringPreferencesKey("home_folders")
@@ -604,6 +610,7 @@ data class LauncherState(
     val dockCapacity: Int = 4,
     val showLabels: Boolean = true,
     val iconSkin: String = IconSkin.MatchSpace.name,
+    val theme: String = "",
     val glassDepth: String = GlassDepth.Balanced.name,
     val smartCluster: Boolean = true,
     val aliases: Map<String, String> = emptyMap(),
