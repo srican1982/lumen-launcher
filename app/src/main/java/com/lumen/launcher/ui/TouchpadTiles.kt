@@ -46,6 +46,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -184,40 +188,48 @@ fun NotificationsPreviewTile(modifier: Modifier = Modifier) {
     BoxWithConstraints(
         modifier
             .whiteGlassTile()
-            .clickable { StatusBarController.expandNotifications(context) }
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .clickable(onClickLabel = "Open notifications") { StatusBarController.expandNotifications(context) },
+        contentAlignment = Alignment.Center
     ) {
-    val compact = maxHeight < 50.dp
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-        Box {
-            Icon(Icons.Filled.Notifications, contentDescription = null, tint = Color(0xFFF7B955), modifier = Modifier.size(24.dp))
-            if (count > 0) {
-                Box(
-                    Modifier
-                        .offset(x = 13.dp, y = (-5).dp)
-                        .size(17.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEF4444)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (count > 9) "9+" else count.toString(),
-                        color = Color.White,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 9.sp
+        // Just a bell with the red count — sized to the tile.
+        val bell = (minOf(maxWidth, maxHeight) * 0.56f).coerceIn(22.dp, 42.dp)
+        Box(contentAlignment = Alignment.Center) {
+            // Soft golden glow behind the bell
+            Box(
+                Modifier
+                    .size(bell * 1.5f)
+                    .background(
+                        Brush.radialGradient(listOf(Color(0x55FFC857), Color.Transparent)),
+                        CircleShape
                     )
-                }
+            )
+            // Bell and badge share one box the size of the bell, so the badge sits on its corner.
+            Box(Modifier.size(bell)) {
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = if (count > 0) "$count notifications" else "Notifications",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Gold gradient bell
+                            drawRect(
+                                Brush.verticalGradient(listOf(Color(0xFFFFE3A1), Color(0xFFF7B548), Color(0xFFE8912B))),
+                                blendMode = BlendMode.SrcIn
+                            )
+                        }
+                )
+                CountBadge(
+                    count = count,
+                    height = (bell * 0.5f).coerceIn(16.dp, 20.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = bell * 0.22f, y = -(bell * 0.14f))
+                )
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Notifications", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 11.sp, maxLines = 1)
-                if (!compact) Text("Preview", color = Color.White.copy(alpha = 0.8f), fontFamily = Outfit, fontSize = 11.sp, maxLines = 1)
-            }
-            Icon(Icons.Outlined.ChevronRight, contentDescription = "Open notifications", tint = Color.White, modifier = Modifier.size(16.dp))
-        }
-    }
     }
 }
 

@@ -358,14 +358,23 @@ fun TouchpadIsland(
         val seal = maxOf(lockShown, dropShown)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(markSize), contentAlignment = Alignment.Center) {
-                Image(
-                    painter = painterResource(R.drawable.ic_launcher_foreground),
-                    contentDescription = "Lumen",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .requiredSize(markSize * (118f / 60f))
-                        .graphicsLayer { alpha = (1f - seal).coerceIn(0f, 1f) }
-                )
+                if (framed) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_launcher_foreground),
+                        contentDescription = "Lumen",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .requiredSize(markSize * (118f / 60f))
+                            .graphicsLayer { alpha = (1f - seal).coerceIn(0f, 1f) }
+                    )
+                } else {
+                    // Card style: thin glowing gold ring with a gold dot, drawn directly.
+                    GoldRing(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = (1f - seal).coerceIn(0f, 1f) }
+                    )
+                }
                 Icon(
                     if (lockShown > 0.55f) Icons.Outlined.Fingerprint else Icons.Outlined.Lock,
                     contentDescription = "Locked Space",
@@ -393,17 +402,17 @@ fun TouchpadIsland(
                 if (seal > 0.6f) "Private" else "Lumen",
                 color = Color.White.copy(alpha = if (pressed) 0.95f else 0.88f),
                 fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
+                fontWeight = if (framed) FontWeight.Medium else FontWeight.SemiBold,
+                fontSize = if (framed) 13.sp else 17.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp)
             )
             Text(
                 if (seal > 0.6f) "Space" else "TouchPad",
-                color = Color.White.copy(alpha = 0.52f),
+                color = Color.White.copy(alpha = if (framed) 0.52f else 0.72f),
                 fontFamily = Outfit,
                 fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
+                fontSize = if (framed) 10.sp else 13.sp,
                 letterSpacing = 0.4.sp,
                 textAlign = TextAlign.Center
             )
@@ -527,5 +536,32 @@ fun FloatingPrivateIsland(
             onBoundsInWindow = onBoundsInWindow,
             modifier = Modifier.size(168.dp)
         )
+    }
+}
+
+/** Thin gold ring with a soft glow, a faint outer ring and a gold dot (TouchPad card style). */
+@Composable
+private fun GoldRing(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val r = size.minDimension * 0.40f
+        val gold = Color(0xFFF5CB7E)
+        // Faint outer ring
+        drawCircle(Color.White.copy(alpha = 0.30f), radius = r * 1.14f, center = c, style = Stroke(1.2.dp.toPx()))
+        // Soft inner light
+        drawCircle(
+            Brush.radialGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), center = c, radius = r),
+            radius = r,
+            center = c
+        )
+        // Glow, then the crisp ring
+        drawCircle(gold.copy(alpha = 0.10f), radius = r, center = c, style = Stroke(10.dp.toPx()))
+        drawCircle(gold.copy(alpha = 0.22f), radius = r, center = c, style = Stroke(5.dp.toPx()))
+        drawCircle(gold, radius = r, center = c, style = Stroke(2.dp.toPx()))
+        // Gold dot on the outer ring, top-right
+        val a = Math.toRadians(-48.0)
+        val dot = Offset(c.x + (kotlin.math.cos(a) * r * 1.14f).toFloat(), c.y + (kotlin.math.sin(a) * r * 1.14f).toFloat())
+        drawCircle(gold.copy(alpha = 0.35f), radius = 9.dp.toPx(), center = dot)
+        drawCircle(gold, radius = 5.5.dp.toPx(), center = dot)
     }
 }

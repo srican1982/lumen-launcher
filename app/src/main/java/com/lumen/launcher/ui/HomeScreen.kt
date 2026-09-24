@@ -388,8 +388,8 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // Extra room for the gesture hints row inside the TouchPad card.
-                            .height(leadBlockHeight + 40.dp),
+                            // A little extra room for the large TouchPad ring.
+                            .height(leadBlockHeight + 20.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         Column(
@@ -407,7 +407,7 @@ fun HomeScreen(
                                 HomeGridIcon(lead.getOrNull(3), Modifier.weight(1f))
                             }
                         }
-                        // One glass card: TouchPad ring + mini player + notifications, gesture hints below.
+                        // One glass card: large TouchPad ring, mini player and notifications.
                         val cardShape = RoundedCornerShape(30.dp)
                         Column(
                             modifier = Modifier
@@ -425,13 +425,12 @@ fun HomeScreen(
                                     Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.60f), Color.White.copy(alpha = 0.16f))),
                                     cardShape
                                 )
-                                .touchpadDots()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
-                                    .padding(start = 4.dp, top = 8.dp, end = 8.dp)
+                                    .padding(start = 2.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
                             ) {
                                 TouchpadIsland(
                                     enabled = !recentsOpen && !editing,
@@ -445,7 +444,7 @@ fun HomeScreen(
                                         viewModel.setTouchpadWindow(l, t, r, b)
                                     },
                                     framed = false,
-                                    markSize = 76.dp,
+                                    markSize = 104.dp,
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
@@ -468,11 +467,6 @@ fun HomeScreen(
                                     )
                                 }
                             }
-                            TouchpadHintsRow(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 6.dp, vertical = 6.dp)
-                            )
                         }
                     }
                 }
