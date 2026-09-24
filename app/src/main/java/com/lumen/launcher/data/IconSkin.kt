@@ -36,6 +36,8 @@ enum class IconSkin(val title: String) {
 
 enum class IconTreatment {
     Original, Glass, Work, Mono, Contrast,
-    /** White symbol on a frosted-glass tile (colorful logos stay colored). */
-    WhiteGlass
+    /** White symbol on a frosted-glass tile. */
+    WhiteGlass,
+    /** The app's colored logo on a frosted-glass tile. */
+    GlassColor
 }

@@ -229,7 +229,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         BadgeStatusLine(inboxAccess = state.inboxAccess, onFix = viewModel::requestInboxAccess)
         MenuRow("Theme  ·  ${state.theme.title}") { viewModel.cycleTheme() }
         MenuRow(
-            if (state.theme == com.lumen.launcher.data.LumenThemeMode.WhiteGlass) "Icons  ·  White glass (theme)"
+            if (state.theme.isWhiteGlass) "Icons  ·  set by theme"
             else "Icons  ·  ${state.iconSkin.title}"
         ) { viewModel.cycleIconSkin() }
         MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }

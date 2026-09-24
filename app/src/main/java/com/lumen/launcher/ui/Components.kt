@@ -188,10 +188,19 @@ fun AppIcon(
     showNotificationBadge: Boolean = true
 ) {
     val treatment = LocalIconTreatment.current
-    val whiteGlass = treatment == IconTreatment.WhiteGlass
-    var bitmap by remember(packageName, activityName, whiteGlass) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(packageName, activityName, whiteGlass) {
-        bitmap = if (whiteGlass) icons.getFrosted(packageName, activityName) else icons.get(packageName, activityName)
+    // White Glass themes use their own pre-rendered tiles; other styles tint the normal icon.
+    val glassKind = when (treatment) {
+        IconTreatment.WhiteGlass -> 1
+        IconTreatment.GlassColor -> 2
+        else -> 0
+    }
+    var bitmap by remember(packageName, activityName, glassKind) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(packageName, activityName, glassKind) {
+        bitmap = when (glassKind) {
+            1 -> icons.getFrosted(packageName, activityName)
+            2 -> icons.getFrostedColor(packageName, activityName)
+            else -> icons.get(packageName, activityName)
+        }
     }
     val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
     val badgeMode = LocalNotificationBadgeMode.current

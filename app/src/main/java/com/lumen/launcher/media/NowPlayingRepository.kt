@@ -5,12 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.media.MediaMetadata
+import android.media.AudioManager
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import com.lumen.launcher.inbox.LumenNotificationListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +55,8 @@ object NowPlayingRepository {
     private var manager: MediaSessionManager? = null
     private var component: ComponentName? = null
     private var controller: MediaController? = null
+    /** Players found through their media notifications (backup when the session list is unavailable). */
+    private var fromNotifications: List<MediaController> = emptyList()
 
     private val callback = object : MediaController.Callback() {
         override fun onMetadataChanged(metadata: MediaMetadata?) = publish()
@@ -68,7 +73,21 @@ object NowPlayingRepository {
     }
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list ->
-        choose(list.orEmpty())
+        choose(merge(list.orEmpty(), fromNotifications))
+    }
+
+    /**
+     * Called by the notification listener with the media-session tokens found in current
+     * notifications. Every music app posts one, so this works even where the phone refuses
+     * the session list (seen on some Samsung builds).
+     */
+    fun updateFromNotifications(context: Context, tokens: List<MediaSession.Token>) {
+        val app = context.applicationContext
+        main.post {
+            val known = fromNotifications.associateBy { it.sessionToken }
+            fromNotifications = tokens.distinct().map { t -> known[t] ?: MediaController(app, t) }
+            refreshFromManager()
+        }
     }
 
     /** Safe to call repeatedly; silently does nothing until notification access is granted. */
@@ -85,9 +104,10 @@ object NowPlayingRepository {
                 m.addOnActiveSessionsChangedListener(sessionsListener, comp, main)
                 manager = m
                 component = comp
-                choose(m.getActiveSessions(comp))
+                choose(merge(m.getActiveSessions(comp), fromNotifications))
             } catch (_: SecurityException) {
-                // Notification access not granted (yet).
+                // Session list not allowed here; notification tokens still work.
+                refreshFromManager()
             }
         }
     }
@@ -102,18 +122,29 @@ object NowPlayingRepository {
         }
     }
 
-    fun playPause() {
-        val c = controller ?: return
+    fun playPause(context: Context) {
+        val c = controller ?: return sendMediaKey(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
         if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
         else c.transportControls.play()
     }
 
-    fun next() {
-        controller?.transportControls?.skipToNext()
+    fun next(context: Context) {
+        val c = controller ?: return sendMediaKey(context, KeyEvent.KEYCODE_MEDIA_NEXT)
+        c.transportControls.skipToNext()
     }
 
-    fun previous() {
-        controller?.transportControls?.skipToPrevious()
+    fun previous(context: Context) {
+        val c = controller ?: return sendMediaKey(context, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        c.transportControls.skipToPrevious()
+    }
+
+    /** Same as a headphone button: resumes / skips in whatever app played last. */
+    private fun sendMediaKey(context: Context, code: Int) {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+        // The player usually appears a moment later; look again.
+        main.postDelayed({ refreshFromManager() }, 600)
     }
 
     /** Opens the app that is playing (its player screen if it provides one). */
@@ -128,9 +159,20 @@ object NowPlayingRepository {
     }
 
     private fun refreshFromManager() {
-        val m = manager ?: return publish()
-        val c = component ?: return publish()
-        runCatching { choose(m.getActiveSessions(c)) }.onFailure { publish() }
+        val m = manager
+        val c = component
+        val fromManager = if (m != null && c != null) {
+            runCatching { m.getActiveSessions(c) }.getOrNull().orEmpty()
+        } else {
+            emptyList()
+        }
+        choose(merge(fromManager, fromNotifications))
+    }
+
+    /** Session list + notification players, without duplicates. */
+    private fun merge(a: List<MediaController>, b: List<MediaController>): List<MediaController> {
+        val seen = HashSet<MediaSession.Token>()
+        return (a + b).filter { seen.add(it.sessionToken) }
     }
 
     private fun choose(list: List<MediaController>) {

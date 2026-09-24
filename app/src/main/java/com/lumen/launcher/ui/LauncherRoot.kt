@@ -124,18 +124,18 @@ fun LauncherRoot(
     }
     val badgeCounts by NotificationBadgeRepository.countsByPackage.collectAsStateWithLifecycle()
     // Apply Settings → Theme to Lumen's shared palette (only changes when the theme changes).
-    SideEffect { LumenPalette.whiteGlass = state.theme == LumenThemeMode.WhiteGlass }
+    SideEffect { LumenPalette.whiteGlass = state.theme.isWhiteGlass }
     LumenTheme {
         CompositionLocalProvider(
-            LocalIconTreatment provides if (state.theme == LumenThemeMode.WhiteGlass) {
-                IconTreatment.WhiteGlass
-            } else {
-                IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
+            LocalIconTreatment provides when (state.theme) {
+                LumenThemeMode.WhiteGlass -> IconTreatment.WhiteGlass
+                LumenThemeMode.WhiteGlassColor -> IconTreatment.GlassColor
+                LumenThemeMode.Violet -> IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
             },
             LocalGlass provides rememberGlassColors(
                 state.spaceWallpaper,
                 state.glassDepth,
-                white = state.theme == LumenThemeMode.WhiteGlass
+                white = state.theme.isWhiteGlass
             ),
             LocalNotificationBadgeMode provides state.notificationBadges,
             LocalNotificationBadgeCounts provides badgeCounts

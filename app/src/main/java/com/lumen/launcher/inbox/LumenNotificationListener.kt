@@ -3,6 +3,8 @@ package com.lumen.launcher.inbox
 import com.lumen.launcher.media.NowPlayingRepository
 import android.app.Notification
 import android.app.PendingIntent
+import android.os.Build
+import android.media.session.MediaSession
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
@@ -45,6 +47,8 @@ class LumenNotificationListener : NotificationListenerService() {
         val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
         val ranking = runCatching { currentRanking }.getOrNull()
         NotificationBadgeRepository.rebuild(notes.toList(), packageName, ranking)
+        // Music apps attach their player to their notification: use it for the TouchPad mini player.
+        NowPlayingRepository.updateFromNotifications(this, notes.mapNotNull { mediaToken(it) })
         val items = ArrayList<InboxItem>()
         val intents = LinkedHashMap<String, PendingIntent>()
         val meetings = ArrayList<CalendarEvent>()
@@ -167,4 +171,14 @@ class LumenNotificationListener : NotificationListenerService() {
     companion object {
         private val WHATSAPP = setOf("com.whatsapp", "com.whatsapp.w4b")
     }
+
+    private fun mediaToken(sbn: StatusBarNotification): MediaSession.Token? = runCatching {
+        val extras = sbn.notification.extras
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            extras.getParcelable(Notification.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            extras.getParcelable<MediaSession.Token>(Notification.EXTRA_MEDIA_SESSION)
+        }
+    }.getOrNull()
 }

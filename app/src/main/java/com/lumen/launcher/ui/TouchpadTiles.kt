@@ -27,6 +27,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.PanTool
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -144,13 +149,13 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ControlButton(Icons.Filled.SkipPrevious, "Previous", 20.dp) { NowPlayingRepository.previous() }
+            ControlButton(Icons.Filled.SkipPrevious, "Previous", 20.dp) { NowPlayingRepository.previous(context) }
             ControlButton(
                 if (np?.playing == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 if (np?.playing == true) "Pause" else "Play",
                 26.dp
-            ) { NowPlayingRepository.playPause() }
-            ControlButton(Icons.Filled.SkipNext, "Next", 20.dp) { NowPlayingRepository.next() }
+            ) { NowPlayingRepository.playPause(context) }
+            ControlButton(Icons.Filled.SkipNext, "Next", 20.dp) { NowPlayingRepository.next(context) }
         }
     }
     }
@@ -213,5 +218,41 @@ fun NotificationsPreviewTile(modifier: Modifier = Modifier) {
             Icon(Icons.Outlined.ChevronRight, contentDescription = "Open notifications", tint = Color.White, modifier = Modifier.size(16.dp))
         }
     }
+    }
+}
+
+/** Faint dot grid across the TouchPad card (as in the design). */
+fun Modifier.touchpadDots(): Modifier = this.drawBehind {
+    val step = 14.dp.toPx()
+    val r = 0.9.dp.toPx()
+    val dot = Color.White.copy(alpha = 0.12f)
+    var y = step / 2f
+    while (y < size.height) {
+        var x = step / 2f
+        while (x < size.width) {
+            drawCircle(dot, radius = r, center = Offset(x, y))
+            x += step
+        }
+        y += step
+    }
+}
+
+/** "Tap Home · Hold Private · Swipe Switch · Swipe Up Apps" along the bottom of the card. */
+@Composable
+fun TouchpadHintsRow(modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Top) {
+        TouchpadHint(Icons.Outlined.TouchApp, "Tap", "Home")
+        TouchpadHint(Icons.Outlined.PanTool, "Hold", "Private")
+        TouchpadHint(Icons.Outlined.SwapHoriz, "Swipe", "Switch")
+        TouchpadHint(Icons.Outlined.KeyboardArrowUp, "Swipe Up", "Apps")
+    }
+}
+
+@Composable
+private fun TouchpadHint(icon: ImageVector, gesture: String, action: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(16.dp))
+        Text(gesture, color = Color.White.copy(alpha = 0.92f), fontFamily = Outfit, fontSize = 9.sp, maxLines = 1, lineHeight = 10.sp)
+        Text(action, color = Color.White.copy(alpha = 0.72f), fontFamily = Outfit, fontSize = 9.sp, maxLines = 1, lineHeight = 10.sp)
     }
 }

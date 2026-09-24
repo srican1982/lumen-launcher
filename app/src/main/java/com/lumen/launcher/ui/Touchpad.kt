@@ -64,6 +64,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.R
@@ -94,7 +95,11 @@ fun TouchpadIsland(
     onPrivateArmed: () -> Unit,
     onBoundsInWindow: (Float, Float, Float, Float) -> Unit,
     dropReady: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** false = no own glass frame / gold rim (used inside the big TouchPad card). */
+    framed: Boolean = true,
+    /** Size of the gold Lumen ring. */
+    markSize: Dp = 60.dp
 ) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -237,7 +242,7 @@ fun TouchpadIsland(
         contentAlignment = Alignment.Center
     ) {
         val pressGlow = if (pressed) 1f else 0f
-        Box(
+        if (framed) Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(Squircle)
@@ -257,7 +262,7 @@ fun TouchpadIsland(
                     shape = Squircle
                 )
         )
-        Box(
+        if (framed) Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(7.dp)
@@ -266,7 +271,7 @@ fun TouchpadIsland(
         )
         val pulseTicks = pulses.associate { it.id to (pulseAges[it.id]?.value ?: 1f) }
         Canvas(Modifier.fillMaxSize()) {
-            drawGoldBezel(pressGlow + holdShown * 0.35f + dropShown * 0.55f)
+            if (framed) drawGoldBezel(pressGlow + holdShown * 0.35f + dropShown * 0.55f)
             val highlight = if (touch == Offset.Unspecified) Offset(size.width / 2f, size.height * 0.38f) else touch
             drawCircle(
                 brush = Brush.radialGradient(
@@ -281,12 +286,12 @@ fun TouchpadIsland(
                 center = highlight
             )
 
-            val markR = 28.dp.toPx()
+            val markR = markSize.toPx() * 0.47f
             val textBlock = 42.dp.toPx()
-            val contentH = 60.dp.toPx() + 8.dp.toPx() + textBlock
+            val contentH = markSize.toPx() + 8.dp.toPx() + textBlock
             val center = Offset(
                 size.width / 2f,
-                ((size.height - contentH) / 2f + 30.dp.toPx()).coerceAtLeast(markR)
+                ((size.height - contentH) / 2f + markSize.toPx() / 2f).coerceAtLeast(markR)
             )
             val trail = Offset(trailX, trailY)
             val mag = hypot(trail.x, trail.y)
@@ -352,13 +357,13 @@ fun TouchpadIsland(
         }
         val seal = maxOf(lockShown, dropShown)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(markSize), contentAlignment = Alignment.Center) {
                 Image(
                     painter = painterResource(R.drawable.ic_launcher_foreground),
                     contentDescription = "Lumen",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .requiredSize(118.dp)
+                        .requiredSize(markSize * (118f / 60f))
                         .graphicsLayer { alpha = (1f - seal).coerceIn(0f, 1f) }
                 )
                 Icon(

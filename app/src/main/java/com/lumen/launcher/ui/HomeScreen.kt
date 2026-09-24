@@ -77,6 +77,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import com.lumen.launcher.ui.theme.LumenPalette
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.Eco
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -381,12 +388,15 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(leadBlockHeight),
+                            // Extra room for the gesture hints row inside the TouchPad card.
+                            .height(leadBlockHeight + 40.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly
                         ) {
                             Row(Modifier.fillMaxWidth()) {
                                 HomeGridIcon(lead.getOrNull(0), Modifier.weight(1f))
@@ -397,46 +407,72 @@ fun HomeScreen(
                                 HomeGridIcon(lead.getOrNull(3), Modifier.weight(1f))
                             }
                         }
-                        // TouchPad with the mini player and notifications tiles beside it.
-                        Row(
+                        // One glass card: TouchPad ring + mini player + notifications, gesture hints below.
+                        val cardShape = RoundedCornerShape(30.dp)
+                        Column(
                             modifier = Modifier
                                 .weight(1.2f)
                                 .fillMaxHeight()
                                 .padding(start = 6.dp, top = iconSlotPad, bottom = iconSlotPad)
+                                .clip(cardShape)
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.14f))
+                                    )
+                                )
+                                .border(
+                                    1.dp,
+                                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.60f), Color.White.copy(alpha = 0.16f))),
+                                    cardShape
+                                )
+                                .touchpadDots()
                         ) {
-                            TouchpadIsland(
-                                enabled = !recentsOpen && !editing,
-                                state = state,
-                                icons = viewModel.icons,
-                                dropReady = overPad,
-                                onGesture = viewModel::runBlankGesture,
-                                onPrivateArmed = viewModel::armPrivateSpace,
-                                onBoundsInWindow = { l, t, r, b ->
-                                    padBox.value = Rect(l, t, r, b)
-                                    viewModel.setTouchpadWindow(l, t, r, b)
-                                },
+                            Row(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .padding(start = 6.dp)
-                                    .width(86.dp)
-                                    .fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    .fillMaxWidth()
+                                    .padding(start = 4.dp, top = 8.dp, end = 8.dp)
                             ) {
-                                NowPlayingTile(
-                                    Modifier
-                                        .weight(1.25f)
-                                        .fillMaxWidth()
+                                TouchpadIsland(
+                                    enabled = !recentsOpen && !editing,
+                                    state = state,
+                                    icons = viewModel.icons,
+                                    dropReady = overPad,
+                                    onGesture = viewModel::runBlankGesture,
+                                    onPrivateArmed = viewModel::armPrivateSpace,
+                                    onBoundsInWindow = { l, t, r, b ->
+                                        padBox.value = Rect(l, t, r, b)
+                                        viewModel.setTouchpadWindow(l, t, r, b)
+                                    },
+                                    framed = false,
+                                    markSize = 76.dp,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
                                 )
-                                NotificationsPreviewTile(
-                                    Modifier
-                                        .weight(0.75f)
-                                        .fillMaxWidth()
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .width(80.dp)
+                                        .fillMaxHeight(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    NowPlayingTile(
+                                        Modifier
+                                            .weight(1.25f)
+                                            .fillMaxWidth()
+                                    )
+                                    NotificationsPreviewTile(
+                                        Modifier
+                                            .weight(0.75f)
+                                            .fillMaxWidth()
+                                    )
+                                }
                             }
+                            TouchpadHintsRow(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 6.dp, vertical = 6.dp)
+                            )
                         }
                     }
                 }
@@ -904,6 +940,16 @@ fun PrivateLockCard(onUnlock: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/** Chip icons: house, briefcase, person, leaf, plane. */
+private fun spaceIcon(space: SpaceKind): ImageVector = when (space) {
+    SpaceKind.Home -> Icons.Filled.Home
+    SpaceKind.Work -> Icons.Outlined.Work
+    SpaceKind.Personal -> Icons.Outlined.Person
+    SpaceKind.Focus -> Icons.Outlined.Eco
+    SpaceKind.Travel -> Icons.Outlined.Flight
+    SpaceKind.Private -> Icons.Outlined.Lock
+}
+
 @Composable
 fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> Unit) {
     val spaces = SpaceKind.entries.filter { it != SpaceKind.Private }
@@ -915,21 +961,44 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
     ) {
         spaces.forEach { space ->
             val active = space == selected
-            Text(
-                text = space.title,
-                color = if (active) Lumen.OnAccent else Lumen.Muted,
-                fontSize = 11.sp,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                textAlign = TextAlign.Center,
+            val white = LumenPalette.whiteGlass
+            val chipShape = RoundedCornerShape(16.dp)
+            val content = when {
+                active && white -> Color(0xFF5B21B6)
+                active -> Lumen.OnAccent
+                else -> Color.White.copy(alpha = 0.88f)
+            }
+            Row(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .then(if (active) Modifier.background(Lumen.AccentFill) else Modifier.background(Color.White.copy(0.08f)))
+                    .clip(chipShape)
+                    .then(
+                        when {
+                            active && white -> Modifier.background(
+                                Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
+                            )
+                            active -> Modifier.background(Lumen.AccentFill)
+                            else -> Modifier
+                                .background(Color.White.copy(alpha = if (white) 0.14f else 0.08f))
+                                .border(0.8.dp, Color.White.copy(alpha = if (white) 0.35f else 0.12f), chipShape)
+                        }
+                    )
                     .clickable { onSelect(space) }
-                    .padding(vertical = 6.dp)
-            )
+                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(spaceIcon(space), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = space.title,
+                    color = content,
+                    fontSize = 11.sp,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
     }
     Text(
