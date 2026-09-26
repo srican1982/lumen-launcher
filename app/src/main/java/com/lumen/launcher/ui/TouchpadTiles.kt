@@ -65,6 +65,11 @@ import com.lumen.launcher.media.NowPlayingRepository
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.util.StatusBarController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.runtime.produceState
 
 private val TileShape = RoundedCornerShape(22.dp)
 
@@ -86,6 +91,23 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val np by NowPlayingRepository.state.collectAsState()
     LaunchedEffect(Unit) { NowPlayingRepository.start(context) }
+
+    // Thumbnail of what's playing: the artwork, else the artwork link, else the player app's icon.
+    val current = np
+    val thumb by produceState<ImageBitmap?>(null, current?.art, current?.artUri, current?.packageName) {
+        value = withContext(Dispatchers.IO) {
+            if (current == null) return@withContext null
+            current.art?.asImageBitmap()
+                ?: current.artUri?.let { u ->
+                    runCatching {
+                        context.contentResolver.openInputStream(android.net.Uri.parse(u))?.use { android.graphics.BitmapFactory.decodeStream(it) }
+                    }.getOrNull()?.asImageBitmap()
+                }
+                ?: runCatching {
+                    context.packageManager.getApplicationIcon(current.packageName).toBitmap(96, 96).asImageBitmap()
+                }.getOrNull()
+        }
+    }
 
     // Advance the progress bar while playing.
     var progress by remember { mutableFloatStateOf(0f) }
@@ -118,10 +140,9 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
                 .background(Color.White.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center
         ) {
-            val art = np?.art
-            if (art != null) {
-                val image = remember(art) { art.asImageBitmap() }
-                Image(image, contentDescription = "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            val shown = thumb
+            if (shown != null) {
+                Image(shown, contentDescription = np?.title ?: "Now playing", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
                 Icon(Icons.Filled.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
             }

@@ -25,6 +25,8 @@ data class NowPlaying(
     val title: String,
     val artist: String,
     val art: Bitmap?,
+    /** Some apps only give a link to the artwork instead of the picture. */
+    val artUri: String? = null,
     val playing: Boolean,
     val positionMs: Long,
     val durationMs: Long,
@@ -216,6 +218,9 @@ object NowPlayingRepository {
             title = title,
             artist = artist,
             art = art?.let(::thumbnail),
+            artUri = md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_ART_URI)
+                ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
             playing = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING,
             positionMs = ps?.position ?: 0L,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,

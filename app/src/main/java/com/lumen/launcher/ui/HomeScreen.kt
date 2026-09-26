@@ -77,6 +77,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.onSizeChanged
 import com.lumen.launcher.ui.theme.LumenPalette
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.outlined.Flight
@@ -385,18 +386,20 @@ fun HomeScreen(
                 }
                 item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
                     val lead = state.homeApps.filter { it.key !in state.folderAppKeys }.take(4)
+                    val cols = state.gridColumns.coerceAtLeast(3)
+                    // The card is exactly as tall as the two icon rows beside it (measured).
+                    var iconsHeight by remember { mutableStateOf(0.dp) }
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // A little extra room for the large TouchPad ring.
-                            .height(leadBlockHeight + 20.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top
                     ) {
+                        // Exactly 2 grid columns, same icon size and 22dp row gap as the grid below,
+                        // so these icons line up with every other icon.
                         Column(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
-                            verticalArrangement = Arrangement.SpaceBetween
+                                .weight(2f)
+                                .onSizeChanged { iconsHeight = with(density) { it.height.toDp() } },
+                            verticalArrangement = Arrangement.spacedBy(22.dp)
                         ) {
                             Row(Modifier.fillMaxWidth()) {
                                 HomeGridIcon(lead.getOrNull(0), Modifier.weight(1f))
@@ -407,65 +410,60 @@ fun HomeScreen(
                                 HomeGridIcon(lead.getOrNull(3), Modifier.weight(1f))
                             }
                         }
-                        // One glass card: large TouchPad ring, mini player and notifications.
-                        val cardShape = RoundedCornerShape(30.dp)
-                        Column(
+                        // Glass card over the remaining columns: TouchPad ring + mini player + notifications.
+                        val cardShape = RoundedCornerShape(28.dp)
+                        val cardHeight = if (iconsHeight > 0.dp) maxOf(iconsHeight, 176.dp) else leadRowHeight * 2 + 22.dp
+                        Row(
                             modifier = Modifier
-                                .weight(1.3f)
-                                .fillMaxHeight()
-                                .padding(start = 6.dp, top = iconSlotPad, bottom = iconSlotPad)
+                                .weight((cols - 2).toFloat())
+                                .height(cardHeight)
+                                .padding(horizontal = 4.dp)
                                 .clip(cardShape)
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.14f))
+                                        listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.13f))
                                     )
                                 )
                                 .border(
                                     1.dp,
-                                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.60f), Color.White.copy(alpha = 0.16f))),
+                                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.16f))),
                                     cardShape
                                 )
+                                .padding(start = 2.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
                         ) {
-                            Row(
+                            TouchpadIsland(
+                                enabled = !recentsOpen && !editing,
+                                state = state,
+                                icons = viewModel.icons,
+                                dropReady = overPad,
+                                onGesture = viewModel::runBlankGesture,
+                                onPrivateArmed = viewModel::armPrivateSpace,
+                                onBoundsInWindow = { l, t, r, b ->
+                                    padBox.value = Rect(l, t, r, b)
+                                    viewModel.setTouchpadWindow(l, t, r, b)
+                                },
+                                framed = false,
+                                markSize = 64.dp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxWidth()
-                                    .padding(start = 2.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
+                                    .fillMaxHeight()
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .width(88.dp)
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                TouchpadIsland(
-                                    enabled = !recentsOpen && !editing,
-                                    state = state,
-                                    icons = viewModel.icons,
-                                    dropReady = overPad,
-                                    onGesture = viewModel::runBlankGesture,
-                                    onPrivateArmed = viewModel::armPrivateSpace,
-                                    onBoundsInWindow = { l, t, r, b ->
-                                        padBox.value = Rect(l, t, r, b)
-                                        viewModel.setTouchpadWindow(l, t, r, b)
-                                    },
-                                    framed = false,
-                                    markSize = 104.dp,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
+                                NowPlayingTile(
+                                    Modifier
+                                        .weight(1.25f)
+                                        .fillMaxWidth()
                                 )
-                                Column(
-                                    modifier = Modifier
-                                        .width(88.dp)
-                                        .fillMaxHeight(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    NowPlayingTile(
-                                        Modifier
-                                            .weight(1.25f)
-                                            .fillMaxWidth()
-                                    )
-                                    NotificationsPreviewTile(
-                                        Modifier
-                                            .weight(0.75f)
-                                            .fillMaxWidth()
-                                    )
-                                }
+                                NotificationsPreviewTile(
+                                    Modifier
+                                        .weight(0.75f)
+                                        .fillMaxWidth()
+                                )
                             }
                         }
                     }

@@ -163,11 +163,14 @@ class LauncherActivity : FragmentActivity() {
         }
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
-            BackHandler(enabled = state.sheet != Sheet.None || state.privatePageActive || state.activeApp != null) {
+            // Always handle Back on the home screen. If nothing is open, do nothing: letting
+            // Android finish the launcher made it restart and replay the icon animation.
+            BackHandler(enabled = true) {
                 when {
                     state.activeApp != null -> viewModel.dismissAppActions()
                     state.sheet != Sheet.None -> viewModel.closeSheet()
-                    else -> viewModel.closePrivatePage()
+                    state.privatePageActive -> viewModel.closePrivatePage()
+                    else -> Unit
                 }
             }
             LauncherRoot(

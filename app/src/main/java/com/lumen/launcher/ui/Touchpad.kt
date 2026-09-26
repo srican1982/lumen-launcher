@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +104,9 @@ fun TouchpadIsland(
 ) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
+    // Measured center of the logo, in the canvas' own coordinates, so effects sit exactly on it.
+    var canvasCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var markCenter by remember { mutableStateOf(Offset.Unspecified) }
     var pressed by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Unspecified) }
     var hold by remember { mutableFloatStateOf(0f) }
@@ -273,7 +277,11 @@ fun TouchpadIsland(
                 .background(Color(0x33000000))
         )
         val pulseTicks = pulses.associate { it.id to (pulseAges[it.id]?.value ?: 1f) }
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { canvasCoords = it }
+        ) {
             if (framed) drawGoldBezel(pressGlow + holdShown * 0.35f + dropShown * 0.55f)
             val highlight = if (touch == Offset.Unspecified) Offset(size.width / 2f, size.height * 0.38f) else touch
             drawCircle(
@@ -289,13 +297,18 @@ fun TouchpadIsland(
                 center = highlight
             )
 
-            val markR = markSize.toPx() * 0.47f
+            // Card style: the bright ring is 40% of the logo size; framed style keeps its old radius.
+            val markR = markSize.toPx() * (if (framed) 0.47f else 0.40f)
             val textBlock = 42.dp.toPx()
             val contentH = markSize.toPx() + 8.dp.toPx() + textBlock
-            val center = Offset(
-                size.width / 2f,
-                ((size.height - contentH) / 2f + markSize.toPx() / 2f).coerceAtLeast(markR)
-            )
+            val center = if (markCenter != Offset.Unspecified) {
+                markCenter
+            } else {
+                Offset(
+                    size.width / 2f,
+                    ((size.height - contentH) / 2f + markSize.toPx() / 2f).coerceAtLeast(markR)
+                )
+            }
             val trail = Offset(trailX, trailY)
             val mag = hypot(trail.x, trail.y)
             val stretch = (mag / (88.dp.toPx())).coerceIn(0f, 1f)
@@ -335,8 +348,9 @@ fun TouchpadIsland(
 
             val ringStart = ((holdShown - 0.5f) * 2f).coerceIn(0f, 1f)
             if (ringStart > 0.01f) {
-                val ringR = markR + 7.dp.toPx()
-                drawCircle(Gold.copy(alpha = 0.16f), ringR, center, style = Stroke(2.8.dp.toPx()))
+                val ringR = markR + (if (framed) 7.dp else 5.dp).toPx()
+                val width = (if (framed) 2.8.dp else 2.dp).toPx()
+                drawCircle(Gold.copy(alpha = 0.14f), ringR, center, style = Stroke(width))
                 drawArc(
                     color = GoldGlow.copy(alpha = 0.95f),
                     startAngle = -90f,
@@ -344,8 +358,13 @@ fun TouchpadIsland(
                     useCenter = false,
                     topLeft = Offset(center.x - ringR, center.y - ringR),
                     size = Size(ringR * 2f, ringR * 2f),
-                    style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = width, cap = StrokeCap.Round)
                 )
+                // Glowing dot leading the sweep around the logo
+                val a = Math.toRadians((-90.0 + 360.0 * ringStart))
+                val tip = Offset(center.x + (kotlin.math.cos(a) * ringR).toFloat(), center.y + (kotlin.math.sin(a) * ringR).toFloat())
+                drawCircle(GoldGlow.copy(alpha = 0.35f), radius = 6.dp.toPx(), center = tip)
+                drawCircle(GoldHi, radius = 3.dp.toPx(), center = tip)
             }
 
             pulses.forEach { pulse ->
@@ -360,7 +379,16 @@ fun TouchpadIsland(
         }
         val seal = maxOf(lockShown, dropShown)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.size(markSize), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(markSize)
+                    .onGloballyPositioned { c ->
+                        canvasCoords?.takeIf { it.isAttached && c.isAttached }?.let { root ->
+                            markCenter = root.localPositionOf(c, Offset(c.size.width / 2f, c.size.height / 2f))
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
                 if (framed) {
                     Image(
                         painter = painterResource(R.drawable.ic_launcher_foreground),
@@ -542,29 +570,29 @@ fun FloatingPrivateIsland(
     }
 }
 
-/** Thin gold ring with a soft glow, a faint outer ring and a gold dot (TouchPad card style). */
+/**
+ * Lumen logo (card style), as in the design: a thin bright gold ring with a glowing gold dot,
+ * two fine inner rings and faint outer rings. Kept light and elegant.
+ */
 @Composable
 private fun GoldRing(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val c = Offset(size.width / 2f, size.height / 2f)
         val r = size.minDimension * 0.40f
-        val gold = Color(0xFFF5CB7E)
-        // Faint outer ring
-        drawCircle(Color.White.copy(alpha = 0.30f), radius = r * 1.14f, center = c, style = Stroke(1.2.dp.toPx()))
-        // Soft inner light
-        drawCircle(
-            Brush.radialGradient(listOf(Color.White.copy(alpha = 0.10f), Color.Transparent), center = c, radius = r),
-            radius = r,
-            center = c
-        )
-        // Glow, then the crisp ring
-        drawCircle(gold.copy(alpha = 0.10f), radius = r, center = c, style = Stroke(10.dp.toPx()))
-        drawCircle(gold.copy(alpha = 0.22f), radius = r, center = c, style = Stroke(5.dp.toPx()))
-        drawCircle(gold, radius = r, center = c, style = Stroke(2.dp.toPx()))
-        // Gold dot on the outer ring, top-right
-        val a = Math.toRadians(-48.0)
-        val dot = Offset(c.x + (kotlin.math.cos(a) * r * 1.14f).toFloat(), c.y + (kotlin.math.sin(a) * r * 1.14f).toFloat())
-        drawCircle(gold.copy(alpha = 0.35f), radius = 9.dp.toPx(), center = dot)
-        drawCircle(gold, radius = 5.5.dp.toPx(), center = dot)
+        val gold = Color(0xFFF6D98E)
+        // Faint outer rings
+        drawCircle(Color.White.copy(alpha = 0.14f), radius = r * 1.22f, center = c, style = Stroke(0.8.dp.toPx()))
+        drawCircle(Color.White.copy(alpha = 0.08f), radius = r * 1.42f, center = c, style = Stroke(0.8.dp.toPx()))
+        // Bright gold ring with a whisper of glow
+        drawCircle(gold.copy(alpha = 0.18f), radius = r, center = c, style = Stroke(4.dp.toPx()))
+        drawCircle(gold, radius = r, center = c, style = Stroke(1.6.dp.toPx()))
+        // Two fine inner rings
+        drawCircle(Color(0xFFFFF1C9).copy(alpha = 0.55f), radius = r * 0.72f, center = c, style = Stroke(1.dp.toPx()))
+        drawCircle(Color(0xFFFFF1C9).copy(alpha = 0.40f), radius = r * 0.55f, center = c, style = Stroke(1.dp.toPx()))
+        // Glowing dot on the bright ring, top-right
+        val a = Math.toRadians(-40.0)
+        val dot = Offset(c.x + (kotlin.math.cos(a) * r).toFloat(), c.y + (kotlin.math.sin(a) * r).toFloat())
+        drawCircle(Color(0xFFFFE7B0).copy(alpha = 0.35f), radius = 6.dp.toPx(), center = dot)
+        drawCircle(Color(0xFFFFF4D6), radius = 3.6.dp.toPx(), center = dot)
     }
 }
