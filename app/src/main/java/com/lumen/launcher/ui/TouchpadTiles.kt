@@ -46,10 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -215,32 +211,20 @@ fun NotificationsPreviewTile(modifier: Modifier = Modifier) {
         // Just a bell with the red count — sized to the tile.
         val bell = (minOf(maxWidth, maxHeight) * 0.56f).coerceIn(22.dp, 42.dp)
         Box(contentAlignment = Alignment.Center) {
-            // Soft golden glow behind the bell
             Box(
                 Modifier
-                    .size(bell * 1.5f)
+                    .size(bell * 1.35f)
                     .background(
-                        Brush.radialGradient(listOf(Color(0x55FFC857), Color.Transparent)),
+                        Brush.radialGradient(listOf(Color(0x33F5CB7E), Color.Transparent)),
                         CircleShape
                     )
             )
-            // Bell and badge share one box the size of the bell, so the badge sits on its corner.
             Box(Modifier.size(bell)) {
                 Icon(
                     Icons.Filled.Notifications,
                     contentDescription = if (count > 0) "$count notifications" else "Notifications",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                        .drawWithContent {
-                            drawContent()
-                            // Gold gradient bell
-                            drawRect(
-                                Brush.verticalGradient(listOf(Color(0xFFFFE3A1), Color(0xFFF7B548), Color(0xFFE8912B))),
-                                blendMode = BlendMode.SrcIn
-                            )
-                        }
+                    tint = Color(0xFFF5CB7E),
+                    modifier = Modifier.fillMaxSize()
                 )
                 CountBadge(
                     count = count,

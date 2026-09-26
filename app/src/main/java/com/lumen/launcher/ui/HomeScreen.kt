@@ -443,7 +443,7 @@ fun HomeScreen(
                                     viewModel.setTouchpadWindow(l, t, r, b)
                                 },
                                 framed = false,
-                                markSize = 64.dp,
+                                markSize = 88.dp,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()

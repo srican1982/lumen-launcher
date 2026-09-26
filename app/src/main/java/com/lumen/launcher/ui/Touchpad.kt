@@ -19,16 +19,19 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.Notifications
@@ -104,9 +107,18 @@ fun TouchpadIsland(
 ) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
-    // Measured center of the logo, in the canvas' own coordinates, so effects sit exactly on it.
+    // Logo center in canvas coordinates — both must be laid out before the hold ring can align.
     var canvasCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var logoCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var markCenter by remember { mutableStateOf(Offset.Unspecified) }
+
+    fun syncMarkCenter() {
+        val root = canvasCoords
+        val logo = logoCoords
+        if (root != null && logo != null && root.isAttached && logo.isAttached) {
+            markCenter = root.localPositionOf(logo, Offset(logo.size.width / 2f, logo.size.height / 2f))
+        }
+    }
     var pressed by remember { mutableStateOf(false) }
     var touch by remember { mutableStateOf(Offset.Unspecified) }
     var hold by remember { mutableFloatStateOf(0f) }
@@ -280,7 +292,10 @@ fun TouchpadIsland(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .onGloballyPositioned { canvasCoords = it }
+                .onGloballyPositioned {
+                    canvasCoords = it
+                    syncMarkCenter()
+                }
         ) {
             if (framed) drawGoldBezel(pressGlow + holdShown * 0.35f + dropShown * 0.55f)
             val highlight = if (touch == Offset.Unspecified) Offset(size.width / 2f, size.height * 0.38f) else touch
@@ -347,12 +362,12 @@ fun TouchpadIsland(
             }
 
             val ringStart = ((holdShown - 0.5f) * 2f).coerceIn(0f, 1f)
-            if (ringStart > 0.01f) {
-                val ringR = markR + (if (framed) 7.dp else 5.dp).toPx()
-                val width = (if (framed) 2.8.dp else 2.dp).toPx()
-                drawCircle(Gold.copy(alpha = 0.14f), ringR, center, style = Stroke(width))
+            if (ringStart > 0.01f && markCenter != Offset.Unspecified) {
+                val ringR = markR + (if (framed) 7.dp else 6.dp).toPx()
+                val width = (if (framed) 2.8.dp else 2.2.dp).toPx()
+                drawCircle(Gold.copy(alpha = 0.12f), ringR, center, style = Stroke(width))
                 drawArc(
-                    color = GoldGlow.copy(alpha = 0.95f),
+                    color = GoldHi.copy(alpha = 0.92f),
                     startAngle = -90f,
                     sweepAngle = 360f * ringStart,
                     useCenter = false,
@@ -360,11 +375,10 @@ fun TouchpadIsland(
                     size = Size(ringR * 2f, ringR * 2f),
                     style = Stroke(width = width, cap = StrokeCap.Round)
                 )
-                // Glowing dot leading the sweep around the logo
                 val a = Math.toRadians((-90.0 + 360.0 * ringStart))
                 val tip = Offset(center.x + (kotlin.math.cos(a) * ringR).toFloat(), center.y + (kotlin.math.sin(a) * ringR).toFloat())
-                drawCircle(GoldGlow.copy(alpha = 0.35f), radius = 6.dp.toPx(), center = tip)
-                drawCircle(GoldHi, radius = 3.dp.toPx(), center = tip)
+                drawCircle(GoldGlow.copy(alpha = 0.28f), radius = 5.dp.toPx(), center = tip)
+                drawCircle(GoldHi, radius = 2.8.dp.toPx(), center = tip)
             }
 
             pulses.forEach { pulse ->
@@ -378,14 +392,14 @@ fun TouchpadIsland(
             }
         }
         val seal = maxOf(lockShown, dropShown)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        @Composable
+        fun LogoMark() {
             Box(
                 Modifier
                     .size(markSize)
-                    .onGloballyPositioned { c ->
-                        canvasCoords?.takeIf { it.isAttached && c.isAttached }?.let { root ->
-                            markCenter = root.localPositionOf(c, Offset(c.size.width / 2f, c.size.height / 2f))
-                        }
+                    .onGloballyPositioned {
+                        logoCoords = it
+                        syncMarkCenter()
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -399,7 +413,6 @@ fun TouchpadIsland(
                             .graphicsLayer { alpha = (1f - seal).coerceIn(0f, 1f) }
                     )
                 } else {
-                    // Card style: thin glowing gold ring with a gold dot, drawn directly.
                     GoldRing(
                         Modifier
                             .fillMaxSize()
@@ -407,10 +420,10 @@ fun TouchpadIsland(
                     )
                 }
                 Icon(
-                    if (lockShown > 0.55f) Icons.Outlined.Fingerprint else Icons.Outlined.Lock,
+                    Icons.Outlined.Lock,
                     contentDescription = "Locked Space",
                     tint = GoldHi.copy(alpha = seal),
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(if (framed) 28.dp else 24.dp)
                 )
                 if (revealApp != null && reveal > 0.04f && seal < 0.2f) {
                     AppIcon(
@@ -429,24 +442,62 @@ fun TouchpadIsland(
                     )
                 }
             }
-            Text(
-                if (seal > 0.6f) "Private" else "Lumen",
-                color = Color.White.copy(alpha = if (pressed) 0.95f else 0.88f),
-                fontFamily = Outfit,
-                fontWeight = if (framed) FontWeight.Medium else FontWeight.SemiBold,
-                fontSize = if (framed) 13.sp else 17.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Text(
-                if (seal > 0.6f) "Space" else "TouchPad",
-                color = Color.White.copy(alpha = if (framed) 0.52f else 0.72f),
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = if (framed) 10.sp else 13.sp,
-                letterSpacing = 0.4.sp,
-                textAlign = TextAlign.Center
-            )
+        }
+
+        if (framed) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                LogoMark()
+                Text(
+                    if (seal > 0.6f) "Private" else "Lumen",
+                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.88f),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Text(
+                    if (seal > 0.6f) "Space" else "TouchPad",
+                    color = Color.White.copy(alpha = 0.52f),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
+                    letterSpacing = 0.4.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            // Card: logo on top; labels at bottom — the whole column is the TouchPad (no fingerprint).
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                LogoMark()
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (seal > 0.6f) "Private" else "Lumen",
+                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.92f),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    if (seal > 0.6f) "Space" else "TouchPad",
+                    color = Color.White.copy(alpha = 0.72f),
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    letterSpacing = 0.4.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                )
+            }
         }
     }
 }
@@ -579,20 +630,13 @@ private fun GoldRing(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val c = Offset(size.width / 2f, size.height / 2f)
         val r = size.minDimension * 0.40f
-        val gold = Color(0xFFF6D98E)
-        // Faint outer rings
-        drawCircle(Color.White.copy(alpha = 0.14f), radius = r * 1.22f, center = c, style = Stroke(0.8.dp.toPx()))
-        drawCircle(Color.White.copy(alpha = 0.08f), radius = r * 1.42f, center = c, style = Stroke(0.8.dp.toPx()))
-        // Bright gold ring with a whisper of glow
-        drawCircle(gold.copy(alpha = 0.18f), radius = r, center = c, style = Stroke(4.dp.toPx()))
-        drawCircle(gold, radius = r, center = c, style = Stroke(1.6.dp.toPx()))
-        // Two fine inner rings
-        drawCircle(Color(0xFFFFF1C9).copy(alpha = 0.55f), radius = r * 0.72f, center = c, style = Stroke(1.dp.toPx()))
-        drawCircle(Color(0xFFFFF1C9).copy(alpha = 0.40f), radius = r * 0.55f, center = c, style = Stroke(1.dp.toPx()))
-        // Glowing dot on the bright ring, top-right
-        val a = Math.toRadians(-40.0)
+        val gold = Color(0xFFF5CB7E)
+        drawCircle(Color.White.copy(alpha = 0.12f), radius = r * 1.18f, center = c, style = Stroke(0.7.dp.toPx()))
+        drawCircle(gold.copy(alpha = 0.88f), radius = r, center = c, style = Stroke(1.5.dp.toPx()))
+        drawCircle(gold.copy(alpha = 0.50f), radius = r * 0.72f, center = c, style = Stroke(1.dp.toPx()))
+        val a = Math.toRadians(-42.0)
         val dot = Offset(c.x + (kotlin.math.cos(a) * r).toFloat(), c.y + (kotlin.math.sin(a) * r).toFloat())
-        drawCircle(Color(0xFFFFE7B0).copy(alpha = 0.35f), radius = 6.dp.toPx(), center = dot)
-        drawCircle(Color(0xFFFFF4D6), radius = 3.6.dp.toPx(), center = dot)
+        drawCircle(gold.copy(alpha = 0.35f), radius = 4.dp.toPx(), center = dot)
+        drawCircle(Color(0xFFFFE7B0), radius = 2.5.dp.toPx(), center = dot)
     }
 }
