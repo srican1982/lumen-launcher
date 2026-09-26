@@ -20,6 +20,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -413,9 +415,9 @@ fun HomeScreen(
                         // Glass card over the remaining columns: TouchPad ring + mini player + notifications.
                         val cardShape = RoundedCornerShape(28.dp)
                         val cardHeight = if (iconsHeight > 0.dp) maxOf(iconsHeight, 176.dp) else leadRowHeight * 2 + 22.dp
-                        Row(
+                        BoxWithConstraints(
                             modifier = Modifier
-                                .weight((cols - 2).toFloat())
+                                .weight((cols - 1).toFloat().coerceAtLeast(3f))
                                 .height(cardHeight)
                                 .padding(horizontal = 4.dp)
                                 .clip(cardShape)
@@ -429,41 +431,45 @@ fun HomeScreen(
                                     Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.16f))),
                                     cardShape
                                 )
-                                .padding(start = 2.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
+                                .padding(start = 6.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
                         ) {
-                            TouchpadIsland(
-                                enabled = !recentsOpen && !editing,
-                                state = state,
-                                icons = viewModel.icons,
-                                dropReady = overPad,
-                                onGesture = viewModel::runBlankGesture,
-                                onPrivateArmed = viewModel::armPrivateSpace,
-                                onBoundsInWindow = { l, t, r, b ->
-                                    padBox.value = Rect(l, t, r, b)
-                                    viewModel.setTouchpadWindow(l, t, r, b)
-                                },
-                                framed = false,
-                                markSize = 88.dp,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .width(88.dp)
-                                    .fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                NowPlayingTile(
-                                    Modifier
-                                        .weight(1.25f)
-                                        .fillMaxWidth()
+                            val logoSize = (minOf(maxWidth, maxHeight) * 0.36f).coerceIn(88.dp, 118.dp)
+                            Row(Modifier.fillMaxSize()) {
+                                TouchpadIsland(
+                                    enabled = !recentsOpen && !editing,
+                                    state = state,
+                                    icons = viewModel.icons,
+                                    dropReady = overPad,
+                                    onGesture = viewModel::runBlankGesture,
+                                    onPrivateArmed = viewModel::armPrivateSpace,
+                                    onBoundsInWindow = { l, t, r, b ->
+                                        padBox.value = Rect(l, t, r, b)
+                                        viewModel.setTouchpadWindow(l, t, r, b)
+                                    },
+                                    framed = false,
+                                    markSize = logoSize,
+                                    modifier = Modifier
+                                        .weight(0.72f)
+                                        .fillMaxHeight()
                                 )
-                                NotificationsPreviewTile(
-                                    Modifier
-                                        .weight(0.75f)
-                                        .fillMaxWidth()
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(0.28f)
+                                        .widthIn(max = 78.dp)
+                                        .fillMaxHeight(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    NowPlayingTile(
+                                        Modifier
+                                            .weight(1.25f)
+                                            .fillMaxWidth()
+                                    )
+                                    NotificationsPreviewTile(
+                                        Modifier
+                                            .weight(0.75f)
+                                            .fillMaxWidth()
+                                    )
+                                }
                             }
                         }
                     }
