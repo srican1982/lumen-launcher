@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.*
 import com.lumen.launcher.inbox.InboxSource
 import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.travel.TripAlbumScreen
+import com.lumen.launcher.travel.TripModeCard
+import com.lumen.launcher.travel.model.Trip
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
@@ -65,6 +68,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
         !it.isDigest && it.source in setOf(InboxSource.Messages, InboxSource.WhatsApp, InboxSource.Telegram, InboxSource.Messenger)
     }
     var travelCollection by remember { mutableStateOf<Boolean?>(null) }
+    var albumTrip by remember { mutableStateOf<Trip?>(null) }
     Column(
         Modifier.fillMaxWidth().glass(RoundedCornerShape(22.dp), LocalGlass.current).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -86,7 +90,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 if (next != null) WorkspaceLine(next.title, next.detail) { vm.openUpNext(next) }
                 else if (event != null) WorkspaceLine(event.title, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(event.begin))) { vm.openCalendarEvent(event) }
                 else Text("A little space for your day.", color = Lumen.Muted)
-                task?.let { WorkspaceLine(it.text, "Next task · tap to view") { vm.openTodoList() } }
+                task?.let { WorkspaceLine(it.text, "Next task  tap to view") { vm.openTodoList() } }
                 WorkspaceActions {
                     OutlinedButton(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Reminder") }
                     OutlinedButton(onClick = { if (state.calendarAccess) vm.openCalendarApp() else vm.requestCalendarAccess() }) { Text(if (state.calendarAccess) "Calendar" else "Connect calendar") }
@@ -94,7 +98,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
             }
             SpaceKind.Work -> {
                 WorkspaceLine(task?.text ?: "Choose your next task", "Tap to manage work tasks") { vm.openTodoList() }
-                if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + " · Open meeting") { vm.openCalendarEvent(event) }
+                if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + "  Open meeting") { vm.openCalendarEvent(event) }
                 else Text(if (state.calendarAccess) "No upcoming meeting." else "Connect your calendar to see your next meeting.", color = Lumen.Muted, fontSize = 12.sp)
                 WorkspaceActions {
                     OutlinedButton(onClick = { vm.openCapture(CaptureKind.Task) }) { Text("Add task") }
@@ -135,6 +139,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 }
             }
             SpaceKind.Travel -> {
+                TripModeCard(onViewTrip = { albumTrip = it })
                 WorkspaceLine(state.travelDestination.ifBlank { "Where are you going?" }, "Tap to set your destination") { editTrip = true }
                 state.upNext?.takeIf { it.kind == UpNext.Kind.Flight }?.let { flight ->
                     WorkspaceLine(flight.title, flight.detail) { vm.openUpNext(flight) }
@@ -166,6 +171,9 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     }
     travelCollection?.let { itinerary ->
         TravelCollection(state, vm, onDismiss = { travelCollection = null })
+    }
+    albumTrip?.let { trip ->
+        TripAlbumScreen(trip = trip, onClose = { albumTrip = null })
     }
     if (customFocus) FocusDurationDialog(
         onDismiss = { customFocus = false },

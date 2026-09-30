@@ -194,6 +194,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             application.registerReceiver(packageReceiver, filter)
         }
         viewModelScope.launch {
+            // Keep Trip Mode MediaStore observer alive across spaces after process start.
+            runCatching { com.lumen.launcher.travel.data.TripRepository.get(application).restoreIfNeeded() }
+        }
+        viewModelScope.launch {
             socialCreate.creations.collect { list ->
                 _state.update { it.copy(socialCreations = list) }
             }
