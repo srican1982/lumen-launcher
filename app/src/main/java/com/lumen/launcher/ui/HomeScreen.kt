@@ -55,6 +55,7 @@ import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Grain
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Thunderstorm
 import androidx.compose.material.icons.outlined.WbCloudy
 import androidx.compose.material.icons.outlined.WbSunny
@@ -148,6 +149,8 @@ fun HomeScreen(
         var liftOrigin by remember { mutableStateOf(Offset.Zero) }
         var dropArmed by remember { mutableStateOf(false) }
         var showFloatPad by remember { mutableStateOf(false) }
+        var showTripGallery by remember { mutableStateOf(false) }
+        if (showTripGallery) com.lumen.launcher.travel.TripGalleryScreen(onClose = { showTripGallery = false })
         var floatIsland by remember { mutableStateOf(Rect.Zero) }
         val gridRef = remember { CoordBox() }
         val rootRef = remember { CoordBox() }
@@ -371,7 +374,7 @@ fun HomeScreen(
             Spacer(Modifier.height(12.dp))
             ActionBar(
                 hint = copy.prompt,
-                onClick = viewModel::openSearch,
+                onClick = viewModel::openModeSearch,
                 onLongClick = { viewModel.openCapture() },
                 modifier = restBlur
             )
@@ -416,6 +419,18 @@ fun HomeScreen(
                                 markSize = 40.dp,
                                 modifier = Modifier.fillMaxSize()
                             )
+                        }
+                    }
+                    if (state.activeSpace == SpaceKind.Personal) {
+                        item(key = "trip-albums-shortcut") {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable { showTripGallery = true }.padding(vertical = 4.dp)) {
+                                Box(Modifier.size(homeIconSize).glass(RoundedCornerShape(22.dp), LocalGlass.current), contentAlignment = Alignment.Center) {
+                                    Icon(androidx.compose.material.icons.Icons.Outlined.PhotoLibrary, "Trip Albums", tint = Lumen.Accent, modifier = Modifier.size(homeIconSize * .55f))
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text("Trip Albums", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
+                            }
                         }
                     }
                     if (!state.focusing) items(state.folders.filter { it.space == state.activeSpace.name }, key = { "folder-${it.id}" }) { folder ->

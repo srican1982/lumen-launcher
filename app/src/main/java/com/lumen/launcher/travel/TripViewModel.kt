@@ -17,6 +17,7 @@ import com.lumen.launcher.travel.model.TripPhoto
 import com.lumen.launcher.travel.model.TripUiState
 import com.lumen.launcher.travel.share.TripShareManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 
 class TripViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = TripRepository.get(app)
+    private var foregroundSync: kotlinx.coroutines.Job? = null
 
     private val flags = MutableStateFlow(PermissionFlags())
     private val loading = MutableStateFlow(false)
@@ -84,21 +86,22 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripUiState())
 
-    fun cityBuckets(tripId: Long): StateFlow<List<CityBucket>> =
-        repo.cityBucketsFlow(tripId)
-            .distinctUntilChanged()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun cityBuckets(tripId: Long): Flow<List<CityBucket>> = repo.cityBucketsFlow(tripId)
 
-    fun photos(tripId: Long): StateFlow<List<TripPhoto>> =
-        repo.photosFlow(tripId)
-            .distinctUntilChanged()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun photos(tripId: Long): Flow<List<TripPhoto>> = repo.photosFlow(tripId)
 
     init {
+        onForeground()
+    }
+
+    fun onForeground() {
         refreshPermissions()
-        viewModelScope.launch {
-            repo.restoreIfNeeded()
-            refreshPermissions()
+        if (foregroundSync?.isActive == true) return
+        foregroundSync = viewModelScope.launch {
+            runCatching {
+                repo.restoreIfNeeded()
+                if (flags.value.media) repo.syncNewPhotos()
+            }.onFailure { reportError(it.message ?: "Could not refresh trip photos.") }
         }
     }
 
@@ -124,12 +127,13 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
      * Phone GPS is used for photo places (Camera Location Tags not required).
      */
     fun onTripModeToggled(enabled: Boolean) {
+        if (loading.value) return
         if (!enabled) {
+            loading.value = true
             viewModelScope.launch {
-                loading.value = true
                 runCatching { repo.endTrip() }
                     .onSuccess { completed.value = it }
-                    .onFailure { error.value = it.message }
+                    .onFailure { reportError(it.message ?: "Could not end the trip.") }
                 loading.value = false
                 refreshPermissions()
             }
@@ -176,7 +180,7 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         promptMediaPermission.value = false
         refreshPermissions()
         if (!granted) {
-            error.value = "Photo access is needed so Lumen can organize new camera photos."
+            error.value = "Choose Allow all photos so Lumen can organize new camera photos. Selected-photo access cannot include future captures."
             return
         }
         beginTrip()
@@ -189,8 +193,9 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun beginTrip() {
+        if (loading.value) return
+        loading.value = true
         viewModelScope.launch {
-            loading.value = true
             runCatching { repo.startTrip() }
                 .onFailure { error.value = it.message ?: "Could not start Trip Mode." }
             loading.value = false
@@ -202,9 +207,7 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         onTripModeToggled(false)
     }
 
-    fun setAlbumUiOpen(open: Boolean) {
-        repo.setAlbumUiOpen(open)
-    }
+    fun reportError(message: String) { error.value = message }
 
     fun removeFromTrip(photoIds: List<Long>) {
         viewModelScope.launch {
@@ -215,8 +218,10 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
 
     fun share(uris: List<Uri>, instagramOnly: Boolean = false) {
         val ctx = getApplication<Application>()
-        if (instagramOnly) TripShareManager.shareToInstagram(ctx, uris)
-        else TripShareManager.shareImages(ctx, uris)
+        runCatching {
+            if (instagramOnly) TripShareManager.shareToInstagram(ctx, uris)
+            else TripShareManager.shareImages(ctx, uris)
+        }.onFailure { reportError("Could not share these photos. Check that they are still available.") }
     }
 
     fun instagramInstalled(): Boolean =

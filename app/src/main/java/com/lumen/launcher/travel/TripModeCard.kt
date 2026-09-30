@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -82,7 +83,7 @@ fun TripModeCard(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                tripVm.refreshPermissions()
+                tripVm.onForeground()
                 if (awaitingLocationSettings.compareAndSet(true, false)) {
                     tripVm.onReturnedFromLocationSettings()
                 }
@@ -146,7 +147,9 @@ fun TripModeCard(
             Switch(
                 checked = state.tripModeEnabled,
                 onCheckedChange = { enabled ->
-                    if (!state.isLoading) tripVm.onTripModeToggled(enabled)
+                    if (!state.isLoading) {
+                        if (enabled) tripVm.onTripModeToggled(true) else confirmEnd = true
+                    }
                 },
                 enabled = !state.isLoading,
                 colors = SwitchDefaults.colors(
@@ -165,7 +168,8 @@ fun TripModeCard(
             ActiveTripBlock(
                 trip = trip,
                 onViewTrip = { onViewTrip(trip) },
-                onEndTrip = { confirmEnd = true }
+                onEndTrip = { confirmEnd = true },
+                busy = state.isLoading
             )
         }
 
@@ -292,7 +296,8 @@ fun TripModeCard(
 private fun ActiveTripBlock(
     trip: Trip,
     onViewTrip: () -> Unit,
-    onEndTrip: () -> Unit
+    onEndTrip: () -> Unit,
+    busy: Boolean
 ) {
     val inner = RoundedCornerShape(14.dp)
     Column(
@@ -361,7 +366,7 @@ private fun ActiveTripBlock(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = onViewTrip,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = TripPurpleDeep,
@@ -376,7 +381,8 @@ private fun ActiveTripBlock(
             }
             OutlinedButton(
                 onClick = onEndTrip,
-                modifier = Modifier.fillMaxWidth().height(46.dp),
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, TripPurple.copy(0.55f))
             ) {

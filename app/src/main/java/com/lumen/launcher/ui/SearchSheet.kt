@@ -58,6 +58,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.AppInfo
+import com.lumen.launcher.data.SpaceKind
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.TextButton
 import com.lumen.launcher.search.SearchHit
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
@@ -109,9 +114,20 @@ fun SearchSheet(
                 query = state.query,
                 onQueryChange = viewModel::onQueryChange,
                 focusRequester = focusRequester,
-                onSearch = viewModel::submitSearch,
+                onSearch = {
+                    if (state.modeSearch) {
+                        keyboard?.hide()
+                        if (state.activeSpace == SpaceKind.Travel) viewModel.searchPlace(state.query)
+                    } else viewModel.submitSearch()
+                },
+                hint = if (state.modeSearch) modeSearchHint(state.activeSpace) else "Search apps or actions",
                 onVoice = { keyboard?.hide(); viewModel.openVoice() }
             )
+            if (state.modeSearch) {
+                Column(Modifier.fillMaxWidth().heightIn(max = 230.dp).verticalScroll(rememberScrollState())) {
+                    ModeSearchActions(state, viewModel)
+                }
+            }
             Spacer(Modifier.height(14.dp))
             if (state.query.isBlank()) {
                 Text(
@@ -124,7 +140,13 @@ fun SearchSheet(
                 )
                 Spacer(Modifier.height(10.dp))
                 ExampleChips(
-                    examples = listOf(
+                    examples = if (state.modeSearch) when(state.activeSpace) {
+                        SpaceKind.Travel -> listOf("Nearby restaurants", "Airport", "Hotels nearby")
+                        SpaceKind.Work -> listOf("Meeting", "Project", "Email")
+                        SpaceKind.Personal -> listOf("Family", "Friends", "WhatsApp")
+                        SpaceKind.Focus -> listOf("Reading", "Study", "Writing")
+                        else -> listOf("Open camera", "Set a timer", "Call John")
+                    } else listOf(
                         "WhatsApp",
                         "Call John",
                         "Turn on Bluetooth",
@@ -202,6 +224,7 @@ private fun SearchField(
     onQueryChange: (String) -> Unit,
     focusRequester: FocusRequester,
     onSearch: () -> Unit,
+    hint: String,
     onVoice: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -226,7 +249,7 @@ private fun SearchField(
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) {
                 Text(
-                    "Search or say what you want",
+                    hint,
                     color = Lumen.Faint,
                     fontSize = 16.sp,
                     fontFamily = Outfit,

@@ -862,6 +862,8 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     val density = LocalDensity.current
     var uri by remember { mutableStateOf<Uri?>(null) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
+    var cropSource by remember { mutableStateOf<Bitmap?>(null) }
+    var beforeCrop by remember { mutableStateOf<Bitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
     val marks = remember { mutableStateListOf<PhotoMark>() }
     var shapeTool by remember { mutableStateOf(PhotoShape.Pen) }
@@ -893,7 +895,12 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         blurLevels = null
         levelImages = emptyList()
         photo = withContext(Dispatchers.IO) { decodeForMarkup(context, u) }
+        beforeCrop = null
         loading = false
+    }
+    LaunchedEffect(photo) {
+        blurLevels = null
+        levelImages = emptyList()
         photo?.let { p ->
             val levels = withContext(Dispatchers.Default) { BlurLevels.build(p) }
             blurLevels = levels
@@ -974,6 +981,19 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         coordinator.saveImageToGallery(CreationKind.Photo, out)
     }
 
+    cropSource?.let { source ->
+        PhotoCropDialog(source, onDismiss = { cropSource = null }, onApply = { cropped ->
+            beforeCrop = source
+            marks.clear()
+            live.clear()
+            blurBoxes.clear()
+            selectedBlur = null
+            selectedMark = null
+            photo = cropped
+            cropSource = null
+        })
+    }
+
     Column(Modifier.fillMaxSize()) {
         CreateToolHeader("Photo", onClose, ::share)
 
@@ -1027,6 +1047,18 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(if (blurMode) "Blur areas" else "Draw on photo", color = CreatePalette.Label, fontFamily = Outfit, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text("Crop", color = CreatePalette.Accent, modifier = Modifier.clickable { cropSource = rendered() }.padding(8.dp))
+            if (beforeCrop != null) {
+                Text("Undo crop", color = CreatePalette.Accent, modifier = Modifier.clickable {
+                    photo = beforeCrop
+                    beforeCrop = null
+                    marks.clear()
+                    live.clear()
+                    blurBoxes.clear()
+                    selectedBlur = null
+                    selectedMark = null
+                }.padding(8.dp))
+            }
             if (marks.isNotEmpty()) {
                 Row(
                     Modifier

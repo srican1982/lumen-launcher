@@ -216,6 +216,16 @@ class LauncherActivity : FragmentActivity() {
         clearNavScrim()
         viewModel.refreshApps()
         viewModel.refreshFlow()
+        lifecycleScope.launch {
+            val trips = com.lumen.launcher.travel.data.TripRepository.get(applicationContext)
+            runCatching {
+                trips.restoreIfNeeded()
+                trips.syncNewPhotos()
+                // A camera can return before MediaStore finishes publishing its image.
+                kotlinx.coroutines.delay(2_000)
+                trips.syncNewPhotos()
+            }
+        }
     }
 
     override fun onStop() {

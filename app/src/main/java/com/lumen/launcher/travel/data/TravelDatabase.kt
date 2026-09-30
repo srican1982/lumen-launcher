@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [TripEntity::class, TripPhotoEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TravelDatabase : RoomDatabase() {
@@ -22,7 +22,11 @@ abstract class TravelDatabase : RoomDatabase() {
                     context.applicationContext,
                     TravelDatabase::class.java,
                     "lumen_travel.db"
-                ).fallbackToDestructiveMigration().build().also { instance = it }
+                ).addMigrations(object : androidx.room.migration.Migration(1, 2) {
+                    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        db.execSQL("ALTER TABLE trip_photos ADD COLUMN removed INTEGER NOT NULL DEFAULT 0")
+                    }
+                }).build().also { instance = it }
             }
     }
 }

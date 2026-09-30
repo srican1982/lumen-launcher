@@ -159,12 +159,12 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         ModalBottomSheet(
             onDismissRequest = { expanded = false },
             containerColor = Color(0xFF24232E),
-            contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            contentWindowInsets = { WindowInsets.safeDrawing },
         ) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(top = 4.dp, bottom = 32.dp),

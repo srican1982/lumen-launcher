@@ -16,16 +16,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -47,7 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,16 +82,21 @@ fun TripAlbumScreen(
     onClose: () -> Unit,
     tripVm: TripViewModel = viewModel()
 ) {
-    val photos by tripVm.photos(trip.id).collectAsState()
-    val cities by tripVm.cityBuckets(trip.id).collectAsState()
-    var filter by remember { mutableStateOf("All") }
-    var selected by remember { mutableStateOf(setOf<Long>()) }
+    val photoFlow = remember(tripVm, trip.id) { tripVm.photos(trip.id) }
+    val cityFlow = remember(tripVm, trip.id) { tripVm.cityBuckets(trip.id) }
+    val photos by photoFlow.collectAsState(initial = emptyList())
+    val cities by cityFlow.collectAsState(initial = emptyList())
+    var filter by remember(trip.id) { mutableStateOf("All") }
+    var selected by remember(trip.id) { mutableStateOf(setOf<Long>()) }
+    var pendingDelete by remember { mutableStateOf(emptyList<Long>()) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
-    // Pause MediaStore observer while album is open — thumbnail loads were causing flicker.
-    DisposableEffect(Unit) {
-        tripVm.setAlbumUiOpen(true)
-        onDispose { tripVm.setAlbumUiOpen(false) }
+    LaunchedEffect(photos) {
+        selected = selected.intersect(photos.map { it.id }.toSet())
+    }
+    LaunchedEffect(cities) {
+        if (filter != "All" && cities.none { it.city == filter }) filter = "All"
     }
 
     val filtered = remember(photos, filter) {
@@ -108,36 +111,30 @@ fun TripAlbumScreen(
         photos.filter { it.id in selected }
     }
 
-    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val navBottom = WindowInsets.navigationBars
-        .asPaddingValues()
-        .calculateBottomPadding()
-        .coerceAtLeast(24.dp)
-    // Reserve space so the grid never jumps under the selection sheet.
-    val sheetReserve: Dp = if (selecting) 196.dp + navBottom else navBottom + 16.dp
-
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            tripVm.removeFromTrip(selected.toList())
-            selected = emptySet()
+            tripVm.removeFromTrip(pendingDelete)
+            selected = selected - pendingDelete.toSet()
         }
+        pendingDelete = emptyList()
     }
 
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
+            decorFitsSystemWindows = true
         )
     ) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF14121A)) {
-            Box(Modifier.fillMaxSize()) {
+            // Let the dialog window fit system bars as well as handling Compose insets.
+            // Some OEM dialogs otherwise report a full-screen height but consumed nav insets.
+            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Column(
                     Modifier
-                        .fillMaxSize()
-                        .padding(top = statusTop)
+                        .weight(1f)
                         .padding(horizontal = 16.dp)
                 ) {
                     Row(
@@ -205,7 +202,7 @@ fun TripAlbumScreen(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(bottom = sheetReserve)
+                        contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                         items(filtered, key = { it.id }) { photo ->
                             val isSelected = photo.id in selected
@@ -247,7 +244,7 @@ fun TripAlbumScreen(
                 if (selecting) {
                     SelectionSheet(
                         photos = selectedPhotos,
-                        navBottom = navBottom,
+                        navBottom = 0.dp,
                         onClear = { selected = emptySet() },
                         onShare = {
                             tripVm.share(selectedPhotos.map { Uri.parse(it.contentUri) })
@@ -259,17 +256,32 @@ fun TripAlbumScreen(
                         onDelete = {
                             val uris = selectedPhotos.map { Uri.parse(it.contentUri) }
                             if (Build.VERSION.SDK_INT >= 30 && uris.isNotEmpty()) {
-                                val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
-                                deleteLauncher.launch(IntentSenderRequest.Builder(request).build())
+                                runCatching {
+                                    val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
+                                    pendingDelete = selectedPhotos.map { it.id }
+                                    deleteLauncher.launch(IntentSenderRequest.Builder(request).build())
+                                }.onFailure {
+                                    pendingDelete = emptyList()
+                                    deleteError = "Could not delete these photos. Check photo access or delete them in your Gallery app."
+                                }
                             } else {
-                                tripVm.removeFromTrip(selected.toList())
-                                selected = emptySet()
+                                deleteError = "Delete photos in your Gallery app on this Android version. Remove only takes them out of this trip."
                             }
                         },
-                        modifier = Modifier.align(Alignment.BottomCenter)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
+        }
+        deleteError?.let { message ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { deleteError = null },
+                title = { Text("Photo deletion") },
+                text = { Text(message) },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = { deleteError = null }) { Text("OK") }
+                }
+            )
         }
     }
 }
@@ -442,7 +454,7 @@ private fun ActionTile(
 ) {
     Column(
         modifier
-            .height(72.dp)
+            .heightIn(min = 72.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(background)
             .clickable(onClick = onClick)

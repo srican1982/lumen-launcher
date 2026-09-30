@@ -1,5 +1,6 @@
 package com.lumen.launcher.travel.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -35,7 +36,8 @@ data class TripPhotoEntity(
     val countryName: String? = null,
     val city: String? = null,
     val relativePath: String? = null,
-    val addedAt: Long
+    val addedAt: Long,
+    @ColumnInfo(defaultValue = "0") val removed: Boolean = false
 ) {
     fun toModel() = TripPhoto(
         id = id,

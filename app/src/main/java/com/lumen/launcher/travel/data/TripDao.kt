@@ -16,7 +16,7 @@ interface TripDao {
     @Query("SELECT * FROM trips WHERE isActive = 1 LIMIT 1")
     fun observeActiveTrip(): Flow<TripEntity?>
 
-    @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY COALESCE(endTime, startTime) DESC LIMIT 20")
+    @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY COALESCE(endTime, startTime) DESC")
     fun observePastTrips(): Flow<List<TripEntity>>
 
     @Query("SELECT * FROM trips WHERE id = :id")
@@ -49,25 +49,30 @@ interface TripDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTripPhoto(photo: TripPhotoEntity): Long
 
+    @Query("""UPDATE trip_photos SET latitude = :latitude, longitude = :longitude,
+        countryCode = :countryCode, countryName = :countryName, city = :city WHERE id = :id""")
+    suspend fun updatePhotoLocation(id: Long, latitude: Double?, longitude: Double?,
+        countryCode: String?, countryName: String?, city: String?)
+
     @Query("SELECT COUNT(*) FROM trip_photos WHERE mediaStoreId = :mediaStoreId")
     suspend fun countByMediaStoreId(mediaStoreId: Long): Int
 
-    @Query("SELECT COUNT(*) FROM trip_photos WHERE tripId = :tripId")
+    @Query("SELECT COUNT(*) FROM trip_photos WHERE tripId = :tripId AND removed = 0")
     suspend fun getTripPhotoCount(tripId: Long): Int
 
-    @Query("SELECT COUNT(*) FROM trip_photos WHERE tripId = :tripId")
+    @Query("SELECT COUNT(*) FROM trip_photos WHERE tripId = :tripId AND removed = 0")
     fun observeTripPhotoCount(tripId: Long): Flow<Int>
 
-    @Query("SELECT * FROM trip_photos WHERE tripId = :tripId ORDER BY dateTaken DESC")
+    @Query("SELECT * FROM trip_photos WHERE tripId = :tripId AND removed = 0 ORDER BY dateTaken DESC")
     suspend fun getTripPhotos(tripId: Long): List<TripPhotoEntity>
 
-    @Query("SELECT * FROM trip_photos WHERE tripId = :tripId ORDER BY dateTaken DESC")
+    @Query("SELECT * FROM trip_photos WHERE tripId = :tripId AND removed = 0 ORDER BY dateTaken DESC")
     fun observeTripPhotos(tripId: Long): Flow<List<TripPhotoEntity>>
 
     @Query(
         """
         SELECT contentUri FROM trip_photos
-        WHERE tripId = :tripId
+        WHERE tripId = :tripId AND removed = 0
         ORDER BY dateTaken DESC
         LIMIT :limit
         """
@@ -77,7 +82,7 @@ interface TripDao {
     @Query(
         """
         SELECT contentUri FROM trip_photos
-        WHERE tripId = :tripId
+        WHERE tripId = :tripId AND removed = 0
         ORDER BY dateTaken DESC
         LIMIT :limit
         """
@@ -86,9 +91,9 @@ interface TripDao {
 
     @Query(
         """
-        SELECT city AS city, COUNT(*) AS count FROM trip_photos
-        WHERE tripId = :tripId
-        GROUP BY city
+        SELECT NULLIF(TRIM(city), '') AS city, COUNT(*) AS count FROM trip_photos
+        WHERE tripId = :tripId AND removed = 0
+        GROUP BY NULLIF(TRIM(city), '')
         ORDER BY count DESC
         """
     )
@@ -96,20 +101,20 @@ interface TripDao {
 
     @Query(
         """
-        SELECT city AS city, COUNT(*) AS count FROM trip_photos
-        WHERE tripId = :tripId
-        GROUP BY city
+        SELECT NULLIF(TRIM(city), '') AS city, COUNT(*) AS count FROM trip_photos
+        WHERE tripId = :tripId AND removed = 0
+        GROUP BY NULLIF(TRIM(city), '')
         ORDER BY count DESC
         """
     )
     suspend fun getCityCounts(tripId: Long): List<CityCountRow>
 
-    @Query("SELECT MAX(dateTaken) FROM trip_photos WHERE tripId = :tripId")
+    @Query("SELECT MAX(dateTaken) FROM trip_photos WHERE tripId = :tripId AND removed = 0")
     suspend fun lastProcessedTimestamp(tripId: Long): Long?
 
-    @Query("DELETE FROM trip_photos WHERE id IN (:ids)")
+    @Query("UPDATE trip_photos SET removed = 1 WHERE id IN (:ids)")
     suspend fun deletePhotosByIds(ids: List<Long>): Int
 
-    @Query("SELECT * FROM trip_photos WHERE id IN (:ids)")
+    @Query("SELECT * FROM trip_photos WHERE removed = 0 AND id IN (:ids)")
     suspend fun getPhotosByIds(ids: List<Long>): List<TripPhotoEntity>
 }

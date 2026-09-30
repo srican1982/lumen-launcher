@@ -10,6 +10,7 @@ import com.lumen.launcher.travel.model.CityBucket
 import com.lumen.launcher.travel.model.ResolvedLocation
 import com.lumen.launcher.travel.model.Trip
 import com.lumen.launcher.travel.model.TripPhoto
+import com.lumen.launcher.travel.TripPhotoRules
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +39,7 @@ class TripRepository private constructor(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var observer: MediaStorePhotoObserver? = null
     private val syncMutex = Mutex()
+    private val lifecycleMutex = Mutex()
 
     companion object {
         @Volatile private var instance: TripRepository? = null
@@ -66,16 +68,26 @@ class TripRepository private constructor(context: Context) {
     val pastTripsFlow: Flow<List<Trip>> = dao.observePastTrips().flatMapLatest { entities ->
         if (entities.isEmpty()) flowOf(emptyList())
         else {
-            // Enrich each past trip once per emission of the trip list.
-            kotlinx.coroutines.flow.flow {
-                emit(entities.map { e -> enrichTrip(e) })
+            combine(entities.map { e ->
+                dao.observeTripPhotos(e.id).map { photos ->
+                    e.toModel(
+                        photoCount = photos.size,
+                        coverUri = photos.firstOrNull()?.contentUri,
+                        previewUris = photos.take(4).map { it.contentUri },
+                        citiesLabel = photos.mapNotNull { it.city?.takeIf(String::isNotBlank) }
+                            .distinct().take(4).joinToString(" · ").ifBlank { null }
+                    )
+                }
+            }) { trips ->
+                trips.toList()
             }
         }
     }
 
     fun cityBucketsFlow(tripId: Long): Flow<List<CityBucket>> =
         dao.observeCityCounts(tripId).map { rows ->
-            rows.map { CityBucket(city = it.city?.takeIf { c -> c.isNotBlank() } ?: "Other", count = it.count) }
+            rows.groupBy { it.city?.takeIf(String::isNotBlank) ?: "Other" }
+                .map { (city, group) -> CityBucket(city, group.sumOf { it.count }) }
                 .sortedWith(compareByDescending<CityBucket> { it.count }.thenBy { it.city })
         }.distinctUntilChanged()
 
@@ -114,7 +126,7 @@ class TripRepository private constructor(context: Context) {
     /**
      * Starts a trip after permissions + location services are already confirmed by UI.
      */
-    suspend fun startTrip(): Trip = withContext(Dispatchers.IO) {
+    suspend fun startTrip(): Trip = lifecycleMutex.withLock { withContext(Dispatchers.IO) {
         dao.getActiveTrip()?.let { existing ->
             ensureObserverRunning()
             return@withContext enrichTrip(existing)
@@ -136,89 +148,89 @@ class TripRepository private constructor(context: Context) {
         ensureObserverRunning()
         syncNewPhotos()
         enrichTrip(dao.getTrip(id)!!)
-    }
+    } }
 
-    suspend fun endTrip(): Trip? = withContext(Dispatchers.IO) {
+    suspend fun endTrip(): Trip? = lifecycleMutex.withLock { withContext(Dispatchers.IO) {
         val active = dao.getActiveTrip() ?: return@withContext null
         val end = System.currentTimeMillis()
-        dao.endTrip(active.id, end)
+        // Drain pending captures before closing, and serialize against observer imports.
+        syncMutex.withLock {
+            try {
+                syncNewPhotosLocked(end)
+            } catch (_: SecurityException) {
+                // Revoked photo access must not prevent the user ending a trip.
+            }
+            dao.endTrip(active.id, end)
+        }
         stopObserver()
         location.clearCache()
-        enrichTrip(active.copy(endTime = end, isActive = false))
-    }
+        enrichTrip(dao.getTrip(active.id)!!)
+    } }
 
-    fun ensureObserverRunning() {
+    @Synchronized private fun ensureObserverRunning() {
         if (observer != null) return
         val obs = MediaStorePhotoObserver(app, scope) { syncNewPhotos() }
         observer = obs
         obs.start()
-        scope.launch { syncNewPhotos() }
+        scope.launch { runCatching { syncNewPhotos() } }
     }
 
-    fun stopObserver() {
+    @Synchronized private fun stopObserver() {
         observer?.stop()
         observer = null
     }
 
-    /**
-     * Pause MediaStore watching while the album UI is open.
-     * Loading thumbnails can notify ContentObserver on some OEMs and cause a flicker loop.
-     */
-    fun setAlbumUiOpen(open: Boolean) {
-        if (open) {
-            observer?.stop()
-        } else {
-            scope.launch {
-                if (dao.getActiveTrip() != null) {
-                    if (observer == null) {
-                        ensureObserverRunning()
-                    } else {
-                        observer?.start()
-                        syncNewPhotos()
-                    }
-                }
-            }
-        }
-    }
-
     /** Call on app start if an active trip exists. */
-    suspend fun restoreIfNeeded() {
+    suspend fun restoreIfNeeded() = lifecycleMutex.withLock {
         if (dao.getActiveTrip() != null) ensureObserverRunning()
         else stopObserver()
     }
 
     suspend fun syncNewPhotos() = syncMutex.withLock {
+        syncNewPhotosLocked(System.currentTimeMillis())
+    }
+
+    private suspend fun syncNewPhotosLocked(until: Long) {
         withContext(Dispatchers.IO) {
             val trip = dao.getActiveTrip() ?: return@withContext
-            val last = dao.lastProcessedTimestamp(trip.id) ?: 0L
-            val since = maxOf(trip.startTime - 2_000L, last)
-            val photos = MediaStorePhotoRepository.queryPhotosSince(app, since)
+            // Scan the trip window: a camera may publish an older capture after a newer one.
+            val photos = MediaStorePhotoRepository.queryPhotosSince(app, trip.startTime)
             val fresh = photos.filter { photo ->
-                photo.dateTaken >= trip.startTime - 5_000L &&
+                TripPhotoRules.belongsToTrip(photo.dateTaken, trip.startTime, until) &&
                     dao.countByMediaStoreId(photo.mediaStoreId) == 0
             }
             if (fresh.isEmpty()) return@withContext
+
+            // Publish captures before GPS/geocoding: unavailable location must never
+            // keep an otherwise valid photo out of the album.
+            val inserted = fresh.associate { photo ->
+                photo.mediaStoreId to dao.insertTripPhoto(TripPhotoEntity(
+                    tripId = trip.id,
+                    mediaStoreId = photo.mediaStoreId,
+                    contentUri = photo.contentUri.toString(),
+                    displayName = photo.displayName,
+                    dateTaken = photo.dateTaken,
+                    relativePath = photo.relativePath,
+                    addedAt = System.currentTimeMillis()
+                ))
+            }
 
             // Phone location once per burst that actually has new camera photos.
             val phonePlace = location.obtainPhoneLocation()
             var current = trip
             for (photo in fresh) {
-                val place = resolvePhotoPlace(photo.contentUri, phonePlace, current)
-                dao.insertTripPhoto(
-                    TripPhotoEntity(
-                        tripId = current.id,
-                        mediaStoreId = photo.mediaStoreId,
-                        contentUri = photo.contentUri.toString(),
-                        displayName = photo.displayName,
-                        dateTaken = photo.dateTaken,
+                // A catch-up import must not tag yesterday's photo with today's phone position.
+                val recentPlace = phonePlace?.takeIf {
+                    TripPhotoRules.canUsePhoneLocation(photo.dateTaken, it.timestamp)
+                }
+                val place = resolvePhotoPlace(photo.contentUri, recentPlace, current)
+                dao.updatePhotoLocation(
+                        id = inserted.getValue(photo.mediaStoreId),
                         latitude = place?.latitude,
                         longitude = place?.longitude,
                         countryCode = place?.countryCode ?: current.countryCode,
                         countryName = place?.countryName ?: current.countryName,
-                        city = place?.city,
-                        relativePath = photo.relativePath,
-                        addedAt = System.currentTimeMillis()
-                    )
+                        city = place?.city
                 )
                 if ((current.countryName.isNullOrBlank() || current.title == "Current Trip") &&
                     !place?.countryName.isNullOrBlank()
@@ -269,11 +281,11 @@ class TripRepository private constructor(context: Context) {
         phonePlace: ResolvedLocation?,
         trip: TripEntity
     ): ResolvedLocation? {
-        if (phonePlace != null) return phonePlace
         val exif = readExifLocation(uri)
         if (exif != null) {
             return LocationResolver(app).resolve(exif.first, exif.second)
         }
+        if (phonePlace != null) return phonePlace
         if (!trip.countryName.isNullOrBlank() || !trip.primaryCity.isNullOrBlank()) {
             return ResolvedLocation(
                 countryCode = trip.countryCode,

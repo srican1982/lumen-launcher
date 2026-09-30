@@ -59,7 +59,7 @@ class TripLocationManager(
         if (!forceRefresh && hit != null && now - hit.timestamp < 120_000L) return hit
 
         val location = currentLocation() ?: recentLastLocation()
-        if (location == null) return cached
+        if (location == null) return hit?.takeIf { now - it.timestamp in 0..120_000L }
         val resolved = resolver.resolve(location.latitude, location.longitude)
             .copy(
                 latitude = location.latitude,
@@ -76,9 +76,13 @@ class TripLocationManager(
 
     @SuppressLint("MissingPermission")
     private suspend fun currentLocation(): Location? = runCatching {
-        withTimeoutOrNull(8_000L) {
-            val token = CancellationTokenSource()
-            client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, token.token).await()
+        val token = CancellationTokenSource()
+        try {
+            withTimeoutOrNull(8_000L) {
+                client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, token.token).await()
+            }
+        } finally {
+            token.cancel()
         }
     }.getOrNull()
 
@@ -90,6 +94,6 @@ class TripLocationManager(
         } else {
             System.currentTimeMillis() - last.time
         }
-        if (ageMs in 0..10 * 60_000L) last else null
+        if (ageMs in 0..120_000L) last else null
     }.getOrNull()
 }

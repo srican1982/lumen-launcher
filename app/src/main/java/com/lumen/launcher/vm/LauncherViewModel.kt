@@ -1065,7 +1065,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openSearch() {
-        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList()) }
+        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList(), modeSearch = false) }
+    }
+
+    fun openModeSearch() {
+        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList(), modeSearch = true) }
+    }
+
+    fun searchPlace(query: String) {
+        val place = query.trim()
+        if (place.isEmpty()) return
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${Uri.encode(place)}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { getApplication<Application>().startActivity(intent) }.isSuccess) closeSheet()
+        else runHit(SearchHit.Web("maps $place"))
     }
 
     fun openCapture(kind: CaptureKind = CaptureKind.Task) {
@@ -3140,6 +3153,7 @@ data class LauncherUiState(
     val glassDepth: GlassDepth = GlassDepth.Balanced,
     val smartCluster: Boolean = true,
     val query: String = "",
+    val modeSearch: Boolean = false,
     val hits: List<SearchHit> = emptyList(),
     val selectedCategory: AppCategory = AppCategory.All,
     val drawerFilter: DrawerFilter = DrawerFilter.Az,

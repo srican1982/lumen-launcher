@@ -2,6 +2,8 @@ package com.lumen.launcher.travel.media
 
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -22,7 +24,7 @@ object MediaStorePhotoRepository {
      * Camera captures only (DCIM/Camera and OEM camera folders).
      * Screenshots, downloads, messaging apps, and gallery imports are excluded.
      */
-    fun isCameraPhoto(relativePath: String?, displayName: String?, mimeType: String? = null): Boolean {
+    fun isCameraPhoto(relativePath: String?, displayName: String?, mimeType: String? = null, cameraOwned: Boolean = false): Boolean {
         val path = (relativePath ?: "").replace('\\', '/').lowercase().trim('/')
         val name = (displayName ?: "").lowercase()
         if (mimeType != null && !mimeType.startsWith("image/")) return false
@@ -37,6 +39,10 @@ object MediaStorePhotoRepository {
         ) return false
         if (path.contains("pictures/edited") || path.contains("pictures/raw") && !path.contains("dcim")) return false
 
+        // Some camera apps save to Pictures instead of DCIM. Ownership distinguishes
+        // their captures from unrelated images in that shared directory.
+        if (cameraOwned) return true
+
         // Strict: only known camera output folders under DCIM.
         val cameraRoots = listOf(
             "dcim/camera",
@@ -49,7 +55,7 @@ object MediaStorePhotoRepository {
             "dcim/gopro"
         )
         return cameraRoots.any { root ->
-            path == root || path.startsWith("$root/") || path.startsWith(root)
+            path == root || path.startsWith("$root/")
         }
     }
 
@@ -64,14 +70,21 @@ object MediaStorePhotoRepository {
             } else {
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             }
+            @Suppress("DEPRECATION")
+            val pathColumn = if (Build.VERSION.SDK_INT >= 29) MediaStore.Images.Media.RELATIVE_PATH
+                else MediaStore.Images.Media.DATA
+            @Suppress("DEPRECATION")
+            val cameraPackages = context.packageManager.queryIntentActivities(
+                Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA), PackageManager.MATCH_DEFAULT_ONLY
+            ).map { it.activityInfo.packageName }.toSet()
             val projection = arrayOf(
                 MediaStore.Images.Media._ID,
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.DATE_ADDED,
                 MediaStore.Images.Media.DATE_TAKEN,
                 MediaStore.Images.Media.MIME_TYPE,
-                MediaStore.Images.Media.RELATIVE_PATH
-            )
+                pathColumn
+            ) + if (Build.VERSION.SDK_INT >= 29) arrayOf(MediaStore.Images.Media.OWNER_PACKAGE_NAME) else emptyArray()
             val sinceSec = (sinceEpochMs / 1000L).coerceAtLeast(0L)
             val selection =
                 "(${MediaStore.Images.Media.DATE_TAKEN} >= ? OR " +
@@ -86,16 +99,22 @@ object MediaStorePhotoRepository {
                 val addedIdx = c.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
                 val takenIdx = c.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_TAKEN)
                 val mimeIdx = c.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE)
-                val pathIdx = c.getColumnIndex(MediaStore.Images.Media.RELATIVE_PATH)
+                val pathIdx = c.getColumnIndex(pathColumn)
+                val ownerIdx = c.getColumnIndex(MediaStore.Images.Media.OWNER_PACKAGE_NAME)
                 while (c.moveToNext()) {
                     val id = c.getLong(idIdx)
                     val name = c.getString(nameIdx)
                     val addedMs = c.getLong(addedIdx) * 1000L
                     val taken = c.getLong(takenIdx).takeIf { it > 0 } ?: addedMs
                     if (taken < sinceEpochMs && addedMs < sinceEpochMs) continue
-                    val path = if (pathIdx >= 0) c.getString(pathIdx) else null
+                    val rawPath = if (pathIdx >= 0) c.getString(pathIdx) else null
+                    val path = if (Build.VERSION.SDK_INT >= 29) rawPath else rawPath?.let {
+                        val start = it.lowercase().indexOf("/dcim/")
+                        if (start >= 0) it.substring(start + 1).substringBeforeLast('/') else null
+                    }
                     val mime = c.getString(mimeIdx)
-                    if (!isCameraPhoto(path, name, mime)) continue
+                    val cameraOwned = ownerIdx >= 0 && c.getString(ownerIdx) in cameraPackages
+                    if (!isCameraPhoto(path, name, mime, cameraOwned)) continue
                     out += MediaStorePhoto(
                         mediaStoreId = id,
                         contentUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id),

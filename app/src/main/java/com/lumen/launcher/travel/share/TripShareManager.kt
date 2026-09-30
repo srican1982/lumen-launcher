@@ -1,5 +1,6 @@
 package com.lumen.launcher.travel.share
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -20,6 +21,9 @@ object TripShareManager {
             action = if (uris.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE
             type = "image/*"
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = ClipData.newUri(context.contentResolver, "Trip photos", uris.first()).apply {
+                uris.drop(1).forEach { addItem(ClipData.Item(it)) }
+            }
             if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.first())
             else putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
             if (!targetPackage.isNullOrBlank()) setPackage(targetPackage)
