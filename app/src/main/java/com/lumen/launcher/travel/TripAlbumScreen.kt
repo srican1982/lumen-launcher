@@ -113,9 +113,9 @@ fun TripAlbumScreen(
     val selectedPhotos = remember(photos, selected) {
         photos.filter { it.id in selected }
     }
-    val navBottom = rememberNavBottomPadding(32.dp)
+    val navBottom = rememberNavBottomPadding(56.dp)
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val sheetReserve = if (selecting) 220.dp + navBottom else navBottom + 16.dp
+    val sheetReserve = if (selecting) 240.dp + navBottom else navBottom + 24.dp
 
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -384,7 +384,7 @@ private fun SelectionSheet(
             .background(SheetBg)
             .border(0.8.dp, Color.White.copy(0.1f), shape)
             .padding(horizontal = 16.dp)
-            .padding(top = 14.dp, bottom = navBottom + 20.dp),
+            .padding(top = 14.dp, bottom = navBottom + 36.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

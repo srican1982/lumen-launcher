@@ -32,7 +32,7 @@ internal fun PhotoCropDialog(source: Bitmap, onDismiss: () -> Unit, onApply: (Bi
     val scale = minOf(size.width.toFloat() / source.width, size.height.toFloat() / source.height)
     val imageSize = Size(source.width * scale, source.height * scale)
     val origin = Offset((size.width - imageSize.width) / 2, (size.height - imageSize.height) / 2)
-    val navBottom = rememberNavBottomPadding(32.dp)
+    val navBottom = rememberNavBottomPadding(56.dp)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -43,7 +43,7 @@ internal fun PhotoCropDialog(source: Bitmap, onDismiss: () -> Unit, onApply: (Bi
                     .fillMaxSize()
                     .statusBarsPadding()
                     .padding(horizontal = 16.dp)
-                    .padding(top = 16.dp, bottom = navBottom + 16.dp)
+                    .padding(top = 16.dp, bottom = navBottom + 36.dp)
             ) {
                 Text("Crop photo", style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 Text("Drag a corner to resize, or drag inside to move. Your original stays unchanged.", color = Color.LightGray)

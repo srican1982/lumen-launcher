@@ -5,143 +5,132 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lumen.launcher.ui.LocalGlass
 
-/** Elegant Trip Albums home icon — stacked soft polaroids on a dusk-violet tile. */
+/**
+ * Modern Trip Albums icon — soft glass tile with a refined stacked-frame mark
+ * in champagne gold / lilac, matching Lumen’s Social grid.
+ */
 @Composable
 fun TripAlbumsIcon(
     size: Dp,
     modifier: Modifier = Modifier
 ) {
+    val glass = LocalGlass.current
     val shape = RoundedCornerShape(22.dp)
     Box(
         modifier
             .size(size)
-            .shadow(10.dp, shape, ambientColor = Color(0x66C084FC), spotColor = Color(0x55E8C98A))
+            .shadow(8.dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x44C084FC))
             .clip(shape)
             .background(
-                Brush.linearGradient(
-                    listOf(Color(0xFF3A2458), Color(0xFF1C1230), Color(0xFF2A183F))
+                Brush.verticalGradient(
+                    listOf(
+                        glass.filmTop.copy(alpha = 0.92f),
+                        glass.filmBottom.copy(alpha = 0.88f)
+                    )
                 )
             )
             .border(
-                0.9.dp,
-                Brush.verticalGradient(
-                    listOf(Color.White.copy(0.42f), Color(0xFFE8C98A).copy(0.28f), Color.White.copy(0.08f))
-                ),
+                0.85.dp,
+                Brush.verticalGradient(listOf(glass.strokeTop, glass.strokeBottom)),
                 shape
             ),
         contentAlignment = Alignment.Center
     ) {
+        // Quiet inner glow
         Box(
             Modifier
-                .size(size * 0.72f)
+                .size(size * 0.78f)
                 .background(
                     Brush.radialGradient(
-                        listOf(Color(0x55E8C98A), Color(0x22C084FC), Color.Transparent)
+                        listOf(Color(0x33E8C98A), Color(0x18C084FC), Color.Transparent)
                     )
                 )
         )
-        PolaroidFrame(
-            modifier = Modifier
-                .size(size * 0.46f)
-                .offset(x = -(size * 0.08f), y = size * 0.02f)
-                .rotate(-14f),
-            fill = Brush.verticalGradient(listOf(Color(0xFF6B4A9A), Color(0xFF3D2860))),
-            stroke = Color.White.copy(0.35f)
-        )
-        PolaroidFrame(
-            modifier = Modifier
-                .size(size * 0.48f)
-                .offset(x = size * 0.07f, y = -(size * 0.03f))
-                .rotate(10f),
-            fill = Brush.verticalGradient(listOf(Color(0xFF8B6BB8), Color(0xFF4A3278))),
-            stroke = Color.White.copy(0.4f)
-        )
-        Box(
-            Modifier
-                .size(size * 0.5f)
-                .offset(y = size * 0.04f)
-                .rotate(-2f)
-                .shadow(6.dp, RoundedCornerShape(5.dp))
-                .clip(RoundedCornerShape(5.dp))
-                .background(Color.White.copy(alpha = 0.94f))
-                .padding(start = 5.dp, top = 5.dp, end = 5.dp, bottom = 9.dp)
-        ) {
-            Canvas(Modifier.fillMaxSize()) {
-                val photo = Size(this.size.width, this.size.height)
-                drawRoundRect(
-                    brush = Brush.verticalGradient(
-                        listOf(Color(0xFFD8C4F5), Color(0xFFF2E6C9), Color(0xFFB8D4E8))
-                    ),
-                    size = photo,
-                    cornerRadius = CornerRadius(3.dp.toPx())
-                )
-                val hill = Path().apply {
-                    moveTo(0f, photo.height * 0.62f)
-                    quadraticBezierTo(photo.width * 0.28f, photo.height * 0.42f, photo.width * 0.52f, photo.height * 0.58f)
-                    quadraticBezierTo(photo.width * 0.78f, photo.height * 0.72f, photo.width, photo.height * 0.55f)
-                    lineTo(photo.width, photo.height)
-                    lineTo(0f, photo.height)
-                    close()
-                }
-                drawPath(hill, Color(0xFF6A5A8E))
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        listOf(Color(0xFFF5D98A), Color(0x00F5D98A)),
-                        center = Offset(photo.width * 0.72f, photo.height * 0.28f)
-                    ),
-                    radius = photo.width * 0.18f,
-                    center = Offset(photo.width * 0.72f, photo.height * 0.28f)
-                )
-                drawRoundRect(
-                    color = Color(0xFFE8C98A).copy(alpha = 0.55f),
-                    size = photo,
-                    cornerRadius = CornerRadius(3.dp.toPx()),
-                    style = Stroke(width = 1.2.dp.toPx())
-                )
-            }
-        }
-    }
-}
+        Canvas(Modifier.fillMaxSize(0.62f)) {
+            val w = this.size.width
+            val h = this.size.height
+            val stroke = (w * 0.075f).coerceIn(2.2.dp.toPx(), 3.4.dp.toPx())
+            val gold = Color(0xFFE8D5A3)
+            val lilac = Color(0xFFD4B4F8)
+            val ink = Color.White.copy(alpha = 0.92f)
 
-@Composable
-private fun PolaroidFrame(
-    modifier: Modifier,
-    fill: Brush,
-    stroke: Color
-) {
-    Box(
-        modifier
-            .shadow(4.dp, RoundedCornerShape(5.dp))
-            .clip(RoundedCornerShape(5.dp))
-            .background(Color.White.copy(0.88f))
-            .border(0.6.dp, stroke, RoundedCornerShape(5.dp))
-            .padding(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 8.dp)
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(3.dp))
-                .background(fill)
-        )
+            // Back frame — soft lilac, slightly offset
+            val back = RoundRect(
+                left = w * 0.18f,
+                top = h * 0.08f,
+                right = w * 0.92f,
+                bottom = h * 0.72f,
+                cornerRadius = CornerRadius(w * 0.12f)
+            )
+            drawPath(
+                Path().apply { addRoundRect(back) },
+                color = lilac.copy(alpha = 0.55f),
+                style = Stroke(width = stroke * 0.9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+
+            // Front frame — champagne gold
+            val front = RoundRect(
+                left = w * 0.08f,
+                top = h * 0.22f,
+                right = w * 0.82f,
+                bottom = h * 0.88f,
+                cornerRadius = CornerRadius(w * 0.12f)
+            )
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    listOf(Color(0x33FFFFFF), Color(0x18C084FC)),
+                    start = Offset(front.left, front.top),
+                    end = Offset(front.right, front.bottom)
+                ),
+                topLeft = Offset(front.left, front.top),
+                size = Size(front.width, front.height),
+                cornerRadius = CornerRadius(w * 0.12f)
+            )
+            drawPath(
+                Path().apply { addRoundRect(front) },
+                brush = Brush.linearGradient(listOf(gold, lilac.copy(alpha = 0.85f))),
+                style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            )
+
+            // Tiny horizon line inside the front frame — travel cue
+            val midY = front.top + front.height * 0.58f
+            drawLine(
+                color = ink.copy(alpha = 0.55f),
+                start = Offset(front.left + front.width * 0.18f, midY),
+                end = Offset(front.right - front.width * 0.18f, midY),
+                strokeWidth = stroke * 0.55f,
+                cap = StrokeCap.Round
+            )
+            // Soft sun
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(gold.copy(alpha = 0.95f), gold.copy(alpha = 0.15f)),
+                    center = Offset(front.left + front.width * 0.68f, front.top + front.height * 0.34f)
+                ),
+                radius = w * 0.07f,
+                center = Offset(front.left + front.width * 0.68f, front.top + front.height * 0.34f)
+            )
+        }
     }
 }

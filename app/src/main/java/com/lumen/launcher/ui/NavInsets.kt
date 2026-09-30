@@ -3,6 +3,8 @@ package com.lumen.launcher.ui
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.tappableElement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
@@ -14,24 +16,27 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 /**
- * Reliable bottom inset for dialogs / sheets. Compose WindowInsets alone can report 0
- * on some OEM dialog windows even when the 3-button nav bar is visible.
+ * Reliable bottom inset for dialogs / sheets.
+ * OEM dialog windows often report 0 for Compose navigationBars alone.
  */
 @Composable
-fun rememberNavBottomPadding(minimum: Dp = 28.dp): Dp {
+fun rememberNavBottomPadding(minimum: Dp = 56.dp): Dp {
     val view = LocalView.current
     val density = LocalDensity.current
-    val compose = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val fromView = remember(view, view.rootWindowInsets) {
-        val px = ViewCompat.getRootWindowInsets(view)
-            ?.getInsets(WindowInsetsCompat.Type.navigationBars())
-            ?.bottom
-            ?: 0
-        with(density) { px.toDp() }
+    val composeNav = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val composeSys = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+    val composeTap = WindowInsets.tappableElement.asPaddingValues().calculateBottomPadding()
+    val fromView = remember(view) {
+        val root = ViewCompat.getRootWindowInsets(view)
+        val nav = root?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
+        val sys = root?.getInsets(WindowInsetsCompat.Type.systemBars())?.bottom ?: 0
+        val tap = root?.getInsets(WindowInsetsCompat.Type.tappableElement())?.bottom ?: 0
+        with(density) { maxOf(nav, sys, tap).toDp() }
     }
     val fromResources = remember(view) {
         val id = view.resources.getIdentifier("navigation_bar_height", "dimen", "android")
         if (id > 0) with(density) { view.resources.getDimensionPixelSize(id).toDp() } else 0.dp
     }
-    return max(max(max(compose, fromView), fromResources), minimum)
+    // Samsung 3-button nav is often ~48–56dp; keep a hard floor so actions never sit under it.
+    return max(max(max(max(max(composeNav, composeSys), composeTap), fromView), fromResources), minimum)
 }

@@ -65,7 +65,7 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel()) 
     val state by tripVm.uiState.collectAsState()
     var selected by remember { mutableStateOf<Trip?>(null) }
     LaunchedEffect(Unit) { tripVm.onForeground() }
-    val navBottom = rememberNavBottomPadding(32.dp)
+    val navBottom = rememberNavBottomPadding(56.dp)
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val trips = remember(state.activeTrip, state.pastTrips) {
         listOfNotNull(state.activeTrip) + state.pastTrips
