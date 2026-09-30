@@ -422,12 +422,28 @@ fun HomeScreen(
                         }
                     }
                     if (state.activeSpace == SpaceKind.Personal) {
+                        // Pinned first Social icon — not in slotOrigins, not draggable, not removable.
                         item(key = "trip-albums-shortcut") {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable { showTripGallery = true }.padding(vertical = 4.dp)) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .padding(vertical = 4.dp)
+                                    .clickable(
+                                        indication = null,
+                                        interactionSource = remember { MutableInteractionSource() }
+                                    ) { if (!editing) showTripGallery = true }
+                            ) {
                                 com.lumen.launcher.travel.TripAlbumsIcon(size = homeIconSize)
                                 Spacer(Modifier.height(6.dp))
-                                Text("Trip Albums", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
+                                if (state.showLabels) {
+                                    Text(
+                                        "Trip Albums",
+                                        color = Lumen.Text,
+                                        fontFamily = Outfit,
+                                        fontSize = 12.sp,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
