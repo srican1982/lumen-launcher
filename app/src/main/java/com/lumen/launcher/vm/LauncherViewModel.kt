@@ -148,7 +148,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private var promptExactAfterSpeak = false
     private var parkedNews: Set<String> = emptySet()
     private var voiceMisses = 0
-    private val voiceTurns = ArrayDeque<String>()
+    private val voiceConversation = com.lumen.launcher.voice.intent.VoiceConversation()
+    private var voiceAsksForDetail = false
     private var voiceAiJob: kotlinx.coroutines.Job? = null
     private var pendingVoiceIntent: VoiceIntent? = null
     private var deviceEvents: List<CalendarEvent> = emptyList()
@@ -245,6 +246,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         launchTimes = stored.launchTimes,
                         hidden = stored.hidden,
                         iconSizeDp = stored.iconSizeDp,
+                        iconGlassStrength = stored.iconGlassStrength,
                         gridColumns = stored.gridColumns,
                         drawerColumns = stored.drawerColumns,
                         dockCapacity = stored.dockCapacity,
@@ -284,6 +286,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         alarmTone = stored.alarmTone,
                         storedWhatsAppMissed = stored.whatsAppMissed,
                         launchHours = stored.launchHours,
+                        modeApps = stored.modeApps,
+                        travelDestination = stored.travelDestination,
+                        travelTicket = stored.travelTicket,
+                        travelAttachments = stored.travelAttachments,
                         spaceDocks = stored.spaceDocks,
                         notes = stored.notes,
                         later = stored.later,
@@ -334,6 +340,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onHomeVisible() {
+        resumeFocusSetup()
+
+        viewModelScope.launch { com.lumen.launcher.focus.FocusSession.recover(getApplication()) }
         lockPrivate()
         _state.update {
             it.copy(
@@ -551,7 +560,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             nextEvent = state.nextEvent
         )
         val space = state.spaceOverride ?: inferred
-        val keys = SpaceSense.dockKeys(space, state.spaceDocks, state.dockKeys)
+        val keys = state.dockKeys
         val dock = DockResolver.resolve(getApplication(), state.apps, keys, state.dockCapacity)
         val upNext = UpNextResolver.resolve(System.currentTimeMillis(), state.upcomingEvents, state.inbox)
         val now = System.currentTimeMillis()
@@ -567,7 +576,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun liveDockKeys(): List<String> {
         val state = _state.value
-        return SpaceSense.dockKeys(state.activeSpace, state.spaceDocks, state.dockKeys)
+        return state.dockKeys
             ?: state.dock.map { it.key }
     }
 
@@ -987,6 +996,49 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(privatePageActive = false) }
     }
 
+    fun saveModeApps(space: SpaceKind, keys: List<String>) {
+        val next = _state.value.modeApps + (space.name to keys.distinct())
+        _state.update { it.copy(modeApps = next) }
+        viewModelScope.launch { preferences.setModeApps(next) }
+    }
+
+    fun addTravelAttachments(items: List<com.lumen.launcher.data.TravelAttachment>) {
+        viewModelScope.launch { preferences.updateTravelAttachments(add = items) }
+    }
+
+    fun renameTravelAttachment(item: com.lumen.launcher.data.TravelAttachment, name: String) {
+        viewModelScope.launch { preferences.updateTravelAttachments(add = listOf(item.copy(title = name)), remove = item) }
+    }
+
+    fun removeTravelAttachment(item: com.lumen.launcher.data.TravelAttachment) {
+        viewModelScope.launch { preferences.updateTravelAttachments(remove = item) }
+    }
+
+    fun saveTravel(destination: String, ticket: String) {
+        _state.update { it.copy(travelDestination = destination.trim(), travelTicket = ticket) }
+        viewModelScope.launch { preferences.setTravel(destination.trim(), ticket) }
+    }
+
+    fun navigateTravel() {
+        val destination = _state.value.travelDestination
+        if (destination.isBlank()) { openSearch(); return }
+        val uri = Uri.parse("geo:0,0?q=${Uri.encode(destination)}")
+        if (!startIntent(Intent(Intent.ACTION_VIEW, uri))) {
+            startIntent(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(destination)}")))
+        }
+    }
+
+    fun runModeAction() {
+        when (_state.value.activeSpace) {
+            SpaceKind.Home -> _state.value.upNext?.let(::openUpNext) ?: openCapture(CaptureKind.Reminder)
+            SpaceKind.Work -> openCapture(CaptureKind.Task)
+            SpaceKind.Personal -> setRecentsOpen(true)
+            SpaceKind.Focus -> if (_state.value.focusing) endFocus() else startFocus(25, _state.value.focusTask?.id)
+            SpaceKind.Travel -> navigateTravel()
+            SpaceKind.Private -> openPrivateSpace()
+        }
+    }
+
     fun selectSpace(space: SpaceKind?) {
         val next = space.takeUnless { it == SpaceKind.Private }
         _state.update { it.copy(spaceOverride = next) }
@@ -1105,19 +1157,81 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         persistLater(_state.value.later.filterNot { it.id == id })
     }
 
+    fun selectFocusTask(taskId: String) {
+        if (_state.value.todos.none { it.id == taskId && !it.done }) return
+        _state.update { it.copy(focusTaskId = taskId) }
+        viewModelScope.launch { preferences.setFocus(_state.value.focusUntil, taskId) }
+    }
+
+    fun joinWorkspaceMeeting(event: CalendarEvent) {
+        val uri = Uri.parse(event.location.trim())
+        if (uri.scheme in listOf("https", "http") && !uri.host.isNullOrBlank()) {
+            if (startIntent(Intent(Intent.ACTION_VIEW, uri))) return
+        }
+        openCalendarEvent(event)
+    }
+
+    private val focusSetup get() = getApplication<Application>().getSharedPreferences("focus_setup", 0)
+
+    fun onFocusNotificationPermission(granted: Boolean) {
+        if (granted) resumeFocusSetup(notificationResult = true)
+    }
+
+    fun resumeFocusSetup(notificationResult: Boolean = false) {
+        val saved = focusSetup
+        if (!saved.contains("minutes")) return
+        val context = getApplication<Application>()
+        val ready = when (saved.getString("step", "")) {
+            "dnd" -> com.lumen.launcher.focus.FocusSession.hasAccess(context)
+            "alarm" -> AlarmScheduler.canExact(context)
+            "notification" -> notificationResult || android.os.Build.VERSION.SDK_INT < 33 ||
+                androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            else -> false
+        }
+        if (ready) startFocus(saved.getInt("minutes", 25), saved.getString("task", null))
+    }
+
     fun startFocus(minutes: Int = 30, taskId: String? = null) {
+        focusSetup.edit().putInt("minutes", minutes).putString("task", taskId).apply()
+        val context = getApplication<Application>()
+        fun explain(message: String) = android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        if (!com.lumen.launcher.focus.FocusSession.hasAccess(context)) {
+            focusSetup.edit().putString("step", "dnd").apply()
+            explain("Allow Do Not Disturb access. Your focus duration is saved.")
+            startIntent(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+            return
+        }
+        if (!AlarmScheduler.canExact(context)) {
+            focusSetup.edit().putString("step", "alarm").apply()
+            explain("Allow alarms and reminders. Setup will continue when you return.")
+            AlarmScheduler.requestExactAccess(context)
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            focusSetup.edit().putString("step", "notification").apply()
+            explain("Allow notifications for your completion alert. Focus will then start.")
+            onRequestNotifications?.invoke()
+            return
+        }
+        focusSetup.edit().clear().apply()
         val task = taskId?.let { id -> _state.value.todos.find { it.id == id } }
             ?: _state.value.spaceTodos.filterNot { it.done }.firstOrNull()
-        val until = System.currentTimeMillis() + minutes.coerceIn(5, 120) * 60 * 1000L
-        val id = task?.id.orEmpty()
-        _state.update { it.copy(focusUntil = until, focusTaskId = id) }
-        viewModelScope.launch { preferences.setFocus(until, id) }
-        goToPage(1)
+        val until = System.currentTimeMillis() + minutes.coerceIn(1, 24 * 60) * 60 * 1000L
+        viewModelScope.launch {
+            if (com.lumen.launcher.focus.FocusSession.start(context, until, task?.id.orEmpty())) {
+                _state.update { it.copy(focusUntil = until, focusTaskId = task?.id.orEmpty()) }
+                selectSpace(SpaceKind.Focus)
+                goToPage(1)
+            } else explain("Focus could not enable quiet mode. Check Lumen's Do Not Disturb access.")
+        }
     }
 
     fun endFocus() {
-        _state.update { it.copy(focusUntil = 0L, focusTaskId = "") }
-        viewModelScope.launch { preferences.setFocus(0L, "") }
+        viewModelScope.launch {
+            val restored = com.lumen.launcher.focus.FocusSession.finish(getApplication())
+            _state.update { it.copy(focusUntil = 0L, focusTaskId = "") }
+            if (!restored) android.widget.Toast.makeText(getApplication(), "Open Do Not Disturb settings to turn off Lumen Focus.", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun persistNotes(next: List<CaptureNote>) {
@@ -1279,6 +1393,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "swipeRight" -> _state.value.swipeRightAction
             else -> GestureAction.NONE
         }
+        if (kind == "double" && spec.isBlank()) {
+            runModeAction()
+            return
+        }
         if (spec == GestureAction.VOICE) {
             openVoice()
             return
@@ -1303,6 +1421,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openVoice(fromWake: Boolean = false) {
+        voiceAiJob?.cancel()
+        voiceConversation.clear()
+        voiceAsksForDetail = false
         skipVoiceGreeting = fromWake
         voiceMisses = 0
         pendingVoiceIntent = null
@@ -1428,6 +1549,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun retryVoice() {
         if (_state.value.sheet != Sheet.Voice) return
         voiceMisses = 0
+        voiceAiJob?.cancel()
         _state.update {
             it.copy(
                 voiceCanRetry = false,
@@ -1450,6 +1572,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun onVoiceResults(candidates: List<String>) {
+        if (_state.value.sheet != Sheet.Voice) return
+        voiceAiJob?.cancel()
         val cleaned = candidates.map { VoiceQuery.clean(it) }.filter { it.isNotBlank() }.distinct()
         if (cleaned.isEmpty()) {
             onVoiceNoSpeech()
@@ -1475,16 +1599,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun onVoiceNoSpeech() {
         if (_state.value.sheet != Sheet.Voice) return
         voiceMisses += 1
-        if (voiceMisses >= 8) {
-            finishVoice("I'll be here if you need me.", continueTalking = false)
+        if (voiceMisses >= 2) {
+            onStopVoice?.invoke()
+            _state.update { it.copy(voiceListening = false, voiceCanRetry = true,
+                voiceHint = "I didn't catch that. Try again or type below.", voiceLevel = 0f) }
             return
         }
         _state.update {
             it.copy(voiceListening = false, voiceHint = "I'm listening.", voiceHeard = "", voiceLevel = 0f)
         }
         viewModelScope.launch {
-            kotlinx.coroutines.delay(80)
-            if (_state.value.sheet == Sheet.Voice) onListen?.invoke()
+            kotlinx.coroutines.delay(350)
+            if (_state.value.sheet == Sheet.Voice && _state.value.voiceHeard.isBlank() && !(_state.value.voiceCanRetry)) onListen?.invoke()
         }
     }
 
@@ -1544,7 +1670,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
 
         val labels = _state.value.visibleApps.map { it.label }
-        val intent = VoiceQueryRouter.route(candidates = candidates, appLabels = labels)
+        val intent = VoiceQueryRouter.route(candidates = candidates, appLabels = labels, folderNames = _state.value.folders.map { it.name })
         decideVoice(intent, candidates, labels, allowAi = true)
     }
 
@@ -1556,11 +1682,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     ) {
         _state.update { it.copy(voiceHeard = intent.originalText.ifBlank { candidates.firstOrNull().orEmpty() }) }
         val key = _state.value.geminiApiKey.ifBlank { BuildConfig.GEMINI_API_KEY }
+        val contextual = voiceConversation.needsContext(candidates.firstOrNull().orEmpty(), intent)
         val consult = allowAi &&
             _state.value.smartVoice &&
-            AiIntentFallback.needsFallback(intent)
+            (AiIntentFallback.needsFallback(intent) || contextual)
         if (consult) {
             if (key.isBlank()) {
+                if (contextual) {
+                    finishVoice("I need AI connected to understand that follow-up. Please say the full request.")
+                    return
+                }
                 if (VoiceConfidence.shouldExecute(intent)) {
                     executeVoiceIntent(intent)
                     return
@@ -1577,11 +1708,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 _state.update { it.copy(voiceHint = "On it.", voiceListening = false) }
                 val context = AiIntentFallback.Context(
                     apps = labels,
+                    folders = _state.value.folders.map { it.name },
                     contacts = withContext(Dispatchers.IO) { contacts.names(40) },
                     alarms = upcomingAlarms().take(6).map {
                         "${formatHour(it.hour, it.minute)} ${it.whenLabel().lowercase()}"
                     },
-                    history = voiceTurns.toList(),
+                    history = voiceConversation.history(),
                     now = java.time.LocalDateTime.now()
                         .format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy, h:mm a")),
                     transcripts = candidates
@@ -1598,6 +1730,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                     is AiIntentFallback.Outcome.Failed -> {
+                        if (contextual) {
+                            finishVoice(AiIntentFallback.spokenError(outcome.error) + " Please say the full request.")
+                            return@launch
+                        }
                         if (!VoiceConfidence.shouldExecute(intent) &&
                             intent.action != VoiceAction.CLARIFY &&
                             !VoiceConfidence.shouldAsk(intent)
@@ -1617,7 +1753,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 for (text in candidates) {
                     val people = withContext(Dispatchers.IO) { PeopleActions.hits(contacts, text) }
-                    val person = people.firstOrNull { it.phone.isNotBlank() }
+                    if (!isActive || _state.value.sheet != Sheet.Voice) return@launch
+                val person = people.firstOrNull { it.phone.isNotBlank() }
                     if (person != null) {
                         runHit(person)
                         onSpeak?.invoke(person.title, false)
@@ -1636,9 +1773,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             askToClarify(intent)
             return
         }
-        viewModelScope.launch {
+        voiceAiJob = viewModelScope.launch {
             for (text in candidates) {
                 val people = withContext(Dispatchers.IO) { PeopleActions.hits(contacts, text) }
+                if (!isActive || _state.value.sheet != Sheet.Voice) return@launch
                 val person = people.firstOrNull { it.phone.isNotBlank() }
                 if (person != null) {
                     runHit(person)
@@ -1666,13 +1804,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun executeVoiceIntent(intent: VoiceIntent) {
+        voiceAsksForDetail = intent.action == VoiceAction.ASK_USER
         VoiceIntentMapper.toCommand(intent)?.let { command ->
             runLauncherCommand(command)
             return
         }
         when (intent.action) {
             VoiceAction.SET_ALARM -> {
-                val hour = intent.hour ?: return
+                val hour = intent.hour ?: run { finishVoice("What time should I set the alarm for?"); return }
                 val minute = intent.minute ?: 0
                 val alarm = addAlarm(hour, minute, intent.daily)
                 val spoken = buildString {
@@ -1850,7 +1989,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         val dial = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${match.phone}"))
-        if (startIntent(dial)) finishVoice("Calling ${match.name}.", continueTalking = false)
+        if (startIntent(dial)) finishVoice("Opening the dialer for ${match.name}.", continueTalking = false)
         else finishVoice("I couldn't open the phone app.")
     }
 
@@ -1868,7 +2007,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         viewModelScope.launch {
             val people = withContext(Dispatchers.IO) { PeopleActions.hits(contacts, phrase) }
-            val person = people.firstOrNull { it.phone.isNotBlank() }
+            if (!isActive || _state.value.sheet != Sheet.Voice) return@launch
+                val person = people.firstOrNull { it.phone.isNotBlank() }
             if (person != null) {
                 runHit(person)
                 finishVoice(person.title, continueTalking = false)
@@ -1915,15 +2055,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val query = intent.textValue ?: intent.appName
         if (!query.isNullOrBlank() && openNamedApp(query)) return
         val search = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query.orEmpty())}"))
-        if (startIntent(search)) finishVoice("Playing $query.", continueTalking = false)
+        if (startIntent(search)) finishVoice("Opening video search for $query.", continueTalking = false)
         else finishVoice("I couldn't find something to play.")
     }
 
     private fun finishVoice(spoken: String, continueTalking: Boolean = true) {
-        val heard = _state.value.voiceHeard.ifBlank { spoken }
-        voiceTurns.addLast("User: $heard")
-        voiceTurns.addLast("Lumen: $spoken")
-        while (voiceTurns.size > 8) voiceTurns.removeFirst()
+        val heard = _state.value.voiceHeard
+        voiceConversation.record(heard, spoken, voiceAsksForDetail || spoken.trim().endsWith("?"))
+        voiceAsksForDetail = false
         closeVoiceAfterSpeak = !continueTalking
         _state.update { it.copy(voiceHint = spoken, voiceListening = false, voiceCanRetry = false, voiceLevel = 0f) }
         onSpeak?.invoke(spoken, continueTalking)
@@ -2136,7 +2275,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             folders += HomeFolder(
                 id = java.util.UUID.randomUUID().toString(),
                 name = name.replaceFirstChar { it.titlecase() },
-                appKeys = emptyList()
+                appKeys = emptyList(),
+                space = _state.value.activeSpace.name
             )
             _state.update { it.copy(folders = folders) }
             viewModelScope.launch { preferences.setFolders(folders) }
@@ -2160,11 +2300,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val index = folders.indexOfFirst { it.name.equals(folderName, ignoreCase = true) }
         val title = folderName.replaceFirstChar { it.titlecase() }
         if (index < 0) {
-            folders += HomeFolder(
-                id = java.util.UUID.randomUUID().toString(),
-                name = title,
-                appKeys = found.map { it.key }
-            )
+            finishVoice("I couldn't find a folder named $folderName. Tell me an existing folder name, or ask me to create one.")
+            return
         } else {
             val folder = folders[index]
             folders[index] = folder.copy(appKeys = (folder.appKeys + found.map { it.key }).distinct())
@@ -2501,8 +2638,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             val from = list.indexOfFirst { it == fromKey }
             val to = list.indexOfFirst { it == toKey }
             if (from < 0 || to < 0) return@launch
-            list.removeAt(from)
-            list.add(to, fromKey)
+            list[from] = toKey
+            list[to] = fromKey
             preferences.setDockKeys(list, _state.value.activeSpace.name)
         }
     }
@@ -2510,15 +2647,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun placeOnDock(app: AppInfo, slotIndex: Int) {
         if (app.key.isBlank()) return
         viewModelScope.launch {
-            val capacity = _state.value.dockCapacity.coerceIn(3, 6)
-            val current = liveDockKeys().toMutableList()
-            val target = slotIndex.coerceIn(0, capacity - 1)
-            val occupant = current.getOrNull(target)
-            current.removeAll { it == app.key }
-            val at = occupant?.let { key -> current.indexOf(key).takeIf { it >= 0 } } ?: target.coerceAtMost(current.size)
-            if (at < current.size) current[at] = app.key
-            else current.add(app.key)
-            preferences.setDockKeys(current.take(capacity), _state.value.activeSpace.name)
+            val state = _state.value
+            // Default dock shortcuts use aliases/non-launcher activities. Home needs launcher keys.
+            val resolvedKeys = state.dock.map { dock ->
+                state.apps.find { it.key == dock.key }?.key
+                    ?: state.apps.firstOrNull { it.packageName == dock.packageName }?.key
+                    ?: dock.key
+            }
+            val result = com.lumen.launcher.data.DockPlacement.place(
+                resolvedKeys, state.homeApps.map { it.key }, app.key, slotIndex, state.dockCapacity.coerceIn(3, 6))
+            val modes = state.modeApps + (state.activeSpace.name to result.home)
+            _state.update { it.copy(modeApps = modes) }
+            preferences.saveDockExchange(state.activeSpace.name, result.home, result.dock)
         }
     }
 
@@ -2715,14 +2855,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (fromKey == toKey || fromKey.isBlank() || toKey.isBlank()) return
         viewModelScope.launch {
             val current = _state.value
-            val list = (if (current.favorites.isNotEmpty()) current.favorites else current.homeApps.map { it.key })
+            val list = current.homeApps.map { it.key }
                 .toMutableList()
             val from = list.indexOf(fromKey)
             val to = list.indexOf(toKey)
             if (from < 0 || to < 0) return@launch
             list.removeAt(from)
             list.add(to, fromKey)
-            preferences.setFavorites(list)
+            saveModeApps(current.activeSpace, list)
         }
     }
 
@@ -2748,6 +2888,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             preferences.setHidden(_state.value.hidden - packageName)
         }
+    }
+
+    fun setIconGlassStrength(value: Float) {
+        viewModelScope.launch { preferences.setIconGlassStrength(value) }
     }
 
     fun setIconSize(sizeDp: Float) {
@@ -2802,6 +2946,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.setSmartCluster(enabled) }
     }
 
+    fun addAppToFolder(app: AppInfo, folderId: String) {
+        val folders = _state.value.folders.map { folder ->
+            if (folder.id == folderId) folder.copy(appKeys = (folder.appKeys + app.key).distinct()) else folder
+        }
+        _state.update { it.copy(folders = folders) }
+        viewModelScope.launch { preferences.setFolders(folders) }
+    }
+
     fun openFolderCreator(seedAppKey: String? = null) {
         _state.update {
             it.copy(sheet = Sheet.FolderEditor, activeFolderId = null, folderSeedAppKey = seedAppKey, activeApp = null)
@@ -2823,9 +2975,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val id = _state.value.activeFolderId
         if (id != null) {
             val index = folders.indexOfFirst { it.id == id }
-            if (index >= 0) folders[index] = folders[index].copy(name = trimmed, appKeys = keys)
+            if (index >= 0) folders[index] = folders[index].copy(name = trimmed, appKeys = keys, space = _state.value.activeSpace.name)
         } else {
-            folders += HomeFolder(id = java.util.UUID.randomUUID().toString(), name = trimmed, appKeys = keys)
+            folders += HomeFolder(id = java.util.UUID.randomUUID().toString(), name = trimmed, appKeys = keys, space = _state.value.activeSpace.name)
         }
         _state.update { it.copy(folders = folders, activeFolderId = null, folderSeedAppKey = null, sheet = Sheet.None) }
         viewModelScope.launch { preferences.setFolders(folders) }
@@ -2974,6 +3126,7 @@ data class LauncherUiState(
     val launchTimes: Map<String, Long> = emptyMap(),
     val hidden: Set<String> = emptySet(),
     val iconSizeDp: Float = 60f,
+    val iconGlassStrength: Float = 0.5f,
     val gridColumns: Int = 4,
     val drawerColumns: Int = 4,
     val dockCapacity: Int = 4,
@@ -3048,6 +3201,10 @@ data class LauncherUiState(
     val storedWhatsAppMissed: List<MissedCall> = emptyList(),
     val inferredSpace: SpaceKind = SpaceKind.Home,
     val launchHours: List<SpaceSense.LaunchHour> = emptyList(),
+    val modeApps: Map<String, List<String>> = emptyMap(),
+    val travelDestination: String = "",
+    val travelTicket: String = "",
+    val travelAttachments: List<com.lumen.launcher.data.TravelAttachment> = emptyList(),
     val spaceDocks: Map<String, List<String>> = emptyMap(),
     val upNext: UpNext? = null,
     val inboxDigest: String = "",
@@ -3084,7 +3241,7 @@ data class LauncherUiState(
         get() = folders.find { it.id == activeFolderId }
 
     val folderAppKeys: Set<String>
-        get() = folders.flatMap { it.appKeys }.toSet()
+        get() = folders.filter { it.space == activeSpace.name }.flatMap { it.appKeys }.toSet()
 
     val upcomingAlarms: List<LumenAlarm>
         get() = alarms.filter { it.enabled }.sortedBy { it.nextTriggerMs() }
@@ -3128,7 +3285,7 @@ data class LauncherUiState(
         )
 
     val focusTask: TodoItem?
-        get() = spaceTodos.find { it.id == focusTaskId } ?: spaceTodos.filterNot { it.done }.firstOrNull()
+        get() = todos.find { it.id == focusTaskId } ?: spaceTodos.filterNot { it.done }.firstOrNull()
 
     val focusing: Boolean
         get() = focusUntil > System.currentTimeMillis()
@@ -3163,11 +3320,9 @@ data class LauncherUiState(
         }
 
     val homeApps: List<AppInfo>
-        get() {
-            if (focusing) return focusPicks.map { it.app }
-            val all = favoriteApps.ifEmpty { (likelyNext + recentApps + visibleApps).distinctBy { it.key } }
-            return all.take(24)
-        }
+        get() = com.lumen.launcher.data.ModeAppsResolver.resolve(
+            activeSpace, visibleApps, modeApps[activeSpace.name], favoriteApps, recentApps
+        )
 
     fun focusReason(app: AppInfo): String? =
         focusPicks.find { it.app.key == app.key }?.reason(activeSpace)

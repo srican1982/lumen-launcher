@@ -366,6 +366,7 @@ fun TodoPage(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(end = 20.dp, bottom = 28.dp)
                 .size(62.dp)
                 .clip(CircleShape)

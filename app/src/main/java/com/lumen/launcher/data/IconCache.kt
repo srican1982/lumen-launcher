@@ -26,15 +26,15 @@ class IconCache(private val context: Context) {
 
     private val cache = LruCache<String, ImageBitmap>(256)
 
-    suspend fun get(packageName: String, activityName: String): ImageBitmap? {
+    suspend fun get(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#v9"
+        val key = "$packageName/$activityName#v10-" + strength
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
             val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
             val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
-            val bitmap = (adaptive?.let { renderDimensional(it, SIZE) } ?: renderSculpted(drawable, SIZE)).asImageBitmap()
+            val bitmap = (adaptive?.let { renderDimensional(it, SIZE, strength) } ?: renderSculpted(drawable, SIZE, strength)).asImageBitmap()
             cache.put(key, bitmap)
             bitmap
         }
@@ -44,9 +44,9 @@ class IconCache(private val context: Context) {
      * White Glass icon: a white symbol on a frosted tile. Very colorful logos
      * (Play Store, Chrome…) keep their colors on the glass instead of becoming a white blob.
      */
-    suspend fun getFrosted(packageName: String, activityName: String): ImageBitmap? {
+    suspend fun getFrosted(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#frost3"
+        val key = "$packageName/$activityName#frost4-" + strength
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
@@ -54,9 +54,9 @@ class IconCache(private val context: Context) {
             val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
             val label = loadLabel(packageName, activityName)
             // If converting ever fails, fall back to the white first-letter tile — never a colored icon.
-            val bitmap = runCatching { renderFrosted(drawable, adaptive, SIZE, label) }
-                .recoverCatching { renderFrosted(drawable, null, SIZE, label, letterOnly = true) }
-                .getOrElse { renderSculpted(drawable, SIZE) }
+            val bitmap = runCatching { renderFrosted(drawable, adaptive, SIZE, label, strength = strength) }
+                .recoverCatching { renderFrosted(drawable, null, SIZE, label, letterOnly = true, strength = strength) }
+                .getOrElse { renderSculpted(drawable, SIZE, strength) }
                 .asImageBitmap()
             cache.put(key, bitmap)
             bitmap
@@ -64,16 +64,16 @@ class IconCache(private val context: Context) {
     }
 
     /** White Glass · Color icons: the app's colored logo sitting on a frosted white tile. */
-    suspend fun getFrostedColor(packageName: String, activityName: String): ImageBitmap? {
+    suspend fun getFrostedColor(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#frostcolor3"
+        val key = "$packageName/$activityName#frostcolor4-" + strength
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
             val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
             val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
-            val bitmap = runCatching { renderFrostedColor(drawable, adaptive, SIZE) }
-                .getOrElse { adaptive?.let { renderDimensional(it, SIZE) } ?: renderSculpted(drawable, SIZE) }
+            val bitmap = runCatching { renderFrostedColor(drawable, adaptive, SIZE, strength) }
+                .getOrElse { adaptive?.let { renderDimensional(it, SIZE, strength) } ?: renderSculpted(drawable, SIZE, strength) }
                 .asImageBitmap()
             cache.put(key, bitmap)
             bitmap
@@ -108,9 +108,9 @@ class IconCache(private val context: Context) {
         }
     }
 
-    private fun renderDimensional(icon: AdaptiveIconDrawable, size: Int): Bitmap {
+    private fun renderDimensional(icon: AdaptiveIconDrawable, size: Int, strength: Float = 1f): Bitmap {
         val extra = (size * 18f / 72f).toInt()
-        val pop = (size * 0.06f).toInt()
+        val pop = (size * 0.06f * strength).toInt()
         val bgBmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val fgBmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         Canvas(bgBmp).let { canvas ->
@@ -128,12 +128,12 @@ class IconCache(private val context: Context) {
         canvas.drawBitmap(bgBmp, 0f, 0f, null)
         val shadow = fgBmp.extractAlpha()
         val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x3A000000
+            color = glassAlpha(0x3A000000, strength)
             maskFilter = BlurMaskFilter(size * 0.08f, BlurMaskFilter.Blur.NORMAL)
         }
-        canvas.drawBitmap(shadow, 0f, size * 0.04f, shadowPaint)
-        canvas.drawBitmap(fgBmp, 0f, -size * 0.02f, null)
-        drawGlass(canvas, size)
+        canvas.drawBitmap(shadow, 0f, size * 0.04f * strength, shadowPaint)
+        canvas.drawBitmap(fgBmp, 0f, -size * 0.02f * strength, null)
+        drawGlass(canvas, size, strength)
         canvas.restore()
         bgBmp.recycle()
         fgBmp.recycle()
@@ -141,7 +141,7 @@ class IconCache(private val context: Context) {
         return out
     }
 
-    private fun renderSculpted(drawable: Drawable, size: Int): Bitmap {
+    private fun renderSculpted(drawable: Drawable, size: Int, strength: Float = 1f): Bitmap {
         val src = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         Canvas(src).let { canvas ->
             val padded = drawable.mutate()
@@ -157,13 +157,13 @@ class IconCache(private val context: Context) {
         canvas.drawBitmap(filled, 0f, 0f, paint)
         val alpha = filled.extractAlpha()
         val depth = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x22000000
+            color = glassAlpha(0x22000000, strength)
             maskFilter = BlurMaskFilter(size * 0.05f, BlurMaskFilter.Blur.NORMAL)
             xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP)
         }
-        canvas.drawBitmap(alpha, 0f, size * 0.035f, depth)
-        canvas.drawBitmap(filled, 0f, -size * 0.008f, paint)
-        drawGlass(canvas, size)
+        canvas.drawBitmap(alpha, 0f, size * 0.035f * strength, depth)
+        canvas.drawBitmap(filled, 0f, -size * 0.008f * strength, paint)
+        drawGlass(canvas, size, strength)
         canvas.restore()
         if (filled !== src) filled.recycle()
         src.recycle()
@@ -208,13 +208,16 @@ class IconCache(private val context: Context) {
         return minOf(minX, minY, w - 1 - maxX, h - 1 - maxY).coerceAtLeast(0)
     }
 
-    private fun drawGlass(canvas: Canvas, size: Int) {
+    private fun glassAlpha(color: Int, strength: Float): Int =
+        (((color ushr 24) * strength).toInt().coerceIn(0, 255) shl 24) or (color and 0xFFFFFF)
+
+    private fun drawGlass(canvas: Canvas, size: Int, strength: Float = 1f) {
         val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = size * 0.012f
             shader = LinearGradient(
                 0f, 0f, 0f, size.toFloat(),
-                intArrayOf(0x55FFFFFF.toInt(), 0x14FFFFFF, 0x1A000000),
+                intArrayOf(glassAlpha(0x55FFFFFF, strength), glassAlpha(0x14FFFFFF, strength), glassAlpha(0x1A000000, strength)),
                 floatArrayOf(0f, 0.42f, 1f),
                 Shader.TileMode.CLAMP
             )
@@ -231,7 +234,8 @@ class IconCache(private val context: Context) {
         adaptive: AdaptiveIconDrawable?,
         size: Int,
         label: String,
-        letterOnly: Boolean = false
+        letterOnly: Boolean = false,
+        strength: Float = 1f
     ): Bitmap {
         var glyph: Bitmap? = if (letterOnly) monogram(label, size) else null
 
@@ -269,33 +273,7 @@ class IconCache(private val context: Context) {
         // 4) Pure artwork with no clear logo: the app's first letter.
         val g = glyph ?: monogram(label, size)
 
-        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(out)
-        canvas.save()
-        canvas.clipPath(squircle(size))
-        // Frosted white tile
-        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                0f, 0f, 0f, size.toFloat(),
-                intArrayOf(0x66FFFFFF, 0x38FFFFFF, 0x2EFFFFFF),
-                floatArrayOf(0f, 0.55f, 1f),
-                Shader.TileMode.CLAMP
-            )
-        })
-        // Soft top sheen
-        canvas.drawRect(0f, 0f, size.toFloat(), size * 0.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, 0f, size * 0.5f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
-        })
-        val shadow = g.extractAlpha()
-        canvas.drawBitmap(shadow, 0f, size * 0.022f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x40000000
-            maskFilter = BlurMaskFilter(size * 0.03f, BlurMaskFilter.Blur.NORMAL)
-        })
-        canvas.drawBitmap(g, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
-        shadow.recycle()
-        drawGlass(canvas, size)
-        canvas.restore()
-        return out
+        return frostedTile(g, size, strength)
     }
 
     /**
@@ -384,7 +362,7 @@ class IconCache(private val context: Context) {
      * If the logo itself is white (its color lives in the background layer, e.g. WhatsApp),
      * it is painted in that background color so it stays colorful.
      */
-    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int): Bitmap {
+    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int, strength: Float = 1f): Bitmap {
         var logo: Bitmap? = null
         // 1) Two-layer icon: the logo layer.
         if (adaptive?.foreground != null) {
@@ -423,7 +401,7 @@ class IconCache(private val context: Context) {
             }
             full.recycle()
         }
-        return frostedTile(logo!!, size)
+        return frostedTile(logo!!, size, strength)
     }
 
     /** Keeps the original colors of every pixel that clearly differs from [background]. */
@@ -490,7 +468,7 @@ class IconCache(private val context: Context) {
     }
 
     /** Frosted white tile with [content] on top (soft shadow, glass rim). */
-    private fun frostedTile(content: Bitmap, size: Int): Bitmap {
+    private fun frostedTile(content: Bitmap, size: Int, strength: Float): Bitmap {
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         canvas.save()
@@ -498,22 +476,22 @@ class IconCache(private val context: Context) {
         canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
                 0f, 0f, 0f, size.toFloat(),
-                intArrayOf(0x66FFFFFF, 0x38FFFFFF, 0x2EFFFFFF),
+                intArrayOf(glassAlpha(0x66FFFFFF, strength), glassAlpha(0x38FFFFFF, strength), glassAlpha(0x2EFFFFFF, strength)),
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP
             )
         })
         canvas.drawRect(0f, 0f, size.toFloat(), size * 0.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, 0f, 0f, size * 0.5f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP)
+            shader = LinearGradient(0f, 0f, 0f, size * 0.5f, glassAlpha(0x2EFFFFFF, strength), 0x00FFFFFF, Shader.TileMode.CLAMP)
         })
         val shadow = content.extractAlpha()
         canvas.drawBitmap(shadow, 0f, size * 0.022f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x40000000
+            color = glassAlpha(0x40000000, strength)
             maskFilter = BlurMaskFilter(size * 0.03f, BlurMaskFilter.Blur.NORMAL)
         })
         canvas.drawBitmap(content, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
         shadow.recycle()
-        drawGlass(canvas, size)
+        drawGlass(canvas, size, strength)
         canvas.restore()
         return out
     }

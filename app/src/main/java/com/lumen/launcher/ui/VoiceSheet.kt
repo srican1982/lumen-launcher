@@ -6,6 +6,16 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -80,6 +90,7 @@ fun VoiceSheet(
             onSubmit(text)
         }
     }
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val processing = !state.voiceListening &&
         (state.voiceHint == "On it." || state.voiceHint == "Give me a second.")
     val thinking = processing
@@ -138,7 +149,9 @@ fun VoiceSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .imePadding()
                 .navigationBarsPadding()
+                .heightIn(max = screenHeight * 0.85f)
                 .padding(start = 10.dp, end = 10.dp, bottom = 16.dp)
                 .shadow(
                     elevation = 28.dp,
@@ -164,12 +177,18 @@ fun VoiceSheet(
                     shape = Panel
                 )
                 .clickable(enabled = false) {}
+                .verticalScroll(rememberScrollState())
                 .padding(top = 28.dp, bottom = 26.dp, start = 22.dp, end = 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Lumen assistant", color = GoldHi, fontFamily = Outfit, fontSize = 16.sp)
+                TextButton(onClick = onDismiss) { Text("Close", color = Color.White.copy(alpha = 0.75f)) }
+            }
             Box(
                 modifier = Modifier
-                    .size(168.dp)
+                    .size(132.dp)
                     .graphicsLayer {
                         val pulse = if (state.voiceListening) live else breath
                         val range = when {
@@ -293,6 +312,19 @@ fun VoiceSheet(
                 fontSize = 15.sp,
                 textAlign = TextAlign.Center
             )
+            if (!state.voiceListening) {
+                TextButton(onClick = onRetry) { Text(if (state.voiceCanRetry) "Try microphone again" else "Interrupt and speak", color = GoldHi) }
+            }
+            if (state.voiceHeard.isBlank() && !processing) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Open camera", "Set a timer for 5 minutes", "What can you do?").forEach { example ->
+                        TextButton(onClick = { onSubmit(example) }) {
+                            Text(example, color = GoldHi, fontFamily = Outfit, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(20.dp))
             Row(
                 modifier = Modifier

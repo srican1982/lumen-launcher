@@ -91,12 +91,6 @@ fun Glass(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .shadow(
-                    elevation = if (airy) 8.dp else 14.dp,
-                    shape = shape,
-                    spotColor = Color(0x44000000),
-                    ambientColor = Color(0x22000000)
-                )
                 .clip(shape)
                 .background(
                     Brush.verticalGradient(
@@ -121,7 +115,7 @@ fun Modifier.glass(
     shape: Shape = RoundedCornerShape(Lumen.PillRadius),
     colors: GlassColors = GlassColors.OnDark
 ): Modifier = this
-    .shadow(14.dp, shape, spotColor = Color(0x44000000), ambientColor = Color(0x22000000))
+    // Hardware elevation shadows show through translucent glass on some devices.
     .clip(shape)
     .background(Brush.verticalGradient(0f to colors.filmTop, 1f to colors.filmBottom))
     .border(
@@ -188,18 +182,19 @@ fun AppIcon(
     showNotificationBadge: Boolean = true
 ) {
     val treatment = LocalIconTreatment.current
+    val glassStrength = LocalIconGlassStrength.current
     // White Glass themes use their own pre-rendered tiles; other styles tint the normal icon.
     val glassKind = when (treatment) {
         IconTreatment.WhiteGlass -> 1
         IconTreatment.GlassColor -> 2
         else -> 0
     }
-    var bitmap by remember(packageName, activityName, glassKind) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(packageName, activityName, glassKind) {
+    var bitmap by remember(packageName, activityName, glassKind, glassStrength) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(packageName, activityName, glassKind, glassStrength) {
         bitmap = when (glassKind) {
-            1 -> icons.getFrosted(packageName, activityName)
-            2 -> icons.getFrostedColor(packageName, activityName)
-            else -> icons.get(packageName, activityName)
+            1 -> icons.getFrosted(packageName, activityName, glassStrength * 2f)
+            2 -> icons.getFrostedColor(packageName, activityName, glassStrength * 2f)
+            else -> icons.get(packageName, activityName, glassStrength * 2f)
         }
     }
     val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
@@ -226,6 +221,7 @@ private fun RestAppIcon(
     badgeCount: Int,
     badgeMode: com.lumen.launcher.badge.NotificationBadgeMode
 ) {
+    val effectStrength = LocalIconGlassStrength.current * 2f
     Box(modifier = modifier.size(size)) {
         if (bitmap != null) {
             Image(
@@ -236,7 +232,7 @@ private fun RestAppIcon(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        shadowElevation = iconElevation(treatment, 8f)
+                        shadowElevation = iconElevation(treatment, 8f) * effectStrength
                         shape = iconShape
                         clip = true
                     }
@@ -331,6 +327,7 @@ private fun MotionAppIcon(
         animationSpec = spring(stiffness = 820f, dampingRatio = 0.72f),
         label = "iconFloorY"
     )
+    val effectStrength = LocalIconGlassStrength.current * 2f
     Box(modifier = modifier.size(size)) {
         Box(
             Modifier
@@ -351,7 +348,7 @@ private fun MotionAppIcon(
                     scaleX = animScale
                     scaleY = animScale
                     translationY = dropY
-                    shadowElevation = iconElevation(treatment, elev)
+                    shadowElevation = iconElevation(treatment, elev) * effectStrength
                     this.shape = iconShape
                     clip = false
                 }

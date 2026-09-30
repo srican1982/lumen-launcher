@@ -134,434 +134,392 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val recentsOpen = state.recentsOpen
-    var editKey by remember { mutableStateOf<String?>(null) }
-    var editPhase by remember { mutableStateOf(IconPhase.Rest) }
-    var editDrag by remember { mutableStateOf(Offset.Zero) }
-    var liftOrigin by remember { mutableStateOf(Offset.Zero) }
-    var dropArmed by remember { mutableStateOf(false) }
-    var showFloatPad by remember { mutableStateOf(false) }
-    var floatIsland by remember { mutableStateOf(Rect.Zero) }
-    val gridRef = remember { CoordBox() }
-    val rootRef = remember { CoordBox() }
-    val padBox = remember { RectBox() }
-    val slotOrigins = remember { mutableMapOf<String, Offset>() }
-    val dockSlotWindows = remember { mutableStateMapOf<Int, Rect>() }
-    val editing = editPhase == IconPhase.Lifted || editPhase == IconPhase.Dragging
-    val hour = rememberLiveHour()
-    val copy = remember(state.activeSpace, state.spaceAutomatic, hour) {
-        SpaceCopy.context(state.activeSpace, hour, state.spaceAutomatic)
-    }
-    val restBlur = if (editing) Modifier.blur(12.dp) else Modifier
-    val dragged = state.homeApps.find { it.key == editKey }
-    val density = LocalDensity.current
-    val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
-    val iconSlotPad = 4.dp
-    val leadLabel = if (state.showLabels) 6.dp + with(density) { 11.sp.toDp() } + 3.dp else 0.dp
-    val leadRowHeight = iconSlotPad * 2 + state.iconSizeDp.dp + leadLabel
-    val leadBlockHeight = leadRowHeight * 2 + 16.dp
-    val gridState = rememberLazyGridState()
-    LaunchedEffect(isActive) {
-        if (isActive) gridState.scrollToItem(0)
-    }
-    LaunchedEffect(state.homePulse) {
-        if (state.homePulse == 0) return@LaunchedEffect
-        viewModel.setRecentsOpen(false)
-        gridState.scrollToItem(0)
-    }
-
-    fun padVisibleNow(): Boolean {
-        val pad = padBox.value
-        if (pad.width <= 8f || pad.height <= 8f) return false
-        val view = gridRef.value?.takeIf { it.isAttached }?.boundsInWindow() ?: return true
-        val visW = (minOf(pad.right, view.right) - maxOf(pad.left, view.left)).coerceAtLeast(0f)
-        val visH = (minOf(pad.bottom, view.bottom) - maxOf(pad.top, view.top)).coerceAtLeast(0f)
-        return visW > 48f && visH > pad.height * 0.45f
-    }
-
-    fun windowOnPad(window: Offset): Boolean {
-        if (window == Offset.Unspecified) return false
-        val pad = 48f
-        val box = padBox.value
-        if (box.width > 8f && box.height > 8f &&
-            window.x >= box.left - pad && window.x <= box.right + pad &&
-            window.y >= box.top - pad && window.y <= box.bottom + pad
-        ) {
-            return true
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val gridGap = 12.dp
+        val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
+        val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
+        val dockWidth = ((gridWidth - 24.dp - 6.dp * (state.dockCapacity - 1)) / state.dockCapacity).coerceAtLeast(1.dp)
+        val homeIconSize = minOf(state.iconSizeDp.dp, cellWidth - 8.dp, dockWidth - 8.dp).coerceAtLeast(1.dp)
+        val homeGridApps = state.homeApps.filter { it.key !in state.folderAppKeys }
+        val recentsOpen = state.recentsOpen
+        var editKey by remember { mutableStateOf<String?>(null) }
+        var editPhase by remember { mutableStateOf(IconPhase.Rest) }
+        var editDrag by remember { mutableStateOf(Offset.Zero) }
+        var liftOrigin by remember { mutableStateOf(Offset.Zero) }
+        var dropArmed by remember { mutableStateOf(false) }
+        var showFloatPad by remember { mutableStateOf(false) }
+        var floatIsland by remember { mutableStateOf(Rect.Zero) }
+        val gridRef = remember { CoordBox() }
+        val rootRef = remember { CoordBox() }
+        val padBox = remember { RectBox() }
+        val slotOrigins = remember { mutableMapOf<String, Offset>() }
+        val folderWindows = remember { mutableStateMapOf<String, Rect>() }
+        val dockSlotWindows = remember { mutableStateMapOf<Int, Rect>() }
+        val editing = editPhase == IconPhase.Lifted || editPhase == IconPhase.Dragging
+        val hour = rememberLiveHour()
+        val copy = remember(state.activeSpace, state.spaceAutomatic, hour) {
+            SpaceCopy.context(state.activeSpace, hour, state.spaceAutomatic)
         }
-        return showFloatPad && floatIsland.width > 8f && floatIsland.inflate(56f).contains(window)
-    }
+        val restBlur = if (editing) Modifier.blur(12.dp) else Modifier
+        val dragged = homeGridApps.find { it.key == editKey }
+        val density = LocalDensity.current
+        val iconPx = with(density) { homeIconSize.toPx() }
+        val gridState = rememberLazyGridState()
+        LaunchedEffect(isActive, state.activeSpace) {
+            slotOrigins.clear()
+            if (isActive) gridState.scrollToItem(0)
+        }
+        LaunchedEffect(state.homePulse) {
+            if (state.homePulse == 0) return@LaunchedEffect
+            viewModel.setRecentsOpen(false)
+            gridState.scrollToItem(0)
+        }
 
-    fun dropWindow(layout: LayoutCoordinates?, origin: Offset, drag: Offset): Offset {
-        if (layout == null || !layout.isAttached) return Offset.Unspecified
-        return layout.localToWindow(origin + drag + Offset(iconPx / 2f, iconPx / 2f))
-    }
+        fun padVisibleNow(): Boolean {
+            val pad = padBox.value
+            if (pad.width <= 8f || pad.height <= 8f) return false
+            val view = gridRef.value?.takeIf { it.isAttached }?.boundsInWindow() ?: return true
+            val visW = (minOf(pad.right, view.right) - maxOf(pad.left, view.left)).coerceAtLeast(0f)
+            val visH = (minOf(pad.bottom, view.bottom) - maxOf(pad.top, view.top)).coerceAtLeast(0f)
+            return visW > 48f && visH > pad.height * 0.45f
+        }
 
-    fun dockSlotAt(window: Offset): Int? {
-        if (window == Offset.Unspecified) return null
-        val pad = 28f
-        return dockSlotWindows.entries
-            .mapNotNull { (index, box) ->
-                if (box.width <= 4f || box.height <= 4f) return@mapNotNull null
-                val hit = box.inflate(pad)
-                if (!hit.contains(window)) return@mapNotNull null
-                index to (box.center - window).getDistance()
+        fun windowOnPad(window: Offset): Boolean {
+            if (window == Offset.Unspecified) return false
+            val pad = 48f
+            val box = padBox.value
+            if (box.width > 8f && box.height > 8f &&
+                window.x >= box.left - pad && window.x <= box.right + pad &&
+                window.y >= box.top - pad && window.y <= box.bottom + pad
+            ) {
+                return true
             }
-            .minByOrNull { it.second }
-            ?.first
-    }
-
-    val dropWin = dropWindow(gridRef.value, liftOrigin, editDrag)
-    val hoverDock = if (editing) dockSlotAt(dropWin) else null
-    val overPad = editing && hoverDock == null && windowOnPad(dropWin)
-    LaunchedEffect(overPad, editing) {
-        if (editing && overPad) dropArmed = true
-        if (!editing) dropArmed = false
-    }
-    LaunchedEffect(showFloatPad) {
-        if (!showFloatPad) floatIsland = Rect.Zero
-    }
-
-    fun finishDrag(from: String?) {
-        val app = state.homeApps.find { it.key == from }
-            ?: state.visibleApps.find { it.key == from }
-        val window = dropWindow(gridRef.value, liftOrigin, editDrag)
-        val dockSlot = dockSlotAt(window)
-        if (app != null && dockSlot != null) {
-            viewModel.placeOnDock(app, dockSlot)
-            dropArmed = false
-            editKey = null
-            editPhase = IconPhase.Rest
-            editDrag = Offset.Zero
-            showFloatPad = false
-            return
+            return showFloatPad && floatIsland.width > 8f && floatIsland.inflate(56f).contains(window)
         }
-        if (app != null && (dropArmed || windowOnPad(window))) {
-            viewModel.moveToPrivate(app)
-            dropArmed = false
-            editKey = null
-            editPhase = IconPhase.Rest
-            editDrag = Offset.Zero
-            showFloatPad = false
-            return
-        }
-        dropArmed = false
-        val point = liftOrigin + editDrag
-        val target = slotOrigins.minByOrNull { (_, pos) ->
-            (pos - point).getDistance()
-        }?.key
-        if (from != null && target != null) viewModel.reorderHome(from, target)
-        editKey = null
-        editPhase = IconPhase.Rest
-        editDrag = Offset.Zero
-        showFloatPad = false
-    }
 
-    @Composable
-    fun HomeGridIcon(app: AppInfo?, modifier: Modifier = Modifier) {
-        if (app == null) {
-            Spacer(modifier)
-            return
+        fun dropWindow(layout: LayoutCoordinates?, origin: Offset, drag: Offset): Offset {
+            if (layout == null || !layout.isAttached) return Offset.Unspecified
+            return layout.localToWindow(origin + drag + Offset(iconPx / 2f, iconPx / 2f))
         }
-        val active = editKey == app.key
-        IconSlot(
-            label = app.label,
-            packageName = app.packageName,
-            activityName = app.activityName,
-            iconSize = state.iconSizeDp.dp,
-            icons = viewModel.icons,
-            onClick = { viewModel.launch(app) },
-            onLongClick = { viewModel.showAppActions(app) },
-            showLabel = state.showLabels,
-            allowDrag = !recentsOpen,
-            dragOffset = Offset.Zero,
-            modifier = modifier
-                .onGloballyPositioned { coords ->
-                    val grid = gridRef.value
-                    if (grid != null && grid.isAttached && coords.isAttached) {
-                        slotOrigins[app.key] = grid.localPositionOf(coords, Offset.Zero)
-                    }
+
+        fun dockSlotAt(window: Offset): Int? {
+            if (window == Offset.Unspecified) return null
+            val pad = 28f
+            return dockSlotWindows.entries
+                .mapNotNull { (index, box) ->
+                    if (box.width <= 4f || box.height <= 4f) return@mapNotNull null
+                    val hit = box.inflate(pad)
+                    if (!hit.contains(window)) return@mapNotNull null
+                    index to (box.center - window).getDistance()
                 }
-                .then(
-                    if (editing && !active) Modifier.blur(12.dp).graphicsLayer { alpha = 0.82f }
-                    else Modifier
-                ),
-            onContact = { phase, drag ->
-                if (phase != IconPhase.Pressed && phase != IconPhase.Launching) {
-                    if (phase == IconPhase.Lifted) {
-                        if (editPhase != IconPhase.Lifted && editPhase != IconPhase.Dragging) {
-                            liftOrigin = slotOrigins[app.key] ?: Offset.Zero
-                            showFloatPad = !padVisibleNow()
+                .minByOrNull { it.second }
+                ?.first
+        }
+
+        val dropWin = dropWindow(gridRef.value, liftOrigin, editDrag)
+        val hoverDock = if (editing) dockSlotAt(dropWin) else null
+        val overPad = editing && hoverDock == null && windowOnPad(dropWin)
+        LaunchedEffect(overPad, editing) {
+            if (editing && overPad) dropArmed = true
+            if (!editing) dropArmed = false
+        }
+        LaunchedEffect(showFloatPad) {
+            if (!showFloatPad) floatIsland = Rect.Zero
+        }
+
+        fun finishDrag(from: String?) {
+            val app = state.homeApps.find { it.key == from }
+                ?: state.visibleApps.find { it.key == from }
+            val window = dropWindow(gridRef.value, liftOrigin, editDrag)
+            val folderId = folderWindows.entries.firstOrNull { it.value.contains(window) }?.key
+            if (app != null && folderId != null) {
+                viewModel.addAppToFolder(app, folderId)
+                dropArmed = false
+                editKey = null
+                editPhase = IconPhase.Rest
+                editDrag = Offset.Zero
+                showFloatPad = false
+                return
+            }
+            val dockSlot = dockSlotAt(window)
+            if (app != null && dockSlot != null) {
+                viewModel.placeOnDock(app, dockSlot)
+                dropArmed = false
+                editKey = null
+                editPhase = IconPhase.Rest
+                editDrag = Offset.Zero
+                showFloatPad = false
+                return
+            }
+            if (app != null && (dropArmed || windowOnPad(window))) {
+                viewModel.moveToPrivate(app)
+                dropArmed = false
+                editKey = null
+                editPhase = IconPhase.Rest
+                editDrag = Offset.Zero
+                showFloatPad = false
+                return
+            }
+            dropArmed = false
+            val point = liftOrigin + editDrag
+            val target = slotOrigins.minByOrNull { (_, pos) ->
+                (pos - point).getDistance()
+            }?.key
+            if (from != null && target != null) viewModel.reorderHome(from, target)
+            editKey = null
+            editPhase = IconPhase.Rest
+            editDrag = Offset.Zero
+            showFloatPad = false
+        }
+
+        @Composable
+        fun HomeGridIcon(app: AppInfo?, modifier: Modifier = Modifier) {
+            if (app == null) {
+                Spacer(modifier)
+                return
+            }
+            val active = editKey == app.key
+            IconSlot(
+                label = app.label,
+                packageName = app.packageName,
+                activityName = app.activityName,
+                iconSize = homeIconSize,
+                icons = viewModel.icons,
+                onClick = { viewModel.launch(app) },
+                onLongClick = { viewModel.showAppActions(app) },
+                showLabel = state.showLabels,
+                allowDrag = !recentsOpen,
+                dragOffset = Offset.Zero,
+                modifier = modifier
+                    .onGloballyPositioned { coords ->
+                        val grid = gridRef.value
+                        if (grid != null && grid.isAttached && coords.isAttached) {
+                            slotOrigins[app.key] = grid.localPositionOf(
+                                coords, Offset((coords.size.width - iconPx) / 2f, with(density) { 4.dp.toPx() })
+                            )
                         }
                     }
-                    editKey = if (phase == IconPhase.Rest) null else app.key
-                    editPhase = phase
-                    editDrag = if (phase == IconPhase.Rest) Offset.Zero else drag
-                    if (phase == IconPhase.Rest) showFloatPad = false
-                    if (phase == IconPhase.Dragging) {
-                        dropArmed = windowOnPad(dropWindow(gridRef.value, liftOrigin, drag))
-                        viewModel.dismissPopups()
+                    .then(
+                        if (editing && !active) Modifier.blur(12.dp).graphicsLayer { alpha = 0.82f }
+                        else Modifier
+                    ),
+                onContact = { phase, drag ->
+                    if (phase != IconPhase.Pressed && phase != IconPhase.Launching) {
+                        if (phase == IconPhase.Lifted) {
+                            if (editPhase != IconPhase.Lifted && editPhase != IconPhase.Dragging) {
+                                liftOrigin = slotOrigins[app.key] ?: Offset.Zero
+                                showFloatPad = !padVisibleNow()
+                            }
+                        }
+                        editKey = if (phase == IconPhase.Rest) null else app.key
+                        editPhase = phase
+                        editDrag = if (phase == IconPhase.Rest) Offset.Zero else drag
+                        if (phase == IconPhase.Rest) showFloatPad = false
+                        if (phase == IconPhase.Dragging) {
+                            dropArmed = windowOnPad(dropWindow(gridRef.value, liftOrigin, drag))
+                            viewModel.dismissPopups()
+                        }
                     }
-                }
-            },
-            onDragEnd = { finishDrag(app.key) }
-        )
-    }
+                },
+                onDragEnd = { finishDrag(app.key) }
+            )
+        }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .onGloballyPositioned { rootRef.value = it }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 24.dp)
-                .emptySpaceLongPress(
-                    enabled = !recentsOpen && !editing,
-                    onLongPress = viewModel::openMenu
-                )
-        ) {
-        Spacer(Modifier.height(6.dp))
-        HomeGreeting(
-            greeting = copy.greeting,
-            recentsOpen = recentsOpen,
-            weather = state.weather,
-            onRecents = { viewModel.setRecentsOpen(!recentsOpen) },
-            modifier = restBlur
-        )
-        if (!recentsOpen) {
-            SpaceRow(
-                selected = state.activeSpace,
-                automatic = state.spaceAutomatic,
-                onSelect = { space ->
-                    if (space == state.activeSpace && !state.spaceAutomatic) viewModel.selectSpace(null)
-                    else viewModel.selectSpace(space)
-                }
-            )
-        }
-        if (!state.isDefaultHome) {
-            Spacer(Modifier.height(10.dp))
-            HomeSetupCard(onSetDefault = onRequestDefaultHome)
-        }
-        if (state.competingLaunchers.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            OverlayWarningCard(
-                launchers = state.competingLaunchers,
-                onOpen = viewModel::openPackageInfo
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        ActionBar(
-            hint = copy.prompt,
-            onClick = viewModel::openSearch,
-            onLongClick = { viewModel.openCapture() },
-            modifier = restBlur
-        )
-        if (state.focusing) {
-            Spacer(Modifier.height(10.dp))
-            FocusBanner(state, viewModel)
-        }
-        Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .clipToBounds()
-                .onGloballyPositioned { gridRef.value = it }
+                .fillMaxSize()
+                .onGloballyPositioned { rootRef.value = it }
         ) {
-            @Suppress("DEPRECATION")
-            CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(state.gridColumns),
-                state = gridState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 0.dp, bottom = 12.dp),
-                userScrollEnabled = !editing,
-                verticalArrangement = Arrangement.spacedBy(22.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .emptySpaceLongPress(
+                        enabled = !recentsOpen && !editing,
+                        onLongPress = viewModel::openMenu
+                    )
             ) {
-                if (state.smartCluster && !editing && state.clusterApps.isNotEmpty()) {
-                    item(key = "smart-cluster", span = { GridItemSpan(state.gridColumns) }) {
-                        SmartClusterCard(state, viewModel)
+            Spacer(Modifier.height(6.dp))
+            HomeGreeting(
+                greeting = copy.greeting,
+                recentsOpen = recentsOpen,
+                weather = state.weather,
+                onRecents = { viewModel.setRecentsOpen(!recentsOpen) },
+                modifier = restBlur
+            )
+            if (!recentsOpen) {
+                SpaceRow(
+                    selected = state.activeSpace,
+                    automatic = state.spaceAutomatic,
+                    onSelect = { space ->
+                        viewModel.selectSpace(space)
                     }
-                }
-                item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
-                    val lead = state.homeApps.filter { it.key !in state.folderAppKeys }.take(4)
-                    val cols = state.gridColumns.coerceAtLeast(3)
-                    // The card is exactly as tall as the two icon rows beside it (measured).
-                    var iconsHeight by remember { mutableStateOf(0.dp) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        // Exactly 2 grid columns, same icon size and 22dp row gap as the grid below,
-                        // so these icons line up with every other icon.
-                        Column(
-                            modifier = Modifier
-                                .weight(2f)
-                                .onSizeChanged { iconsHeight = with(density) { it.height.toDp() } },
-                            verticalArrangement = Arrangement.spacedBy(22.dp)
-                        ) {
-                            Row(Modifier.fillMaxWidth()) {
-                                HomeGridIcon(lead.getOrNull(0), Modifier.weight(1f))
-                                HomeGridIcon(lead.getOrNull(1), Modifier.weight(1f))
-                            }
-                            Row(Modifier.fillMaxWidth()) {
-                                HomeGridIcon(lead.getOrNull(2), Modifier.weight(1f))
-                                HomeGridIcon(lead.getOrNull(3), Modifier.weight(1f))
-                            }
-                        }
-                        // Glass card over the remaining columns: TouchPad ring + mini player + notifications.
-                        val cardShape = RoundedCornerShape(28.dp)
-                        val cardHeight = if (iconsHeight > 0.dp) maxOf(iconsHeight, 176.dp) else leadRowHeight * 2 + 22.dp
-                        BoxWithConstraints(
-                            modifier = Modifier
-                                .weight((cols - 1).toFloat().coerceAtLeast(3f))
-                                .height(cardHeight)
-                                .padding(horizontal = 4.dp)
-                                .clip(cardShape)
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.13f))
-                                    )
-                                )
-                                .border(
-                                    1.dp,
-                                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0.16f))),
-                                    cardShape
-                                )
-                                .padding(start = 6.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
-                        ) {
-                            val logoSize = (minOf(maxWidth, maxHeight) * 0.36f).coerceIn(88.dp, 118.dp)
-                            Row(Modifier.fillMaxSize()) {
-                                TouchpadIsland(
-                                    enabled = !recentsOpen && !editing,
-                                    state = state,
-                                    icons = viewModel.icons,
-                                    dropReady = overPad,
-                                    onGesture = viewModel::runBlankGesture,
-                                    onPrivateArmed = viewModel::armPrivateSpace,
-                                    onBoundsInWindow = { l, t, r, b ->
-                                        padBox.value = Rect(l, t, r, b)
-                                        viewModel.setTouchpadWindow(l, t, r, b)
-                                    },
-                                    framed = false,
-                                    markSize = logoSize,
-                                    modifier = Modifier
-                                        .weight(0.72f)
-                                        .fillMaxHeight()
-                                )
-                                Column(
-                                    modifier = Modifier
-                                        .weight(0.28f)
-                                        .widthIn(max = 78.dp)
-                                        .fillMaxHeight(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    NowPlayingTile(
-                                        Modifier
-                                            .weight(1.25f)
-                                            .fillMaxWidth()
-                                    )
-                                    NotificationsPreviewTile(
-                                        Modifier
-                                            .weight(0.75f)
-                                            .fillMaxWidth()
-                                    )
-                                }
-                            }
+                )
+            }
+            if (!state.isDefaultHome) {
+                Spacer(Modifier.height(10.dp))
+                HomeSetupCard(onSetDefault = onRequestDefaultHome)
+            }
+            if (state.competingLaunchers.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                OverlayWarningCard(
+                    launchers = state.competingLaunchers,
+                    onOpen = viewModel::openPackageInfo
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            ActionBar(
+                hint = copy.prompt,
+                onClick = viewModel::openSearch,
+                onLongClick = { viewModel.openCapture() },
+                modifier = restBlur
+            )
+            if (state.focusing && state.activeSpace != SpaceKind.Focus) {
+                Spacer(Modifier.height(10.dp))
+                FocusBanner(state, viewModel)
+            }
+            Spacer(Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clipToBounds()
+                    .onGloballyPositioned { gridRef.value = it }
+                    .softGridEdges({ gridState.canScrollBackward }, { gridState.canScrollForward })
+            ) {
+                @Suppress("DEPRECATION")
+                CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(state.gridColumns),
+                    state = gridState,
+                    modifier = Modifier.fillMaxSize().drawerAtGridEnd(!editing && !recentsOpen, gridState, viewModel::openDrawer),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
+                    userScrollEnabled = !editing,
+                    horizontalArrangement = Arrangement.spacedBy(gridGap),
+                    verticalArrangement = Arrangement.spacedBy(gridGap)
+                ) {
+                    item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
+                        CompactWorkspace(state, viewModel) {
+                            TouchpadIsland(
+                                enabled = !recentsOpen && !editing,
+                                state = state,
+                                icons = viewModel.icons,
+                                dropReady = overPad,
+                                onGesture = viewModel::runBlankGesture,
+                                onPrivateArmed = viewModel::armPrivateSpace,
+                                onBoundsInWindow = { l, t, r, b ->
+                                    padBox.value = Rect(l, t, r, b)
+                                    viewModel.setTouchpadWindow(l, t, r, b)
+                                },
+                                framed = false,
+                                markSize = 40.dp,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
                     }
+                    if (!state.focusing) items(state.folders.filter { it.space == state.activeSpace.name }, key = { "folder-${it.id}" }) { folder ->
+                        val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
+                        androidx.compose.runtime.DisposableEffect(folder.id) {
+                            onDispose { folderWindows.remove(folder.id) }
+                        }
+                        Box(Modifier.onGloballyPositioned { folderWindows[folder.id] = it.boundsInWindow() }) {
+                        HomeFolderTile(
+                            name = folder.name,
+                            apps = apps,
+                            iconSize = homeIconSize,
+                            icons = viewModel.icons,
+                            showLabel = state.showLabels,
+                            onClick = { viewModel.openFolder(folder) },
+                            onLongClick = { viewModel.editFolder(folder) }
+                        )
+                        }
+                    }
+                    items(homeGridApps, key = { it.key }) { app ->
+                        HomeGridIcon(app)
+                    }
                 }
-                if (!state.focusing) items(state.folders, key = { "folder-${it.id}" }) { folder ->
-                    val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
-                    HomeFolderTile(
-                        name = folder.name,
-                        apps = apps,
-                        iconSize = state.iconSizeDp.dp,
-                        icons = viewModel.icons,
-                        showLabel = state.showLabels,
-                        onClick = { viewModel.openFolder(folder) },
-                        onLongClick = { viewModel.editFolder(folder) }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            DockBar(
+                apps = state.dock,
+                slotCount = state.dockCapacity,
+                iconSize = homeIconSize,
+                icons = viewModel.icons,
+                hoverSlot = hoverDock,
+                onClick = viewModel::launchDock,
+                onLongClick = viewModel::showDockActions,
+                onReorder = viewModel::reorderDock,
+                onDrawer = viewModel::openDrawer,
+                onMove = viewModel::dismissPopups,
+                onSlotBounds = { index, box -> dockSlotWindows[index] = box },
+                onDropFolder = { app, window ->
+                    val id = folderWindows.entries.firstOrNull { it.value.contains(window) }?.key
+                    val info = state.apps.find { it.key == app.key }
+                    if (id != null && info != null) {
+                        viewModel.addAppToFolder(info, id)
+                        true
+                    } else false
+                },
+                onDropWindow = { window -> windowOnPad(window) },
+                onDropPrivate = { app ->
+                    val info = state.apps.find { it.key == app.key } ?: return@DockBar
+                    viewModel.moveToPrivate(info)
+                },
+                modifier = restBlur
+                    .navigationBarsPadding()
+                    .padding(bottom = 6.dp)
+            )
+            }
+            FloatingPrivateIsland(
+                visible = showFloatPad,
+                state = state,
+                icons = viewModel.icons,
+                dropReady = overPad || dropArmed,
+                onBoundsInWindow = { l, t, r, b -> floatIsland = Rect(l, t, r, b) },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp)
+                    .zIndex(8f)
+                    .onGloballyPositioned { coords ->
+                        val box = coords.boundsInWindow()
+                        if (box.width > 8f && box.height > 8f) {
+                            floatIsland = Rect(box.left, box.top, box.right, box.bottom)
+                        }
+                    }
+            )
+            if (editing && dragged != null) {
+                val grid = gridRef.value
+                val root = rootRef.value
+                val local = if (grid != null && grid.isAttached && root != null && root.isAttached) {
+                    root.windowToLocal(grid.localToWindow(liftOrigin + editDrag))
+                } else {
+                    liftOrigin + editDrag
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .offset { IntOffset(local.x.roundToInt(), local.y.roundToInt()) }
+                        .zIndex(12f)
+                ) {
+                    AppIcon(
+                        dragged.packageName,
+                        dragged.activityName,
+                        homeIconSize,
+                        viewModel.icons,
+                        phase = editPhase
+                    )
+                    Text(
+                        dragged.label,
+                        color = Color.White.copy(alpha = 0.55f),
+                        fontSize = 11.sp,
+                        fontFamily = Outfit,
+                        maxLines = 1,
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 }
-                if (!state.focusing) items(state.homeApps.filter { it.key !in state.folderAppKeys }.drop(4), key = { it.key }) { app ->
-                    HomeGridIcon(app)
-                }
-            }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        DockBar(
-            apps = state.dock,
-            slotCount = state.dockCapacity,
-            iconSize = state.iconSizeDp.dp,
-            icons = viewModel.icons,
-            hoverSlot = hoverDock,
-            onClick = viewModel::launchDock,
-            onLongClick = viewModel::showDockActions,
-            onReorder = viewModel::reorderDock,
-            onDrawer = viewModel::openDrawer,
-            onMove = viewModel::dismissPopups,
-            onSlotBounds = { index, box -> dockSlotWindows[index] = box },
-            onDropWindow = { window -> windowOnPad(window) },
-            onDropPrivate = { app ->
-                val info = state.apps.find { it.key == app.key } ?: return@DockBar
-                viewModel.moveToPrivate(info)
-            },
-            modifier = restBlur
-                .navigationBarsPadding()
-                .padding(bottom = 6.dp)
-        )
-        }
-        FloatingPrivateIsland(
-            visible = showFloatPad,
-            state = state,
-            icons = viewModel.icons,
-            dropReady = overPad || dropArmed,
-            onBoundsInWindow = { l, t, r, b -> floatIsland = Rect(l, t, r, b) },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 8.dp)
-                .zIndex(8f)
-                .onGloballyPositioned { coords ->
-                    val box = coords.boundsInWindow()
-                    if (box.width > 8f && box.height > 8f) {
-                        floatIsland = Rect(box.left, box.top, box.right, box.bottom)
-                    }
-                }
-        )
-        if (editing && dragged != null) {
-            val grid = gridRef.value
-            val root = rootRef.value
-            val local = if (grid != null && grid.isAttached && root != null && root.isAttached) {
-                root.windowToLocal(grid.localToWindow(liftOrigin + editDrag))
-            } else {
-                liftOrigin + editDrag
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .offset { IntOffset(local.x.roundToInt(), local.y.roundToInt()) }
-                    .zIndex(12f)
-            ) {
-                AppIcon(
-                    dragged.packageName,
-                    dragged.activityName,
-                    state.iconSizeDp.dp,
-                    viewModel.icons,
-                    phase = editPhase
-                )
-                Text(
-                    dragged.label,
-                    color = Color.White.copy(alpha = 0.55f),
-                    fontSize = 11.sp,
-                    fontFamily = Outfit,
-                    maxLines = 1,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
             }
         }
     }
@@ -602,15 +560,7 @@ private fun HomeGreeting(
                 .weight(1f)
                 .padding(start = 12.dp, end = 8.dp)
         ) {
-            Text(
-                greeting,
-                color = Lumen.Text,
-                fontSize = 28.sp,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            FittingGreeting(greeting)
             Text(
                 date,
                 color = Lumen.Faint,
@@ -688,82 +638,12 @@ private fun ActionBar(
                 color = Lumen.Muted,
                 fontSize = 16.sp,
                 fontFamily = Outfit,
-                fontWeight = FontWeight.Light,
+                fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
             )
-            Icon(Icons.Outlined.MicNone, null, tint = Lumen.Accent, modifier = Modifier.size(18.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun SmartClusterCard(
-    state: LauncherUiState,
-    viewModel: LauncherViewModel,
-    modifier: Modifier = Modifier
-) {
-    val apps = state.clusterApps
-    val kicker = if (state.focusing) "FOCUS" else state.activeSpace.title.uppercase()
-    Glass(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), airy = true) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Text(
-                kicker,
-                color = Lumen.Accent,
-                fontFamily = Outfit,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "Apps that matter now",
-                color = Lumen.Faint,
-                fontFamily = Outfit,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
-            )
-            Crossfade(targetState = "${state.activeSpace.name}:${state.focusing}", label = "cluster") {
-                ClusterRing(apps = state.clusterApps, viewModel = viewModel)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ClusterRing(apps: List<AppInfo>, viewModel: LauncherViewModel) {
-    val count = apps.size.coerceAtLeast(1)
-    Box(
-        modifier = Modifier.fillMaxWidth().height(168.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(Modifier.size(148.dp)) {
-            val radius = size.minDimension / 2f - 6f
-            drawCircle(Color.White.copy(alpha = 0.05f), radius = radius)
-            drawCircle(
-                color = Color.White.copy(alpha = 0.16f),
-                radius = radius,
-                style = Stroke(width = 1.2.dp.toPx())
-            )
-        }
-        apps.forEachIndexed { index, app ->
-            val angle = Math.toRadians((-90.0 + 360.0 * index / count))
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = (cos(angle) * 58.0).toFloat().dp,
-                        y = (sin(angle) * 58.0).toFloat().dp
-                    )
-                    .size(40.dp)
-                    .iconContact(
-                        key = app.key,
-                        allowDrag = false,
-                        onPhase = {},
-                        onLaunch = { viewModel.launch(app) },
-                        onLongPress = { viewModel.showAppActions(app) }
-                    )
-            ) {
-                AppIcon(app.packageName, app.activityName, 40.dp, viewModel.icons)
-            }
+            NotificationsPreviewTile(Modifier.size(36.dp))
         }
     }
 }
@@ -954,8 +834,8 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            .padding(top = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         spaces.forEach { space ->
             val active = space == selected
@@ -1043,33 +923,18 @@ private fun HomeFolderTile(
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(vertical = 4.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(iconSize)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Color.White.copy(alpha = 0.16f))
-                .padding(5.dp)
-        ) {
-            val cells = listOf(
-                Alignment.TopStart, Alignment.TopEnd, Alignment.BottomStart, Alignment.BottomEnd
-            )
-            cells.forEachIndexed { index, align ->
-                val app = apps.getOrNull(index)
-                Box(Modifier.align(align).size(iconSize * 0.38f)) {
-                    if (app != null) {
-                        AppIcon(app.packageName, app.activityName, iconSize * 0.38f, icons)
-                    }
-                }
-            }
-        }
+        FolderPreview(apps, iconSize, icons)
         if (showLabel) {
             Text(
                 name,
                 color = Color.White,
                 fontSize = 11.sp,
+                lineHeight = 14.sp,
                 fontFamily = Outfit,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp)
             )
         }
     }
@@ -1088,6 +953,7 @@ private fun DockBar(
     onDrawer: () -> Unit,
     onMove: () -> Unit,
     onSlotBounds: (Int, Rect) -> Unit = { _, _ -> },
+    onDropFolder: (DockApp, Offset) -> Boolean = { _, _ -> false },
     onDropWindow: (Offset) -> Boolean = { false },
     onDropPrivate: (DockApp) -> Unit = {},
     modifier: Modifier = Modifier
@@ -1110,61 +976,64 @@ private fun DockBar(
         Box(Modifier.fillMaxSize().onGloballyPositioned { dockLayout = it }) {
             Row(
                 Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 26.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .fillMaxSize().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 slots.forEachIndexed { index, slot ->
-                    DockSlot(
-                        app = slot,
-                        iconSize = iconSize,
-                        icons = icons,
-                        hidden = moving && slot?.key == dockKey,
-                        highlighted = hoverSlot == index,
-                        onClick = onClick,
-                        onLongClick = onLongClick,
-                        onAdd = onDrawer,
-                        onBounds = { onSlotBounds(index, it) },
-                        onPositioned = { key, coords ->
-                            val dock = dockLayout
-                            if (dock != null && dock.isAttached && coords.isAttached) {
-                                slotOrigins[key] = dock.localPositionOf(coords, Offset.Zero)
-                            }
-                        },
-                        onContact = { app, phase, drag ->
-                            if (phase != IconPhase.Pressed && phase != IconPhase.Launching) {
-                                if (phase == IconPhase.Lifted &&
-                                    dockPhase != IconPhase.Lifted &&
-                                    dockPhase != IconPhase.Dragging
-                                ) {
-                                    liftOrigin = slotOrigins[app.key] ?: Offset.Zero
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        DockSlot(
+                            app = slot,
+                            iconSize = iconSize,
+                            icons = icons,
+                            hidden = moving && slot?.key == dockKey,
+                            highlighted = hoverSlot == index,
+                            onClick = onClick,
+                            onLongClick = onLongClick,
+                            onAdd = onDrawer,
+                            onBounds = { onSlotBounds(index, it) },
+                            onPositioned = { key, coords ->
+                                val dock = dockLayout
+                                if (dock != null && dock.isAttached && coords.isAttached) {
+                                    slotOrigins[key] = dock.localPositionOf(coords, Offset.Zero)
                                 }
-                                dockKey = if (phase == IconPhase.Rest) null else app.key
-                                dockPhase = phase
-                                dockDrag = if (phase == IconPhase.Rest) Offset.Zero else drag
-                                if (phase == IconPhase.Dragging) onMove()
+                            },
+                            onContact = { app, phase, drag ->
+                                if (phase != IconPhase.Pressed && phase != IconPhase.Launching) {
+                                    if (phase == IconPhase.Lifted &&
+                                        dockPhase != IconPhase.Lifted &&
+                                        dockPhase != IconPhase.Dragging
+                                    ) {
+                                        liftOrigin = slotOrigins[app.key] ?: Offset.Zero
+                                    }
+                                    dockKey = if (phase == IconPhase.Rest) null else app.key
+                                    dockPhase = phase
+                                    dockDrag = if (phase == IconPhase.Rest) Offset.Zero else drag
+                                    if (phase == IconPhase.Dragging) onMove()
+                                }
+                            },
+                            onDragEnd = { app ->
+                                val layout = dockLayout
+                                val window = if (layout != null && layout.isAttached) {
+                                    layout.localToWindow(liftOrigin + dockDrag + Offset(half, half))
+                                } else Offset.Unspecified
+                                if (window != Offset.Unspecified && onDropFolder(app, window)) {
+                                    // Folder handled this drop.
+                                } else if (window != Offset.Unspecified && onDropWindow(window)) {
+                                    onDropPrivate(app)
+                                } else {
+                                    val point = liftOrigin + dockDrag
+                                    val target = slotOrigins.minByOrNull { (_, pos) ->
+                                        (pos - point).getDistance()
+                                    }?.key
+                                    if (target != null) onReorder(app.key, target)
+                                }
+                                dockKey = null
+                                dockPhase = IconPhase.Rest
+                                dockDrag = Offset.Zero
                             }
-                        },
-                        onDragEnd = { app ->
-                            val layout = dockLayout
-                            val window = if (layout != null && layout.isAttached) {
-                                layout.localToWindow(liftOrigin + dockDrag + Offset(half, half))
-                            } else Offset.Unspecified
-                            if (window != Offset.Unspecified && onDropWindow(window)) {
-                                onDropPrivate(app)
-                            } else {
-                                val point = liftOrigin + dockDrag
-                                val target = slotOrigins.minByOrNull { (_, pos) ->
-                                    (pos - point).getDistance()
-                                }?.key
-                                if (target != null) onReorder(app.key, target)
-                            }
-                            dockKey = null
-                            dockPhase = IconPhase.Rest
-                            dockDrag = Offset.Zero
-                        }
-                    )
+                        )
+                    }
                 }
             }
             val dragged = apps.find { it.key == dockKey }
@@ -1360,6 +1229,7 @@ fun IconSlot(
                 style = TextStyle(
                     color = Color.White.copy(alpha = if (lifted) 0.4f else 1f),
                     fontSize = labelSize,
+                    lineHeight = labelSize * (14f / 11f),
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Normal,
                     shadow = Shadow(

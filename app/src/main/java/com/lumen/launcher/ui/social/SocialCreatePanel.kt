@@ -2,6 +2,12 @@ package com.lumen.launcher.ui.social
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
+import com.lumen.launcher.ui.LocalGlass
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -89,7 +95,11 @@ fun SocialCreatePanel(
     onDismiss: () -> Unit,
     onOpenTool: (SocialCreateTool) -> Unit
 ) {
-    if (!open) return
+    val visibility = remember { MutableTransitionState(false) }
+    visibility.targetState = open
+    val dim by animateFloatAsState(if (open) 0.40f else 0f, tween(280), label = "panel-dim")
+    if (!visibility.currentState && visibility.isIdle && !open) return
+    val glass = LocalGlass.current
     var dragX by remember { mutableFloatStateOf(0f) }
     var showAll by remember { mutableStateOf(false) }
     var showStickers by remember { mutableStateOf(false) }
@@ -107,7 +117,7 @@ fun SocialCreatePanel(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
+                .background(Color.Black.copy(alpha = dim))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -115,11 +125,11 @@ fun SocialCreatePanel(
                 )
         )
         AnimatedVisibility(
-            visible = true,
+            visibleState = visibility,
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .width(200.dp)
+                .width(248.dp)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -130,7 +140,7 @@ fun SocialCreatePanel(
                     )
                 },
             enter = fadeIn(tween(220)) + slideInHorizontally(tween(220)) { -it },
-            exit = fadeOut(tween(180)) + slideOutHorizontally(tween(200)) { -it }
+            exit = fadeOut(tween(300)) + slideOutHorizontally(tween(300)) { -it }
         ) {
             Column(
                 modifier = Modifier
@@ -138,41 +148,10 @@ fun SocialCreatePanel(
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(start = 10.dp, top = 8.dp, bottom = 10.dp)
-                    .shadow(30.dp, PanelShape, spotColor = Color(0xFF8B7CF6), ambientColor = Color(0xFF8B7CF6))
+                    
                     .clip(PanelShape)
-                    // Lavender frosted glass
-                    .background(
-                        if (LumenPalette.whiteGlass) {
-                            // White frosted glass
-                            Brush.verticalGradient(
-                                0f to Color(0xCC5B6470),
-                                0.45f to Color(0xD9404751),
-                                1f to Color(0xE62A2F36)
-                            )
-                        } else {
-                            Brush.verticalGradient(
-                                0f to Color(0xEB4A4586),
-                                0.45f to Color(0xEB33306A),
-                                1f to Color(0xF0221F4A)
-                            )
-                        }
-                    )
-                    .background(
-                        Brush.radialGradient(
-                            listOf(Color(0x40FFFFFF), Color.Transparent),
-                            center = Offset(0f, 0f),
-                            radius = 520f
-                        )
-                    )
-                    .border(
-                        1.5.dp,
-                        if (LumenPalette.whiteGlass) {
-                            Brush.verticalGradient(listOf(Color(0xE6FFFFFF), Color(0x59FFFFFF), Color(0x99FFFFFF)))
-                        } else {
-                            Brush.verticalGradient(listOf(Color(0xCCD8CCFF), Color(0x66A78BFA), Color(0xAAC4B5FD)))
-                        },
-                        PanelShape
-                    )
+                    .background(Brush.verticalGradient(listOf(Color(0xFFBDD8C5).copy(alpha = .38f), Color(0xFF7EAA92).copy(alpha = .28f), glass.cardBottom.copy(alpha = .40f))))
+                    .border(1.dp, Brush.verticalGradient(listOf(glass.strokeTop, glass.strokeBottom)), PanelShape)
                     .clickable(interactionSource = blockTouches, indication = null, onClick = {})
                     .padding(horizontal = 12.dp)
             ) {
@@ -185,17 +164,18 @@ fun SocialCreatePanel(
                         .clip(RoundedCornerShape(3.dp))
                         .background(Color.White.copy(alpha = 0.40f))
                 )
-                // Header: sparkle · Create · Create & share.
-                Row(
-                    Modifier.padding(top = 18.dp, bottom = 16.dp, start = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.AutoAwesome, null, tint = Lilac, modifier = Modifier.size(38.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text("Create", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 28.sp)
-                        Text("Create & share.", color = Color.White.copy(alpha = 0.78f), fontFamily = Outfit, fontSize = 14.sp, maxLines = 1)
+                Column(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Canvas(Modifier.size(48.dp)) {
+                        val gold = Color(0xFFE7D294)
+                        drawCircle(gold.copy(alpha = .5f), radius = size.minDimension * .45f, style = Stroke(1.2.dp.toPx()))
+                        drawCircle(gold, radius = size.minDimension * .36f, style = Stroke(1.8.dp.toPx()))
+                        drawCircle(gold, radius = 3.dp.toPx(), center = Offset(size.width * .79f, size.height * .23f))
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text("Lumen Panel", color = Color.White, fontFamily = Outfit,
+                        fontWeight = FontWeight.SemiBold, fontSize = 25.sp, textAlign = TextAlign.Center)
+                    Text("Create & share", color = Color.White.copy(.72f), fontFamily = Outfit, fontSize = 13.sp)
                 }
 
                 if (!showAll) {
@@ -313,13 +293,14 @@ private fun CreateToolCard(
     gradient: List<Color>,
     onClick: () -> Unit
 ) {
+    val glass = LocalGlass.current
     Row(
         Modifier
             .fillMaxWidth()
             .height(86.dp)
-            .shadow(12.dp, CardShape, spotColor = gradient[1], ambientColor = gradient[1])
+            
             .clip(CardShape)
-            .background(Brush.linearGradient(gradient))
+            .background(Brush.linearGradient(listOf(glass.airyTop, Color(0xFFAAC7B0).copy(alpha = .14f), glass.airyBottom)))
             // Glass sheen across the top
             .background(
                 Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent, Color.Transparent))

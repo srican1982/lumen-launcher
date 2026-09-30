@@ -127,6 +127,7 @@ fun LauncherRoot(
     SideEffect { LumenPalette.whiteGlass = state.theme.isWhiteGlass }
     LumenTheme {
         CompositionLocalProvider(
+            LocalIconGlassStrength provides state.iconGlassStrength,
             LocalIconTreatment provides when (state.theme) {
                 LumenThemeMode.WhiteGlass -> IconTreatment.WhiteGlass
                 LumenThemeMode.WhiteGlassColor -> IconTreatment.GlassColor
@@ -137,7 +138,7 @@ fun LauncherRoot(
                 state.glassDepth,
                 white = state.theme.isWhiteGlass
             ),
-            LocalNotificationBadgeMode provides state.notificationBadges,
+            LocalNotificationBadgeMode provides if (state.activeSpace == com.lumen.launcher.data.SpaceKind.Focus || state.focusing) com.lumen.launcher.badge.NotificationBadgeMode.Off else state.notificationBadges,
             LocalNotificationBadgeCounts provides badgeCounts
         ) {
         Box(
@@ -361,9 +362,9 @@ fun LauncherRoot(
             ) {
                 FolderEditorSheet(state, viewModel)
             }
-            if (state.recentsOpen) {
+            run {
                 SocialCreatePanel(
-                    open = true,
+                    open = state.recentsOpen,
                     creations = state.socialCreations,
                     activeSpace = state.activeSpace,
                     shareManager = viewModel.socialCreate.share,

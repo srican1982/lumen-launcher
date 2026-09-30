@@ -151,6 +151,7 @@ fun MenuSheet(state: LauncherUiState, viewModel: LauncherViewModel, onRequestDef
             MenuRow("Clear ${state.activeSpace.title} wallpaper") { viewModel.clearSpaceWallpaper() }
         }
         MenuRow("System wallpaper") { viewModel.openSystemWallpaperPicker() }
+        MenuRow("Create folder") { viewModel.openFolderCreator() }
         MenuRow("Launcher settings") { viewModel.openSettings() }
         MenuRow("Set as default Home") { onRequestDefaultHome() }
     }
@@ -217,6 +218,11 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 inactiveTrackColor = Color.White.copy(alpha = 0.12f)
             )
         )
+        var glassStrength by remember(state.iconGlassStrength) { mutableStateOf(state.iconGlassStrength) }
+        Text("Icon glass / 3D  " + (glassStrength * 100).toInt() + "%", color = Lumen.Muted, fontFamily = Outfit)
+        Slider(value = glassStrength, onValueChange = { glassStrength = it },
+            onValueChangeFinished = { viewModel.setIconGlassStrength(glassStrength) }, valueRange = 0f..1f)
+        Text("Flat to rich depth. Applies to every icon theme.", color = Lumen.Faint, fontSize = 12.sp)
         MenuRow("Home grid  ·  ${state.gridColumns} columns") { viewModel.cycleGridColumns() }
         MenuRow("App drawer grid  ·  ${state.drawerColumns} columns") { viewModel.cycleDrawerColumns() }
         MenuRow("Dock  ·  ${state.dockCapacity} apps") { viewModel.cycleDockCapacity() }
@@ -623,22 +629,12 @@ fun AppPickerSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
 
 @Composable
 fun FolderSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
-    val folder = state.activeFolder ?: return
-    val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
-    BottomMenu(folder.name, "${apps.size} apps", onDismiss = viewModel::closeSheet) {
-        if (apps.isEmpty()) {
-            Text("Add apps with voice, or edit this folder.", color = Lumen.Faint, fontFamily = Outfit, fontSize = 14.sp)
-        }
-        apps.forEach { app ->
-            MenuRow(app.label) { viewModel.launch(app) }
-        }
-        MenuRow("Edit folder") { viewModel.editFolder(folder) }
-        MenuRow("Delete folder") { viewModel.deleteActiveFolder() }
-    }
+    GlassFolderPanel(state, viewModel)
 }
 
 @Composable
 fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
+    var query by remember { mutableStateOf("") }
     val existing = state.activeFolder
     var name by remember(state.activeFolderId, state.folderSeedAppKey) {
         mutableStateOf(existing?.name ?: "Folder")
@@ -668,8 +664,17 @@ fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 .padding(14.dp)
         )
         Spacer(Modifier.height(10.dp))
+        BasicTextField(
+            value = query, onValueChange = { query = it }, singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Lumen.Text, fontFamily = Outfit, fontSize = 16.sp),
+            cursorBrush = SolidColor(Lumen.Accent),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Color.White.copy(.08f)).padding(14.dp),
+            decorationBox = { inner -> Box { if (query.isEmpty()) Text("Search apps", color = Lumen.Faint); inner() } }
+        )
+        Spacer(Modifier.height(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.height(240.dp)) {
-            items(state.visibleApps, key = { it.key }) { app ->
+            items(state.visibleApps.filter { it.label.contains(query.trim(), ignoreCase = true) }, key = { it.key }) { app ->
                 val on = app.key in selected
                 Row(
                     modifier = Modifier
@@ -682,6 +687,8 @@ fun FolderEditorSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                         .padding(horizontal = 8.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    AppIcon(app.packageName, app.activityName, 36.dp, viewModel.icons)
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         if (on) "On" else "Off",
                         color = if (on) Lumen.Accent else Lumen.Faint,

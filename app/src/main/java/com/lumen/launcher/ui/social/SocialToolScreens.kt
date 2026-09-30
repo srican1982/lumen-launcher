@@ -845,7 +845,7 @@ private fun ShapeGlyph(shape: QuoteShape, color: Color) {
 // ───────────────────────────── Photo ─────────────────────────────
 
 /** A mark on the photo, stored in image-relative units (0..1) so it maps exactly on export. */
-private data class PhotoMark(val points: List<Offset>, val color: Color, val widthFraction: Float)
+private data class PhotoMark(val points: List<Offset>, val color: Color, val widthFraction: Float, val tool: PhotoShape = PhotoShape.Pen)
 
 private val PhotoColors = listOf(
     Color(0xFFFFD56A), Color(0xFF9B5CF6), Color(0xFF3B82F6), Color(0xFFF472B6), Color.White
@@ -864,6 +864,9 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     var photo by remember { mutableStateOf<Bitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
     val marks = remember { mutableStateListOf<PhotoMark>() }
+    var shapeTool by remember { mutableStateOf(PhotoShape.Pen) }
+    var moveMode by remember { mutableStateOf(false) }
+    var selectedMark by remember { mutableStateOf<Int?>(null) }
     val live = remember { mutableStateListOf<Offset>() }
     var penColor by remember { mutableStateOf(PhotoColors.first()) }
     var sizeIdx by remember { mutableIntStateOf(2) }
@@ -897,6 +900,13 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             levelImages = levels.levels.map { it.asImageBitmap() }
         }
     }
+
+    fun markBounds(index: Int, rect: Rect): Rect? {
+        val mark = marks.getOrNull(index) ?: return null
+        return photoShapePath(mark.points.map { Offset(rect.left + it.x * rect.width, rect.top + it.y * rect.height) }, mark.tool).getBounds()
+    }
+    fun hitMark(point: Offset, rect: Rect): Int? =
+        marks.indices.reversed().firstOrNull { markBounds(it, rect)?.inflate(18f)?.contains(point) == true }
 
     fun screenRectOf(b: BlurBox, rect: Rect) = Rect(
         rect.left + b.left * rect.width,
@@ -946,7 +956,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             paint.color = m.color.toArgb()
             paint.strokeWidth = m.widthFraction * out.width
             val pts = m.points.map { Offset(it.x * out.width, it.y * out.height) }
-            canvas.drawPath(StrokeSmoothing.toPath(pts).asAndroidPath(), paint)
+            canvas.drawPath(photoShapePath(pts, m.tool).asAndroidPath(), paint)
         }
         return out
     }
@@ -1062,16 +1072,41 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                     .fillMaxSize()
                     .onSizeChanged { boxSize = it }
                     .clipToBounds()
-                    .pointerInput(blurMode, imageRect) {
+                    .pointerInput(blurMode, imageRect, moveMode) {
                         // Blur mode: tap a box to select it (tap elsewhere to deselect).
                         val rect = imageRect ?: return@pointerInput
+                        if (moveMode) {
+                            detectTapGestures { o -> selectedMark = hitMark(o, rect) }
+                            return@pointerInput
+                        }
                         if (!blurMode) return@pointerInput
                         detectTapGestures { o ->
                             selectedBlur = blurBoxes.lastOrNull { screenRectOf(it, rect).contains(o) }?.id
                         }
                     }
-                    .pointerInput(bmp, penColor, sizeIdx, imageRect, blurMode) {
+                    .pointerInput(bmp, penColor, sizeIdx, imageRect, blurMode, shapeTool, moveMode) {
                         val rect = imageRect ?: return@pointerInput
+                        if (moveMode) {
+                            var moving: Int? = null
+                            detectDragGestures(
+                                onDragStart = { o -> moving = hitMark(o, rect); selectedMark = moving },
+                                onDrag = { change, delta ->
+                                    moving?.let { index ->
+                                        marks.getOrNull(index)?.let { mark ->
+                                            change.consume()
+                                            val minX = mark.points.minOf { it.x }
+                                            val maxX = mark.points.maxOf { it.x }
+                                            val minY = mark.points.minOf { it.y }
+                                            val maxY = mark.points.maxOf { it.y }
+                                            val dx = (delta.x / rect.width).coerceIn(-minX, (1f - maxX).coerceAtLeast(-minX))
+                                            val dy = (delta.y / rect.height).coerceIn(-minY, (1f - maxY).coerceAtLeast(-minY))
+                                            marks[index] = mark.copy(points = mark.points.map { it + Offset(dx, dy) })
+                                        }
+                                    }
+                                }, onDragEnd = { moving = null }, onDragCancel = { moving = null }
+                            )
+                            return@pointerInput
+                        }
                         if (blurMode) {
                             // Drag a corner handle to resize, drag inside a box to move it.
                             val handle = 28.dp.toPx()
@@ -1125,7 +1160,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             onDragEnd = {
                                 if (live.size >= 2) {
                                     val px = with(density) { PhotoBrushSizes[sizeIdx].dp.toPx() }
-                                    marks.add(PhotoMark(live.toList(), penColor, px / rect.width))
+                                    marks.add(PhotoMark(live.toList(), penColor, px / rect.width, shapeTool))
                                 }
                                 live.clear()
                             },
@@ -1164,17 +1199,22 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                         }
                         marks.forEach { m ->
                             drawPath(
-                                StrokeSmoothing.toPath(m.points.map(::toScreen)),
+                                photoShapePath(m.points.map(::toScreen), m.tool),
                                 m.color,
                                 style = Stroke(m.widthFraction * rect.width, cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
                         }
                         if (live.size >= 2) {
                             drawPath(
-                                StrokeSmoothing.toPath(live.map(::toScreen)),
+                                photoShapePath(live.map(::toScreen), shapeTool),
                                 penColor,
                                 style = Stroke(PhotoBrushSizes[sizeIdx].dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
+                        }
+                    }
+                    if (moveMode) selectedMark?.let { index ->
+                        markBounds(index, rect)?.inflate(6.dp.toPx())?.let { bounds ->
+                            drawRect(Color.White.copy(.8f), bounds.topLeft, bounds.size, style = Stroke(1.dp.toPx()))
                         }
                     }
                     if (blurMode) {
@@ -1208,17 +1248,30 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                 .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            CreateChip("Draw", !blurMode, leading = {
+            CreateChip("Draw", !blurMode && !moveMode, leading = {
                 Icon(Icons.Outlined.Edit, null, tint = chipIconTint(!blurMode), modifier = Modifier.size(20.dp))
             }) {
                 blurMode = false
+                moveMode = false
                 selectedBlur = null
             }
+            CreateChip("Select", moveMode) { moveMode = true; blurMode = false; live.clear() }
             CreateChip("Blur", blurMode, leading = {
                 Icon(Icons.Outlined.BlurOn, null, tint = chipIconTint(blurMode), modifier = Modifier.size(20.dp))
             }) {
+                moveMode = false
                 if (blurBoxes.isEmpty()) addBlurBox() else blurMode = true
             }
+        }
+        if (!blurMode) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PhotoShape.entries.forEach { tool ->
+                    CreateChip(tool.name, shapeTool == tool && !moveMode) { shapeTool = tool; moveMode = false }
+                }
+            }
+            Text(if (moveMode) "Tap a mark to select it. Drag to move it." else "Choose a tool, then drag on the photo.", color = CreatePalette.Label,
+                fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
         if (blurMode) {
             Column(Modifier.padding(horizontal = 16.dp)) {

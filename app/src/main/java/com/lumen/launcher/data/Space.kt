@@ -52,7 +52,10 @@ object SpaceCopy {
 
     fun context(space: SpaceKind, hour: Int, automatic: Boolean): SpaceContext {
         val prompt = when (space) {
-            SpaceKind.Work -> "Ask or open anything"
+            SpaceKind.Work -> "Find an app, task or meeting"
+            SpaceKind.Personal -> "Who do you want to connect with?"
+            SpaceKind.Focus -> "What are you working on?"
+            SpaceKind.Travel -> "Where do you want to go?"
             SpaceKind.Private -> "Unlock to open"
             else -> "What do you want to do?"
         }

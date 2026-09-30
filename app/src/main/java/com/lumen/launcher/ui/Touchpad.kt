@@ -19,6 +19,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -105,6 +106,11 @@ fun TouchpadIsland(
     markSize: Dp = 60.dp
 ) {
     val view = LocalView.current
+    val onboarding = remember(view.context) {
+        view.context.applicationContext.getSharedPreferences("lumen_onboarding", android.content.Context.MODE_PRIVATE)
+    }
+    var voiceHintSeen by remember { mutableStateOf(onboarding.getBoolean("touchpad_voice_used", false)) }
+    val showVoiceHint = !voiceHintSeen && state.tapAction == com.lumen.launcher.data.GestureAction.VOICE
     val scope = rememberCoroutineScope()
     // Logo center in canvas coordinates — both must be laid out before the hold ring can align.
     var canvasCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -234,7 +240,13 @@ fun TouchpadIsland(
                     armed = next
                 },
                 onTapPulse = { count, origin -> pulseAt(count, origin) },
-                onTap = { onGesture("tap") },
+                onTap = {
+                    if (showVoiceHint) {
+                        voiceHintSeen = true
+                        onboarding.edit().putBoolean("touchpad_voice_used", true).apply()
+                    }
+                    onGesture("tap")
+                },
                 onDoubleTap = { onGesture("double") },
                 onTripleTap = { onGesture("triple") },
                 onLongPress = {
@@ -456,7 +468,7 @@ fun TouchpadIsland(
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 Text(
-                    if (seal > 0.6f) "Space" else "TouchPad",
+                    if (seal > 0.6f) "Space" else if (showVoiceHint) "Tap to talk" else "TouchPad",
                     color = Color.White.copy(alpha = 0.52f),
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Medium,
@@ -471,10 +483,11 @@ fun TouchpadIsland(
                 Modifier
                     .fillMaxSize()
                     .padding(horizontal = 6.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 LogoMark()
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     if (seal > 0.6f) "Private" else "Lumen",
                     color = Color.White.copy(alpha = if (pressed) 0.95f else 0.92f),
@@ -485,7 +498,7 @@ fun TouchpadIsland(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    if (seal > 0.6f) "Space" else "TouchPad",
+                    if (seal > 0.6f) "Space" else if (showVoiceHint) "Tap to talk" else "TouchPad",
                     color = Color.White.copy(alpha = 0.72f),
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Medium,

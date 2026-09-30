@@ -5,6 +5,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import com.lumen.launcher.data.IconTreatment
 
+val LocalIconGlassStrength = staticCompositionLocalOf { 0.5f }
+
 val LocalIconTreatment = staticCompositionLocalOf { IconTreatment.Original }
 
 fun iconColorFilter(treatment: IconTreatment): ColorFilter? = when (treatment) {
@@ -24,8 +26,8 @@ fun iconColorFilter(treatment: IconTreatment): ColorFilter? = when (treatment) {
 }
 
 fun iconElevation(treatment: IconTreatment, rest: Float): Float = when (treatment) {
-    IconTreatment.Glass -> rest + 6f
-    IconTreatment.WhiteGlass, IconTreatment.GlassColor -> rest + 3f
+    IconTreatment.Glass -> 0f
+    IconTreatment.WhiteGlass, IconTreatment.GlassColor -> 0f
     IconTreatment.Work -> rest + 2f
     IconTreatment.Mono -> rest - 1f
     IconTreatment.Contrast -> rest + 4f

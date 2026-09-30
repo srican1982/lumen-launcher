@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -241,6 +242,7 @@ fun DrawerSheet(
                 .emptySpaceLongPress(enabled = !holding, onLongPress = viewModel::openMenu)
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(8.dp))
@@ -623,12 +625,7 @@ private fun DrawerAppRow(
     var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
     val view = LocalView.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 64.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+    val iconTouch = Modifier
             .iconContact(
                 key = app.key,
                 allowDrag = true,
@@ -660,9 +657,13 @@ private fun DrawerAppRow(
                 },
                 onDragEnd = onDragEnd
             )
-            .onGloballyPositioned { coords ->
-                onLocated(coords.boundsInWindow().topLeft)
-            }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -670,6 +671,7 @@ private fun DrawerAppRow(
                 .fillMaxWidth()
                 .padding(vertical = 10.dp, horizontal = 2.dp)
         ) {
+        Box(iconTouch.padding(6.dp)) {
         AppIcon(
             packageName = app.packageName,
             activityName = app.activityName,
@@ -681,7 +683,7 @@ private fun DrawerAppRow(
             } else {
                 phase
             },
-            modifier = Modifier.then(
+            modifier = Modifier.onGloballyPositioned { onLocated(it.boundsInWindow().topLeft) }.then(
                 if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
                     Modifier.graphicsLayer { alpha = 0f }
                 } else {
@@ -689,7 +691,9 @@ private fun DrawerAppRow(
                 }
             )
         )
+        }
         Spacer(Modifier.width(16.dp))
+        Box(Modifier.weight(1f)) {
         Text(
             text = app.label,
             color = Color.White.copy(alpha = if (lifted) 0.35f else 0.96f),
@@ -697,8 +701,9 @@ private fun DrawerAppRow(
             fontWeight = FontWeight.Normal,
             fontSize = 16.sp,
             maxLines = 1,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.clickable(onClick = onLaunch).padding(vertical = 12.dp, horizontal = 4.dp)
         )
+        }
         }
     }
 }
@@ -720,12 +725,7 @@ private fun DrawerCategoryCell(
     var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
     val view = LocalView.current
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .defaultMinSize(minHeight = 88.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+    val iconTouch = Modifier
             .iconContact(
                 key = app.key,
                 allowDrag = true,
@@ -757,11 +757,16 @@ private fun DrawerCategoryCell(
                 },
                 onDragEnd = onDragEnd
             )
-            .onGloballyPositioned { coords ->
-                onLocated(coords.boundsInWindow().topLeft)
-            }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .defaultMinSize(minHeight = 88.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
+
             .padding(vertical = 8.dp, horizontal = 4.dp)
     ) {
+        Box(iconTouch.padding(6.dp)) {
         AppIcon(
             packageName = app.packageName,
             activityName = app.activityName,
@@ -773,7 +778,7 @@ private fun DrawerCategoryCell(
             } else {
                 phase
             },
-            modifier = Modifier.then(
+            modifier = Modifier.onGloballyPositioned { onLocated(it.boundsInWindow().topLeft) }.then(
                 if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
                     Modifier.graphicsLayer { alpha = 0f }
                 } else {
@@ -781,6 +786,7 @@ private fun DrawerCategoryCell(
                 }
             )
         )
+        }
         Spacer(Modifier.height(6.dp))
         Text(
             text = app.label,
@@ -791,7 +797,7 @@ private fun DrawerCategoryCell(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.clickable(onClick = onLaunch).padding(horizontal = 4.dp, vertical = 6.dp)
         )
     }
 }

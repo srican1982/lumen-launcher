@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
@@ -108,7 +109,8 @@ fun SearchSheet(
                 query = state.query,
                 onQueryChange = viewModel::onQueryChange,
                 focusRequester = focusRequester,
-                onSearch = viewModel::submitSearch
+                onSearch = viewModel::submitSearch,
+                onVoice = { keyboard?.hide(); viewModel.openVoice() }
             )
             Spacer(Modifier.height(14.dp))
             if (state.query.isBlank()) {
@@ -199,7 +201,8 @@ private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     focusRequester: FocusRequester,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    onVoice: () -> Unit
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     Row(
@@ -252,14 +255,12 @@ private fun SearchField(
                     .onFocusChanged { if (it.isFocused) keyboard?.show() }
             )
         }
-        Icon(
-            Icons.Outlined.AutoAwesome,
-            contentDescription = null,
-            tint = Lumen.Accent.copy(alpha = 0.85f),
-            modifier = Modifier
-                .padding(end = 8.dp)
-                .size(16.dp)
-        )
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onVoice),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.MicNone, "Speak to Lumen", tint = Lumen.Accent, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

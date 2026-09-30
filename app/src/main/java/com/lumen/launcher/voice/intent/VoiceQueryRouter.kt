@@ -6,8 +6,8 @@ import com.lumen.launcher.voice.VoiceHearing
 
 object VoiceQueryRouter {
 
-    fun route(candidates: List<String>, appLabels: List<String> = emptyList()): VoiceIntent {
-        val texts = VoiceHearing.expandAll(candidates, appLabels)
+    fun route(candidates: List<String>, appLabels: List<String> = emptyList(), folderNames: List<String> = emptyList()): VoiceIntent {
+        val texts = VoiceHearing.expandAll(candidates.map { NaturalVoicePhrases.normalize(FolderVoiceNames.normalize(it, folderNames), appLabels) }, appLabels)
         if (texts.isEmpty()) return VoiceIntent(VoiceAction.UNKNOWN, 0f, "")
 
         // An explicit request for an installed app is unambiguous. Resolve it

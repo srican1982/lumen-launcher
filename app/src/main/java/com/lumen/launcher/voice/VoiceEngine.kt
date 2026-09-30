@@ -48,12 +48,15 @@ class VoiceEngine(
     private var lastPartial = ""
     private var listenAfterSpeak = false
     private var generation = 0
+    private val speechTurn = SpeechTurn()
+    private var startFailures = 0
     private var focusRequest: AudioFocusRequest? = null
 
     private val commandWatchdog = Runnable {
         if (mode != Mode.Command) return@Runnable
         val leftover = lastPartial.trim()
         lastPartial = ""
+        goIdle(destroy = true)
         if (leftover.isNotBlank()) callbacks.onResults(listOf(leftover))
         else callbacks.onSoftMiss()
     }
@@ -81,18 +84,18 @@ class VoiceEngine(
                 override fun onStart(utteranceId: String?) = Unit
                 override fun onDone(utteranceId: String?) {
                     main.post {
-                        if (utteranceId == "lumen-speak") finishSpeak()
+                        finishSpeak(utteranceId)
                     }
                 }
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
-                    main.post { finishSpeak() }
+                    main.post { finishSpeak(utteranceId) }
                 }
                 override fun onError(utteranceId: String?, errorCode: Int) {
-                    main.post { finishSpeak() }
+                    main.post { finishSpeak(utteranceId) }
                 }
                 override fun onStop(utteranceId: String?, interrupted: Boolean) {
-                    if (interrupted) main.post { finishSpeak() }
+                    if (interrupted) main.post { finishSpeak(utteranceId) }
                 }
             })
         }
@@ -108,6 +111,10 @@ class VoiceEngine(
     }
 
     fun listenCommand() {
+        speechTurn.cancel()
+        listenAfterSpeak = false
+        runCatching { tts?.stop() }
+        startFailures = 0
         generation += 1
         lastPartial = ""
         main.removeCallbacks(commandWatchdog)
@@ -116,6 +123,7 @@ class VoiceEngine(
     }
 
     fun stopCommand() {
+        speechTurn.cancel()
         generation += 1
         listenAfterSpeak = false
         lastPartial = ""
@@ -127,21 +135,25 @@ class VoiceEngine(
     }
 
     fun speak(text: String, listenAfter: Boolean) {
+        generation += 1
+        main.removeCallbacks(wakeRestart)
+        goIdle(destroy = false)
+        val utteranceId = speechTurn.begin()
         listenAfterSpeak = listenAfter
         val engine = tts
         if (!ttsReady || engine == null) {
-            callbacks.onSpeakFinished(listenAfter)
+            finishSpeak(utteranceId)
             return
         }
         requestFocus()
-        val spoken = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "lumen-speak")
+        val spoken = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         if (spoken != TextToSpeech.SUCCESS) {
-            dropFocus()
-            callbacks.onSpeakFinished(listenAfter)
+            finishSpeak(utteranceId)
         }
     }
 
     fun release() {
+        speechTurn.cancel()
         wakeWanted = false
         generation += 1
         main.removeCallbacks(commandWatchdog)
@@ -189,6 +201,12 @@ class VoiceEngine(
         if (!started) {
             recreateRecognizer()
             if (next == Mode.Command) {
+                startFailures += 1
+                if (startFailures >= 2) {
+                    goIdle(destroy = true)
+                    callbacks.onHardError("The microphone is unavailable. Try again or type below.")
+                    return
+                }
                 main.postDelayed({
                     if (gen == generation) startNow(Mode.Command, gen)
                 }, 280L)
@@ -232,7 +250,8 @@ class VoiceEngine(
         if (wakeWanted) main.postDelayed(wakeRestart, delayMs)
     }
 
-    private fun finishSpeak() {
+    private fun finishSpeak(utteranceId: String?) {
+        if (!speechTurn.complete(utteranceId)) return
         val again = listenAfterSpeak
         listenAfterSpeak = false
         dropFocus()
@@ -292,7 +311,12 @@ class VoiceEngine(
             goIdle(destroy = VoiceErrors.isBusy(error))
             when {
                 VoiceErrors.isBusy(error) -> {
-                    main.postDelayed({ listenCommand() }, 280L)
+                    val gen = generation
+                    main.postDelayed({
+                        if (gen == generation && mode == Mode.Idle) {
+                            callbacks.onHardError("The microphone is busy. Try again or type below.")
+                        }
+                    }, 280L)
                 }
                 VoiceErrors.isSoftMiss(error) -> {
                     val leftover = lastPartial.trim()

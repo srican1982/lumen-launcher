@@ -28,6 +28,7 @@ class LauncherPreferences(private val context: Context) {
             launchTimes = decodeLaunchTimes(prefs[LAUNCH_TIMES].orEmpty()),
             hidden = prefs[HIDDEN].orEmpty(),
             iconSizeDp = prefs[ICON_SIZE] ?: 60f,
+            iconGlassStrength = (prefs[ICON_GLASS_STRENGTH] ?: 0.5f).coerceIn(0f, 1f),
             gridColumns = (prefs[GRID_COLUMNS] ?: 4).coerceIn(3, 6),
             drawerColumns = (prefs[DRAWER_COLUMNS] ?: 4).coerceIn(3, 6),
             dockCapacity = (prefs[DOCK_CAPACITY] ?: 4).coerceIn(3, 6),
@@ -37,7 +38,7 @@ class LauncherPreferences(private val context: Context) {
             glassDepth = prefs[GLASS_DEPTH].orEmpty(),
             smartCluster = prefs[SMART_CLUSTER] ?: true,
             aliases = decodeAliases(prefs[ALIASES].orEmpty()),
-            spaceOverride = prefs[SPACE]?.takeIf { it.isNotBlank() },
+            spaceOverride = (prefs[SPACE] ?: SpaceKind.Home.name).takeUnless { it == "Auto" },
             privateApps = prefs[PRIVATE].orEmpty(),
             newsInterests = prefs[NEWS_INTERESTS].orEmpty(),
             dockKeys = if (prefs.contains(DOCK)) decodeList(prefs[DOCK].orEmpty()) else null,
@@ -69,6 +70,10 @@ class LauncherPreferences(private val context: Context) {
             whatsAppMissed = decodeWhatsAppMissed(prefs[WHATSAPP_MISSED].orEmpty()),
             launchHours = decodeList(prefs[LAUNCH_HOURS].orEmpty())
                 .mapNotNull { SpaceSense.parseLaunchHour(it) },
+            modeApps = decodeSpaceDocks(prefs[MODE_APPS].orEmpty()),
+            travelDestination = prefs[TRAVEL_DESTINATION].orEmpty(),
+            travelTicket = prefs[TRAVEL_TICKET].orEmpty(),
+            travelAttachments = TravelAttachments.decode(prefs[TRAVEL_ATTACHMENTS], prefs[TRAVEL_TICKET].orEmpty()),
             spaceDocks = decodeSpaceDocks(prefs[SPACE_DOCKS].orEmpty()),
             aliasHints = decodeAliasHints(prefs[ALIAS_HINTS].orEmpty()),
             notes = decodeNotes(prefs[NOTES].orEmpty()),
@@ -87,6 +92,10 @@ class LauncherPreferences(private val context: Context) {
 
     suspend fun setHidden(packages: Set<String>) {
         context.launcherStore.edit { it[HIDDEN] = packages }
+    }
+
+    suspend fun setIconGlassStrength(value: Float) {
+        context.launcherStore.edit { it[ICON_GLASS_STRENGTH] = value.coerceIn(0f, 1f) }
     }
 
     suspend fun setIconSize(sizeDp: Float) {
@@ -314,9 +323,38 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit { it[WHATSAPP_MISSED] = encodeWhatsAppMissed(items.take(12)) }
     }
 
+    suspend fun saveDockExchange(space: String, home: List<String>, dock: List<String>) {
+        context.launcherStore.edit { prefs ->
+            val modes = decodeSpaceDocks(prefs[MODE_APPS].orEmpty()) + (space to home.distinct())
+            val docks = decodeSpaceDocks(prefs[SPACE_DOCKS].orEmpty()) + (space to dock.distinct())
+            prefs[MODE_APPS] = encodeSpaceDocks(modes)
+            prefs[DOCK] = encodeList(dock.distinct())
+            prefs[SPACE_DOCKS] = encodeSpaceDocks(docks)
+        }
+    }
+
+    suspend fun setModeApps(apps: Map<String, List<String>>) {
+        context.launcherStore.edit { it[MODE_APPS] = encodeSpaceDocks(apps) }
+    }
+
+    suspend fun updateTravelAttachments(add: List<TravelAttachment> = emptyList(), remove: TravelAttachment? = null) {
+        context.launcherStore.edit { prefs ->
+            val current = TravelAttachments.decode(prefs[TRAVEL_ATTACHMENTS], prefs[TRAVEL_TICKET].orEmpty())
+            val remaining = current.filterNot { remove != null && it.uri == remove.uri && it.travelCategory == remove.travelCategory }
+            prefs[TRAVEL_ATTACHMENTS] = TravelAttachments.encode(TravelAttachments.merge(remaining, add))
+        }
+    }
+
+    suspend fun setTravel(destination: String, ticket: String) {
+        context.launcherStore.edit {
+            it[TRAVEL_DESTINATION] = destination
+            it[TRAVEL_TICKET] = ticket
+        }
+    }
+
     suspend fun setSpaceOverride(name: String?) {
         context.launcherStore.edit { prefs ->
-            if (name.isNullOrBlank()) prefs.remove(SPACE) else prefs[SPACE] = name
+            prefs[SPACE] = name?.takeIf { it.isNotBlank() } ?: "Auto"
         }
     }
 
@@ -325,7 +363,8 @@ class LauncherPreferences(private val context: Context) {
             listOf(
                 folder.id,
                 folder.name.replace('\u001f', ' ').replace('\u001e', ' '),
-                folder.appKeys.joinToString(",")
+                folder.appKeys.joinToString(","),
+                folder.space
             ).joinToString("\u001f")
         }
 
@@ -337,7 +376,7 @@ class LauncherPreferences(private val context: Context) {
             val id = parts[0].ifBlank { return@mapNotNull null }
             val name = parts[1].ifBlank { "Folder" }
             val keys = parts.getOrElse(2) { "" }.split(',').map { it.trim() }.filter { it.isNotBlank() }
-            HomeFolder(id, name, keys)
+            HomeFolder(id, name, keys, parts.getOrElse(3) { SpaceKind.Home.name })
         }
     }
 
@@ -550,6 +589,7 @@ class LauncherPreferences(private val context: Context) {
         val RECENTS = stringPreferencesKey("recents")
         val LAUNCH_TIMES = stringPreferencesKey("launch_times")
         val HIDDEN = stringSetPreferencesKey("hidden")
+        val ICON_GLASS_STRENGTH = floatPreferencesKey("icon_glass_strength")
         val ICON_SIZE = floatPreferencesKey("icon_size")
         val GRID_COLUMNS = intPreferencesKey("grid_columns")
         val DRAWER_COLUMNS = intPreferencesKey("drawer_columns")
@@ -587,6 +627,10 @@ class LauncherPreferences(private val context: Context) {
         val ALARM_TONE = stringPreferencesKey("alarm_tone")
         val WHATSAPP_MISSED = stringPreferencesKey("whatsapp_missed")
         val LAUNCH_HOURS = stringPreferencesKey("launch_hours")
+        val MODE_APPS = stringPreferencesKey("mode_apps")
+        val TRAVEL_DESTINATION = stringPreferencesKey("travel_destination")
+        val TRAVEL_ATTACHMENTS = stringPreferencesKey("travel_attachments")
+        val TRAVEL_TICKET = stringPreferencesKey("travel_ticket")
         val SPACE_DOCKS = stringPreferencesKey("space_docks")
         val ALIAS_HINTS = stringPreferencesKey("alias_hints")
         val NOTES = stringPreferencesKey("lumen_notes")
@@ -605,6 +649,7 @@ data class LauncherState(
     val launchTimes: Map<String, Long> = emptyMap(),
     val hidden: Set<String> = emptySet(),
     val iconSizeDp: Float = 60f,
+    val iconGlassStrength: Float = 0.5f,
     val gridColumns: Int = 4,
     val drawerColumns: Int = 4,
     val dockCapacity: Int = 4,
@@ -641,6 +686,10 @@ data class LauncherState(
     val alarmTone: String = AlarmTones.AURA,
     val whatsAppMissed: List<MissedCall> = emptyList(),
     val launchHours: List<SpaceSense.LaunchHour> = emptyList(),
+    val modeApps: Map<String, List<String>> = emptyMap(),
+    val travelDestination: String = "",
+    val travelTicket: String = "",
+    val travelAttachments: List<TravelAttachment> = emptyList(),
     val spaceDocks: Map<String, List<String>> = emptyMap(),
     val aliasHints: Map<String, Int> = emptyMap(),
     val notes: List<CaptureNote> = emptyList(),

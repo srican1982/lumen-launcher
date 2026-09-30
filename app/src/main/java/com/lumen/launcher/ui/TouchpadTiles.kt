@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,11 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.PanTool
 import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material3.Slider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -82,6 +88,7 @@ private fun Modifier.whiteGlassTile(): Modifier = this
     )
 
 /** Mini player for whatever is playing: artwork, progress, previous / play-pause / next. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowPlayingTile(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -105,6 +112,8 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
         }
     }
 
+    var scrub by remember(np?.packageName, np?.title, np?.durationMs) { mutableStateOf<Float?>(null) }
+
     // Advance the progress bar while playing.
     var progress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(np) {
@@ -118,20 +127,27 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
     BoxWithConstraints(
         modifier
             .whiteGlassTile()
-            .clickable { NowPlayingRepository.openPlayer(context) }
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
     // Short tiles (e.g. labels hidden) drop the title and use a smaller artwork.
     val compact = maxHeight < 100.dp
+    val showArtwork = maxHeight >= 64.dp
+    val horizontalHeader = maxWidth >= 100.dp
+    val showStackedTitle = maxHeight >= 84.dp
     Column(
         Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Artwork (or a music-note tile when nothing is playing)
+        // Keep playback controls clear when the home panel uses a short tile.
+        if (showArtwork) Row(
+            Modifier.fillMaxWidth().clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) },
+            horizontalArrangement = if (horizontalHeader) Arrangement.spacedBy(8.dp) else Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         Box(
             Modifier
-                .size(if (compact) 30.dp else 40.dp)
+                .size(if (compact) 26.dp else 40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center
@@ -143,7 +159,18 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
                 Icon(Icons.Filled.MusicNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
             }
         }
-        if (!compact) Text(
+        if (horizontalHeader) Text(
+            text = np?.title?.takeIf { it.isNotBlank() } ?: "Not playing",
+            color = Color.White,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        }
+        if (showStackedTitle && !horizontalHeader) Text(
             text = np?.title?.takeIf { it.isNotBlank() } ?: "Not Playing",
             color = Color.White,
             fontFamily = Outfit,
@@ -151,42 +178,54 @@ fun NowPlayingTile(modifier: Modifier = Modifier) {
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp)
+            modifier = Modifier.clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) }
         )
-        // Progress line with a small knob
-        Canvas(
-            Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-        ) {
-            val y = size.height / 2f
-            drawLine(Color.White.copy(alpha = 0.35f), Offset(0f, y), Offset(size.width, y), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
-            val x = size.width * progress
-            drawLine(Color.White, Offset(0f, y), Offset(x, y), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
-            drawCircle(Color.White, radius = 3.5.dp.toPx(), center = Offset(x, y))
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            Slider(
+                value = scrub ?: progress,
+                onValueChange = { scrub = it },
+                onValueChangeFinished = {
+                    scrub?.let { NowPlayingRepository.seekTo(it) }
+                    scrub = null
+                },
+                enabled = np?.canSeek == true && (np?.durationMs ?: 0L) > 0L,
+                modifier = Modifier.fillMaxWidth().height(20.dp),
+                thumb = {
+                    Canvas(Modifier.size(8.dp)) {
+                        drawCircle(Color.White)
+                    }
+                },
+                track = { slider ->
+                    Canvas(Modifier.fillMaxWidth().height(3.dp)) {
+                        val y = size.height / 2f
+                        drawLine(Color.White.copy(alpha = 0.35f), Offset(0f, y), Offset(size.width, y), strokeWidth = size.height, cap = StrokeCap.Round)
+                        drawLine(Color.White, Offset(0f, y), Offset(size.width * slider.value, y), strokeWidth = size.height, cap = StrokeCap.Round)
+                    }
+                }
+            )
         }
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ControlButton(Icons.Filled.FastRewind, "Previous", 18.dp) { NowPlayingRepository.previous(context) }
+            ControlButton(Icons.Filled.FastRewind, "Previous", 18.dp, Modifier.weight(1f)) { NowPlayingRepository.previous(context) }
             ControlButton(
                 if (np?.playing == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                 if (np?.playing == true) "Pause" else "Play",
-                22.dp
+                22.dp, Modifier.weight(1f)
             ) { NowPlayingRepository.playPause(context) }
-            ControlButton(Icons.Filled.FastForward, "Next", 18.dp) { NowPlayingRepository.next(context) }
+            ControlButton(Icons.Filled.FastForward, "Next", 18.dp, Modifier.weight(1f)) { NowPlayingRepository.next(context) }
         }
     }
     }
 }
 
 @Composable
-private fun ControlButton(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun ControlButton(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        Modifier
-            .size(24.dp)
+        modifier
+            .height(28.dp)
             .clip(CircleShape)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -200,40 +239,30 @@ private fun ControlButton(icon: ImageVector, label: String, size: androidx.compo
 fun NotificationsPreviewTile(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val badge by NotificationBadgeRepository.state.collectAsState()
-    val count = badge.countsByPackage.values.sum()
+    val count = if (LocalNotificationBadgeMode.current == com.lumen.launcher.badge.NotificationBadgeMode.Off) 0 else badge.countsByPackage.values.sum()
 
     BoxWithConstraints(
-        modifier
-            .whiteGlassTile()
-            .clickable(onClickLabel = "Open notifications") { StatusBarController.expandNotifications(context) },
+        modifier.clickable(onClickLabel = "Open notifications") {
+            StatusBarController.expandNotifications(context)
+        },
         contentAlignment = Alignment.Center
     ) {
-        // Just a bell with the red count — sized to the tile.
-        val bell = (minOf(maxWidth, maxHeight) * 0.56f).coerceIn(22.dp, 42.dp)
-        Box(contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .size(bell * 1.35f)
-                    .background(
-                        Brush.radialGradient(listOf(Color(0x33F5CB7E), Color.Transparent)),
-                        CircleShape
-                    )
+        val bell = (minOf(maxWidth, maxHeight) * 0.70f).coerceIn(22.dp, 42.dp)
+        Box(Modifier.size(bell)) {
+            Icon(
+                Icons.Filled.Notifications,
+                contentDescription = if (count > 0) "$count notifications" else "Notifications",
+                tint = Color(0xFFF5CB7E),
+                modifier = Modifier.fillMaxSize()
             )
-            Box(Modifier.size(bell)) {
-                Icon(
-                    Icons.Filled.Notifications,
-                    contentDescription = if (count > 0) "$count notifications" else "Notifications",
-                    tint = Color(0xFFF5CB7E),
-                    modifier = Modifier.fillMaxSize()
-                )
-                CountBadge(
-                    count = count,
-                    height = (bell * 0.5f).coerceIn(16.dp, 20.dp),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = bell * 0.22f, y = -(bell * 0.14f))
-                )
-            }
+            CountBadge(
+                count = count,
+                height = 12.dp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-6).dp)
+                    .wrapContentSize(unbounded = true)
+            )
         }
     }
 }

@@ -99,7 +99,7 @@ class LauncherActivity : FragmentActivity() {
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { }
+    ) { granted -> viewModel.onFocusNotificationPermission(granted) }
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -212,6 +212,7 @@ class LauncherActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        viewModel.resumeFocusSetup()
         clearNavScrim()
         viewModel.refreshApps()
         viewModel.refreshFlow()

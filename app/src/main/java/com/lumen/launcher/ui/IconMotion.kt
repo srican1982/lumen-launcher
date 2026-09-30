@@ -47,7 +47,7 @@ fun Modifier.iconContact(
         if (!enabledState) return@pointerInput
         val slop = viewConfiguration.touchSlop
         awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
+            val down = awaitFirstDown(requireUnconsumed = true)
             if (!enabledState) {
                 waitForUpOrCancellation()
                 return@awaitEachGesture
@@ -60,10 +60,13 @@ fun Modifier.iconContact(
                     val change = event.changes.firstOrNull { it.id == down.id }
                         ?: return@withTimeoutOrNull "lost"
                     finger = change.position
+                    if (change.isConsumed) return@withTimeoutOrNull "swipe"
+                    if ((finger - down.position).getDistance() > slop) return@withTimeoutOrNull "swipe"
                     if (!change.pressed || change.changedToUpIgnoreConsumed()) {
                         return@withTimeoutOrNull "up"
                     }
-                    if ((finger - down.position).getDistance() > slop * 2.25f) {
+                    val finalEvent = awaitPointerEvent(PointerEventPass.Final)
+                    if (finalEvent.changes.any { it.id == down.id && it.isConsumed }) {
                         return@withTimeoutOrNull "swipe"
                     }
                 }

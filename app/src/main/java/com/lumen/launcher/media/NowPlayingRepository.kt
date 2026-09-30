@@ -32,7 +32,8 @@ data class NowPlaying(
     val durationMs: Long,
     /** SystemClock.elapsedRealtime() when [positionMs] was measured. */
     val positionUpdatedAt: Long,
-    val speed: Float
+    val speed: Float,
+    val canSeek: Boolean = false
 ) {
     /** Live position, advanced by the time passed since the player last reported it. */
     fun currentPosition(now: Long = SystemClock.elapsedRealtime()): Long {
@@ -140,6 +141,15 @@ object NowPlayingRepository {
         c.transportControls.skipToPrevious()
     }
 
+    /** Seek only when the active session advertises support and a known duration. */
+    fun seekTo(fraction: Float) {
+        val c = controller ?: return
+        val duration = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: return
+        val actions = c.playbackState?.actions ?: 0L
+        if (!fraction.isFinite() || duration <= 0L || actions and PlaybackState.ACTION_SEEK_TO == 0L) return
+        c.transportControls.seekTo((duration * fraction.coerceIn(0f, 1f)).toLong())
+    }
+
     /** Same as a headphone button: resumes / skips in whatever app played last. */
     private fun sendMediaKey(context: Context, code: Int) {
         val audio = context.getSystemService(AudioManager::class.java) ?: return
@@ -225,7 +235,8 @@ object NowPlayingRepository {
             positionMs = ps?.position ?: 0L,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
             positionUpdatedAt = ps?.lastPositionUpdateTime?.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(),
-            speed = ps?.playbackSpeed?.takeIf { it > 0f } ?: 1f
+            speed = ps?.playbackSpeed?.takeIf { it > 0f } ?: 1f,
+            canSeek = ((ps?.actions ?: 0L) and PlaybackState.ACTION_SEEK_TO) != 0L
         )
     }
 

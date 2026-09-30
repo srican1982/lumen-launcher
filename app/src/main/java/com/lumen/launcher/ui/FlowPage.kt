@@ -47,6 +47,9 @@ import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.LocalOverscrollConfiguration
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,6 +94,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FlowPage(
     state: LauncherUiState,
@@ -155,6 +159,7 @@ fun FlowPage(
         }
     }
 
+    CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -346,6 +351,8 @@ fun FlowPage(
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
 }
 
 @Composable
