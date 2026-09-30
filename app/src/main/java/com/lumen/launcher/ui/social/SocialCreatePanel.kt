@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
-import com.lumen.launcher.ui.LocalGlass
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
@@ -41,7 +40,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -97,9 +95,8 @@ fun SocialCreatePanel(
 ) {
     val visibility = remember { MutableTransitionState(false) }
     visibility.targetState = open
-    val dim by animateFloatAsState(if (open) 0.40f else 0f, tween(280), label = "panel-dim")
+    val dim by animateFloatAsState(if (open) 0.48f else 0f, tween(280), label = "panel-dim")
     if (!visibility.currentState && visibility.isIdle && !open) return
-    val glass = LocalGlass.current
     var dragX by remember { mutableFloatStateOf(0f) }
     var showAll by remember { mutableStateOf(false) }
     var showStickers by remember { mutableStateOf(false) }
@@ -148,10 +145,30 @@ fun SocialCreatePanel(
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(start = 10.dp, top = 8.dp, bottom = 10.dp)
-                    
+                    .shadow(
+                        elevation = 28.dp,
+                        shape = PanelShape,
+                        spotColor = Color(0x66000000),
+                        ambientColor = Color(0x33000000)
+                    )
                     .clip(PanelShape)
-                    .background(Brush.verticalGradient(listOf(Color(0xFFBDD8C5).copy(alpha = .38f), Color(0xFF7EAA92).copy(alpha = .28f), glass.cardBottom.copy(alpha = .40f))))
-                    .border(1.dp, Brush.verticalGradient(listOf(glass.strokeTop, glass.strokeBottom)), PanelShape)
+                    // Frost stack: dark veil for contrast, then bright white glass on top.
+                    .background(Color.Black.copy(alpha = 0.34f))
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.White.copy(alpha = 0.34f),
+                            0.45f to Color.White.copy(alpha = 0.22f),
+                            1f to Color.White.copy(alpha = 0.16f)
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            0f to Color.White.copy(alpha = 0.62f),
+                            1f to Color.White.copy(alpha = 0.18f)
+                        ),
+                        PanelShape
+                    )
                     .clickable(interactionSource = blockTouches, indication = null, onClick = {})
                     .padding(horizontal = 12.dp)
             ) {
@@ -284,30 +301,33 @@ fun SocialCreatePanel(
     }
 }
 
-/** Glossy gradient card: icon on the left, title + two-line description, chevron. */
+/** Frosted glass row: icon, title + subtitle, chevron. */
 @Composable
 private fun CreateToolCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    gradient: List<Color>,
+    @Suppress("UNUSED_PARAMETER") gradient: List<Color>,
     onClick: () -> Unit
 ) {
-    val glass = LocalGlass.current
     Row(
         Modifier
             .fillMaxWidth()
             .height(86.dp)
-            
             .clip(CardShape)
-            .background(Brush.linearGradient(listOf(glass.airyTop, Color(0xFFAAC7B0).copy(alpha = .14f), glass.airyBottom)))
-            // Glass sheen across the top
+            .background(Color.Black.copy(alpha = 0.18f))
             .background(
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent, Color.Transparent))
+                Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.28f),
+                    1f to Color.White.copy(alpha = 0.12f)
+                )
             )
             .border(
                 1.dp,
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.50f), Color.White.copy(alpha = 0.14f))),
+                Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.55f),
+                    1f to Color.White.copy(alpha = 0.16f)
+                ),
                 CardShape
             )
             .clickable(onClick = onClick)
@@ -320,7 +340,7 @@ private fun CreateToolCard(
             Text(title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 2, lineHeight = 19.sp)
             Text(
                 subtitle,
-                color = Color.White.copy(alpha = 0.85f),
+                color = Color.White.copy(alpha = 0.78f),
                 fontFamily = Outfit,
                 fontSize = 12.5.sp,
                 lineHeight = 16.sp,
@@ -328,7 +348,12 @@ private fun CreateToolCard(
                 modifier = Modifier.padding(top = 2.dp)
             )
         }
-        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Color.White, modifier = Modifier.size(24.dp))
+        Icon(
+            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            null,
+            tint = Color.White.copy(alpha = 0.88f),
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
 

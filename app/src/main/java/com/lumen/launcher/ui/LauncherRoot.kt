@@ -162,9 +162,10 @@ fun LauncherRoot(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
-                        when (state.sheet) {
-                            Sheet.Voice -> Modifier.blur(22.dp)
-                            Sheet.Drawer -> Modifier.blur(28.dp)
+                        when {
+                            state.recentsOpen || state.socialCreateTool != null -> Modifier.blur(24.dp)
+                            state.sheet == Sheet.Voice -> Modifier.blur(22.dp)
+                            state.sheet == Sheet.Drawer -> Modifier.blur(28.dp)
                             else -> Modifier
                         }
                     )
