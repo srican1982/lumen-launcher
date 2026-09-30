@@ -155,9 +155,23 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         }
     }
     if (boardingPasses) TravelCollection(state, vm, travelCategory) { boardingPasses = false }
-    if (expanded) ModalBottomSheet(onDismissRequest = { expanded = false }, containerColor = Color(0xFF24232E)) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ModeWorkspace(state, vm)
+    if (expanded) {
+        ModalBottomSheet(
+            onDismissRequest = { expanded = false },
+            containerColor = Color(0xFF24232E),
+            contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 4.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ModeWorkspace(state, vm)
+            }
         }
     }
 }

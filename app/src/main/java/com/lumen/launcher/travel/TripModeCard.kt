@@ -358,10 +358,10 @@ private fun ActiveTripBlock(
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = onViewTrip,
-                modifier = Modifier.weight(1.4f).height(44.dp),
+                modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = TripPurpleDeep,
@@ -369,20 +369,20 @@ private fun ActiveTripBlock(
                 )
             ) {
                 Icon(Icons.Outlined.PhotoLibrary, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("View Trip", fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("View Trip", fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                 Spacer(Modifier.width(2.dp))
                 Icon(Icons.Outlined.ChevronRight, null, modifier = Modifier.size(18.dp))
             }
             OutlinedButton(
                 onClick = onEndTrip,
-                modifier = Modifier.weight(1f).height(44.dp),
+                modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, TripPurple.copy(0.55f))
             ) {
-                Icon(Icons.Outlined.Stop, null, tint = TripPurple, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("End Trip", color = TripPurple, fontFamily = Outfit, fontSize = 13.sp)
+                Icon(Icons.Outlined.Stop, null, tint = TripPurple, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("End Trip", color = TripPurple, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 15.sp)
             }
         }
     }

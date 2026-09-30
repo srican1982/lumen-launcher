@@ -202,6 +202,10 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         onTripModeToggled(false)
     }
 
+    fun setAlbumUiOpen(open: Boolean) {
+        repo.setAlbumUiOpen(open)
+    }
+
     fun removeFromTrip(photoIds: List<Long>) {
         viewModelScope.launch {
             runCatching { repo.removePhotosFromTrip(photoIds) }

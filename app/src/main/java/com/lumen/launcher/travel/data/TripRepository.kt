@@ -160,6 +160,27 @@ class TripRepository private constructor(context: Context) {
         observer = null
     }
 
+    /**
+     * Pause MediaStore watching while the album UI is open.
+     * Loading thumbnails can notify ContentObserver on some OEMs and cause a flicker loop.
+     */
+    fun setAlbumUiOpen(open: Boolean) {
+        if (open) {
+            observer?.stop()
+        } else {
+            scope.launch {
+                if (dao.getActiveTrip() != null) {
+                    if (observer == null) {
+                        ensureObserverRunning()
+                    } else {
+                        observer?.start()
+                        syncNewPhotos()
+                    }
+                }
+            }
+        }
+    }
+
     /** Call on app start if an active trip exists. */
     suspend fun restoreIfNeeded() {
         if (dao.getActiveTrip() != null) ensureObserverRunning()

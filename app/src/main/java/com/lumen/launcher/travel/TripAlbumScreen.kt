@@ -16,14 +16,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -44,8 +46,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +61,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -87,6 +90,12 @@ fun TripAlbumScreen(
     var selected by remember { mutableStateOf(setOf<Long>()) }
     val context = LocalContext.current
 
+    // Pause MediaStore observer while album is open — thumbnail loads were causing flicker.
+    DisposableEffect(Unit) {
+        tripVm.setAlbumUiOpen(true)
+        onDispose { tripVm.setAlbumUiOpen(false) }
+    }
+
     val filtered = remember(photos, filter) {
         when (filter) {
             "All" -> photos
@@ -95,7 +104,17 @@ fun TripAlbumScreen(
         }
     }
     val selecting = selected.isNotEmpty()
-    val selectedPhotos = remember(filtered, selected) { filtered.filter { it.id in selected } }
+    val selectedPhotos = remember(photos, selected) {
+        photos.filter { it.id in selected }
+    }
+
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBottom = WindowInsets.navigationBars
+        .asPaddingValues()
+        .calculateBottomPadding()
+        .coerceAtLeast(24.dp)
+    // Reserve space so the grid never jumps under the selection sheet.
+    val sheetReserve: Dp = if (selecting) 196.dp + navBottom else navBottom + 16.dp
 
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -108,138 +127,148 @@ fun TripAlbumScreen(
 
     Dialog(
         onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF14121A)) {
             Box(Modifier.fillMaxSize()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(top = statusTop)
+                        .padding(horizontal = 16.dp)
                 ) {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Lumen.Text)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)
+                    ) {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = Lumen.Text)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    trip.displayTitle,
+                                    color = Lumen.Text,
+                                    fontFamily = Outfit,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 20.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(trip.flagEmoji, fontSize = 18.sp)
+                            }
                             Text(
-                                trip.displayTitle,
-                                color = Lumen.Text,
+                                formatTripRange(trip.startTime, trip.endTime) + " · " +
+                                    if (photos.size == 1) "1 photo" else "${photos.size} photos",
+                                color = Lumen.Muted,
                                 fontFamily = Outfit,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 20.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontSize = 12.sp
                             )
-                            Spacer(Modifier.width(6.dp))
-                            Text(trip.flagEmoji, fontSize = 18.sp)
                         }
-                        Text(
-                            formatTripRange(trip.startTime, trip.endTime) + " · " +
-                                if (photos.size == 1) "1 photo" else "${photos.size} photos",
-                            color = Lumen.Muted,
-                            fontFamily = Outfit,
-                            fontSize = 12.sp
-                        )
                     }
-                }
 
-                val place = trip.primaryCity ?: trip.citiesLabel?.substringBefore(" · ")
-                if (!place.isNullOrBlank() || photos.isNotEmpty()) {
-                    LocationSummaryCard(
-                        city = place ?: "Trip photos",
-                        count = if (filter == "All") photos.size else filtered.size
-                    )
-                    Spacer(Modifier.height(12.dp))
-                }
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) {
-                    item {
-                        FilterPill(
-                            label = "All (${photos.size})",
-                            selected = filter == "All",
-                            onClick = { filter = "All" }
+                    val place = trip.primaryCity ?: trip.citiesLabel?.substringBefore(" · ")
+                    if (!place.isNullOrBlank() || photos.isNotEmpty()) {
+                        LocationSummaryCard(
+                            city = place ?: "Trip photos",
+                            count = if (filter == "All") photos.size else filtered.size
                         )
+                        Spacer(Modifier.height(12.dp))
                     }
-                    items(cities, key = { it.city }) { bucket ->
-                        FilterPill(
-                            label = "${bucket.city} (${bucket.count})",
-                            selected = filter == bucket.city,
-                            onClick = { filter = bucket.city }
-                        )
-                    }
-                }
 
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(bottom = if (selecting) 140.dp else 16.dp)
-                ) {
-                    items(filtered, key = { it.id }) { photo ->
-                        val isSelected = photo.id in selected
-                        Box(
-                            Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    selected = if (isSelected) selected - photo.id else selected + photo.id
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        item {
+                            FilterPill(
+                                label = "All (${photos.size})",
+                                selected = filter == "All",
+                                onClick = { filter = "All" }
+                            )
+                        }
+                        items(cities, key = { it.city }) { bucket ->
+                            FilterPill(
+                                label = "${bucket.city} (${bucket.count})",
+                                selected = filter == bucket.city,
+                                onClick = { filter = bucket.city }
+                            )
+                        }
+                    }
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(bottom = sheetReserve)
+                    ) {
+                        items(filtered, key = { it.id }) { photo ->
+                            val isSelected = photo.id in selected
+                            val request = remember(photo.contentUri) {
+                                ImageRequest.Builder(context)
                                     .data(Uri.parse(photo.contentUri))
+                                    .size(512)
                                     .crossfade(false)
-                                    .build(),
-                                contentDescription = photo.displayName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            SelectionMark(
-                                selected = isSelected,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(6.dp)
-                            )
+                                    .memoryCacheKey(photo.contentUri)
+                                    .diskCacheKey(photo.contentUri)
+                                    .build()
+                            }
+                            Box(
+                                Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        selected =
+                                            if (isSelected) selected - photo.id else selected + photo.id
+                                    }
+                            ) {
+                                AsyncImage(
+                                    model = request,
+                                    contentDescription = photo.displayName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                SelectionMark(
+                                    selected = isSelected,
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            if (selecting) {
-                SelectionSheet(
-                    photos = selectedPhotos,
-                    onClear = { selected = emptySet() },
-                    onShare = {
-                        tripVm.share(selectedPhotos.map { Uri.parse(it.contentUri) })
-                    },
-                    onRemove = {
-                        tripVm.removeFromTrip(selected.toList())
-                        selected = emptySet()
-                    },
-                    onDelete = {
-                        val uris = selectedPhotos.map { Uri.parse(it.contentUri) }
-                        if (Build.VERSION.SDK_INT >= 30 && uris.isNotEmpty()) {
-                            val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
-                            deleteLauncher.launch(IntentSenderRequest.Builder(request).build())
-                        } else {
+                if (selecting) {
+                    SelectionSheet(
+                        photos = selectedPhotos,
+                        navBottom = navBottom,
+                        onClear = { selected = emptySet() },
+                        onShare = {
+                            tripVm.share(selectedPhotos.map { Uri.parse(it.contentUri) })
+                        },
+                        onRemove = {
                             tripVm.removeFromTrip(selected.toList())
                             selected = emptySet()
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
+                        },
+                        onDelete = {
+                            val uris = selectedPhotos.map { Uri.parse(it.contentUri) }
+                            if (Build.VERSION.SDK_INT >= 30 && uris.isNotEmpty()) {
+                                val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
+                                deleteLauncher.launch(IntentSenderRequest.Builder(request).build())
+                            } else {
+                                tripVm.removeFromTrip(selected.toList())
+                                selected = emptySet()
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
             }
         }
     }
@@ -322,12 +351,14 @@ private fun SelectionMark(selected: Boolean, modifier: Modifier = Modifier) {
 @Composable
 private fun SelectionSheet(
     photos: List<TripPhoto>,
+    navBottom: Dp,
     onClear: () -> Unit,
     onShare: () -> Unit,
     onRemove: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
     Column(
         modifier
@@ -335,13 +366,13 @@ private fun SelectionSheet(
             .clip(shape)
             .background(SheetBg)
             .border(0.8.dp, Color.White.copy(0.1f), shape)
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp)
+            .padding(top = 14.dp, bottom = navBottom + 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "${photos.size} photos selected",
+                if (photos.size == 1) "1 photo selected" else "${photos.size} photos selected",
                 color = Lumen.Text,
                 fontFamily = Outfit,
                 fontWeight = FontWeight.Medium,
@@ -354,8 +385,17 @@ private fun SelectionSheet(
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(photos, key = { it.id }) { photo ->
+                val request = remember(photo.contentUri) {
+                    ImageRequest.Builder(context)
+                        .data(Uri.parse(photo.contentUri))
+                        .size(128)
+                        .crossfade(false)
+                        .memoryCacheKey(photo.contentUri)
+                        .diskCacheKey(photo.contentUri)
+                        .build()
+                }
                 AsyncImage(
-                    model = Uri.parse(photo.contentUri),
+                    model = request,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -402,12 +442,13 @@ private fun ActionTile(
 ) {
     Column(
         modifier
+            .height(72.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(background)
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
     ) {
         icon()
         Text(label, color = labelColor, fontFamily = Outfit, fontSize = 12.sp)
