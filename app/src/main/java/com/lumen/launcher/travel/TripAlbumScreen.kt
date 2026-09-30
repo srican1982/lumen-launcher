@@ -16,14 +16,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -69,6 +71,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.lumen.launcher.travel.model.Trip
 import com.lumen.launcher.travel.model.TripPhoto
+import com.lumen.launcher.ui.rememberNavBottomPadding
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 
@@ -110,6 +113,9 @@ fun TripAlbumScreen(
     val selectedPhotos = remember(photos, selected) {
         photos.filter { it.id in selected }
     }
+    val navBottom = rememberNavBottomPadding(32.dp)
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val sheetReserve = if (selecting) 220.dp + navBottom else navBottom + 16.dp
 
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -125,16 +131,15 @@ fun TripAlbumScreen(
         onDismissRequest = onClose,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = true
+            decorFitsSystemWindows = false
         )
     ) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF14121A)) {
-            // Let the dialog window fit system bars as well as handling Compose insets.
-            // Some OEM dialogs otherwise report a full-screen height but consumed nav insets.
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            Box(Modifier.fillMaxSize()) {
                 Column(
                     Modifier
-                        .weight(1f)
+                        .fillMaxSize()
+                        .padding(top = statusTop)
                         .padding(horizontal = 16.dp)
                 ) {
                     Row(
@@ -202,7 +207,7 @@ fun TripAlbumScreen(
                         modifier = Modifier.weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(bottom = 16.dp)
+                        contentPadding = PaddingValues(bottom = sheetReserve)
                     ) {
                         items(filtered, key = { it.id }) { photo ->
                             val isSelected = photo.id in selected
@@ -244,7 +249,7 @@ fun TripAlbumScreen(
                 if (selecting) {
                     SelectionSheet(
                         photos = selectedPhotos,
-                        navBottom = 0.dp,
+                        navBottom = navBottom,
                         onClear = { selected = emptySet() },
                         onShare = {
                             tripVm.share(selectedPhotos.map { Uri.parse(it.contentUri) })
@@ -268,7 +273,7 @@ fun TripAlbumScreen(
                                 deleteError = "Delete photos in your Gallery app on this Android version. Remove only takes them out of this trip."
                             }
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.align(Alignment.BottomCenter)
                     )
                 }
             }
@@ -379,7 +384,7 @@ private fun SelectionSheet(
             .background(SheetBg)
             .border(0.8.dp, Color.White.copy(0.1f), shape)
             .padding(horizontal = 16.dp)
-            .padding(top = 14.dp, bottom = navBottom + 16.dp),
+            .padding(top = 14.dp, bottom = navBottom + 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

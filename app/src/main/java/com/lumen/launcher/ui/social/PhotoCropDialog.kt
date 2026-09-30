@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.lumen.launcher.ui.rememberNavBottomPadding
 import kotlin.math.roundToInt
 
 /** Crops a rendered copy so existing drawing and blur edits remain aligned. */
@@ -31,9 +32,19 @@ internal fun PhotoCropDialog(source: Bitmap, onDismiss: () -> Unit, onApply: (Bi
     val scale = minOf(size.width.toFloat() / source.width, size.height.toFloat() / source.height)
     val imageSize = Size(source.width * scale, source.height * scale)
     val origin = Offset((size.width - imageSize.width) / 2, (size.height - imageSize.height) / 2)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = true)) {
+    val navBottom = rememberNavBottomPadding(32.dp)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF171426)) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 16.dp, bottom = navBottom + 16.dp)
+            ) {
                 Text("Crop photo", style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 Text("Drag a corner to resize, or drag inside to move. Your original stays unchanged.", color = Color.LightGray)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -94,6 +105,7 @@ internal fun PhotoCropDialog(source: Bitmap, onDismiss: () -> Unit, onApply: (Bi
                     }
                     listOf(r.topLeft,r.topRight,r.bottomLeft,r.bottomRight).forEach { drawCircle(Color.White,6.dp.toPx(),it) }
                 }
+                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = onDismiss) { Text("Cancel") }
                     Button(onClick = {

@@ -425,9 +425,7 @@ fun HomeScreen(
                         item(key = "trip-albums-shortcut") {
                             Column(horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.clickable { showTripGallery = true }.padding(vertical = 4.dp)) {
-                                Box(Modifier.size(homeIconSize).glass(RoundedCornerShape(22.dp), LocalGlass.current), contentAlignment = Alignment.Center) {
-                                    Icon(androidx.compose.material.icons.Icons.Outlined.PhotoLibrary, "Trip Albums", tint = Lumen.Accent, modifier = Modifier.size(homeIconSize * .55f))
-                                }
+                                com.lumen.launcher.travel.TripAlbumsIcon(size = homeIconSize)
                                 Spacer(Modifier.height(6.dp))
                                 Text("Trip Albums", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
                             }
