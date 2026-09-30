@@ -58,8 +58,14 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     var customFocus by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(state.focusUntil) {
-        while (true) { now = System.currentTimeMillis(); delay(1000) }
+    // Only tick while Focus is active ? avoids recomposing Travel / Trip Mode every second (flicker).
+    LaunchedEffect(state.activeSpace, state.focusUntil) {
+        if (state.activeSpace != SpaceKind.Focus && state.focusUntil <= System.currentTimeMillis()) return@LaunchedEffect
+        while (true) {
+            now = System.currentTimeMillis()
+            if (state.focusUntil <= now && state.activeSpace != SpaceKind.Focus) break
+            delay(1000)
+        }
     }
     val activeFocus = state.focusUntil > now
     val task = state.spaceTodos.firstOrNull { !it.done }

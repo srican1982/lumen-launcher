@@ -10,10 +10,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Watches MediaStore for new images while Trip Mode is active.
- * Debounces bursts of insert notifications, then asks the repository to sync.
+ * Debounces bursts and serializes sync so Coil / gallery reads do not cause UI flicker loops.
  */
 class MediaStorePhotoObserver(
     private val context: Context,
@@ -23,13 +25,32 @@ class MediaStorePhotoObserver(
     private val handler = Handler(Looper.getMainLooper())
     private var registered = false
     private var debounceJob: Job? = null
+    private val syncMutex = Mutex()
+    @Volatile private var lastFireAt = 0L
 
     private val observer = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean) {
+            onChange(selfChange, null)
+        }
+
         override fun onChange(selfChange: Boolean, uri: Uri?) {
+            // Ignore pure self-notifications; require a concrete images URI when provided.
+            if (uri != null) {
+                val s = uri.toString()
+                if (!s.contains("images", ignoreCase = true) &&
+                    !s.contains(MediaStore.Images.Media.EXTERNAL_CONTENT_URI.toString())
+                ) return
+            }
+            val now = System.currentTimeMillis()
+            // Hard rate limit — MediaStore can spam on some OEMs when thumbnails are read.
+            if (now - lastFireAt < 400L) return
             debounceJob?.cancel()
             debounceJob = scope.launch {
-                delay(700)
-                runCatching { onMediaChanged() }
+                delay(1_200)
+                lastFireAt = System.currentTimeMillis()
+                syncMutex.withLock {
+                    runCatching { onMediaChanged() }
+                }
             }
         }
     }

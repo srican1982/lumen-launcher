@@ -1,8 +1,8 @@
 package com.lumen.launcher.travel
 
+import android.Manifest
 import android.app.Application
 import android.content.Intent
-import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,37 +42,57 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         val media: Boolean = false
     )
 
+    private data class CoreUi(
+        val trip: Trip?,
+        val past: List<Trip>,
+        val perms: PermissionFlags,
+        val load: Boolean,
+        val err: String?,
+        val done: Trip?
+    )
+
     val uiState: StateFlow<TripUiState> = combine(
-        repo.activeTripFlow,
-        flags,
-        loading,
+        combine(repo.activeTripFlow, repo.pastTripsFlow, flags, loading) { trip, past, perms, load ->
+            Triple(trip, past, perms to load)
+        },
         error,
-        completed
-    ) { trip, perms, load, err, done ->
+        completed,
+        promptLocationPermission,
+        promptLocationServices
+    ) { pack, err, done, needLoc, needSvc ->
+        val (trip, past, permsLoad) = pack
+        val (perms, load) = permsLoad
+        CoreUi(trip, past, perms, load, err, done) to (needLoc to needSvc)
+    }.combine(promptMediaPermission) { pair, needMedia ->
+        val (core, prompts) = pair
+        val (needLoc, needSvc) = prompts
         TripUiState(
-            tripModeEnabled = trip != null,
-            activeTrip = trip,
-            photoCount = trip?.photoCount ?: 0,
-            locationPermissionGranted = perms.location,
-            locationServicesEnabled = perms.locationServices,
-            mediaPermissionGranted = perms.media,
-            isLoading = load,
-            errorMessage = err,
-            completedTrip = done
+            tripModeEnabled = core.trip != null,
+            activeTrip = core.trip,
+            pastTrips = core.past,
+            photoCount = core.trip?.photoCount ?: 0,
+            previewUris = core.trip?.previewUris.orEmpty(),
+            locationPermissionGranted = core.perms.location,
+            locationServicesEnabled = core.perms.locationServices,
+            mediaPermissionGranted = core.perms.media,
+            isLoading = core.load,
+            errorMessage = core.err,
+            needsLocationPermission = needLoc,
+            needsLocationServices = needSvc,
+            needsMediaPermission = needMedia,
+            completedTrip = core.done
         )
-    }.combine(promptLocationPermission) { state, needLoc ->
-        state.copy(needsLocationPermission = needLoc)
-    }.combine(promptLocationServices) { state, needSvc ->
-        state.copy(needsLocationServices = needSvc)
-    }.combine(promptMediaPermission) { state, needMedia ->
-        state.copy(needsMediaPermission = needMedia)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripUiState())
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripUiState())
 
     fun cityBuckets(tripId: Long): StateFlow<List<CityBucket>> =
-        repo.cityBucketsFlow(tripId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        repo.cityBucketsFlow(tripId)
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun photos(tripId: Long): StateFlow<List<TripPhoto>> =
-        repo.photosFlow(tripId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        repo.photosFlow(tripId)
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     init {
         refreshPermissions()
@@ -83,11 +104,12 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshPermissions() {
         val ctx = getApplication<Application>()
-        flags.value = PermissionFlags(
+        val next = PermissionFlags(
             location = repo.hasLocationPermission(),
             locationServices = repo.isLocationServicesEnabled(),
             media = hasMediaPermission(ctx)
         )
+        if (flags.value != next) flags.value = next
     }
 
     fun clearError() = error.update { null }
@@ -178,6 +200,13 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
 
     fun endTripConfirmed() {
         onTripModeToggled(false)
+    }
+
+    fun removeFromTrip(photoIds: List<Long>) {
+        viewModelScope.launch {
+            runCatching { repo.removePhotosFromTrip(photoIds) }
+                .onFailure { error.value = it.message }
+        }
     }
 
     fun share(uris: List<Uri>, instagramOnly: Boolean = false) {

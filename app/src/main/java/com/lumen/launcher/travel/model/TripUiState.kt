@@ -8,7 +8,9 @@ data class CityBucket(
 data class TripUiState(
     val tripModeEnabled: Boolean = false,
     val activeTrip: Trip? = null,
+    val pastTrips: List<Trip> = emptyList(),
     val photoCount: Int = 0,
+    val previewUris: List<String> = emptyList(),
     val cityBuckets: List<CityBucket> = emptyList(),
     val locationPermissionGranted: Boolean = false,
     val locationServicesEnabled: Boolean = false,

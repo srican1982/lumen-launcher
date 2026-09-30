@@ -16,6 +16,9 @@ interface TripDao {
     @Query("SELECT * FROM trips WHERE isActive = 1 LIMIT 1")
     fun observeActiveTrip(): Flow<TripEntity?>
 
+    @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY COALESCE(endTime, startTime) DESC LIMIT 20")
+    fun observePastTrips(): Flow<List<TripEntity>>
+
     @Query("SELECT * FROM trips WHERE id = :id")
     suspend fun getTrip(id: Long): TripEntity?
 
@@ -63,6 +66,26 @@ interface TripDao {
 
     @Query(
         """
+        SELECT contentUri FROM trip_photos
+        WHERE tripId = :tripId
+        ORDER BY dateTaken DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun latestPhotoUris(tripId: Long, limit: Int): List<String>
+
+    @Query(
+        """
+        SELECT contentUri FROM trip_photos
+        WHERE tripId = :tripId
+        ORDER BY dateTaken DESC
+        LIMIT :limit
+        """
+    )
+    fun observeLatestPhotoUris(tripId: Long, limit: Int): Flow<List<String>>
+
+    @Query(
+        """
         SELECT city AS city, COUNT(*) AS count FROM trip_photos
         WHERE tripId = :tripId
         GROUP BY city
@@ -71,6 +94,22 @@ interface TripDao {
     )
     fun observeCityCounts(tripId: Long): Flow<List<CityCountRow>>
 
+    @Query(
+        """
+        SELECT city AS city, COUNT(*) AS count FROM trip_photos
+        WHERE tripId = :tripId
+        GROUP BY city
+        ORDER BY count DESC
+        """
+    )
+    suspend fun getCityCounts(tripId: Long): List<CityCountRow>
+
     @Query("SELECT MAX(dateTaken) FROM trip_photos WHERE tripId = :tripId")
     suspend fun lastProcessedTimestamp(tripId: Long): Long?
+
+    @Query("DELETE FROM trip_photos WHERE id IN (:ids)")
+    suspend fun deletePhotosByIds(ids: List<Long>): Int
+
+    @Query("SELECT * FROM trip_photos WHERE id IN (:ids)")
+    suspend fun getPhotosByIds(ids: List<Long>): List<TripPhotoEntity>
 }

@@ -16,7 +16,12 @@ data class TripEntity(
     val isActive: Boolean,
     val createdAt: Long
 ) {
-    fun toModel(photoCount: Int = 0) = Trip(
+    fun toModel(
+        photoCount: Int = 0,
+        coverUri: String? = null,
+        previewUris: List<String> = emptyList(),
+        citiesLabel: String? = null
+    ) = Trip(
         id = id,
         startTime = startTime,
         endTime = endTime,
@@ -26,6 +31,9 @@ data class TripEntity(
         title = title,
         isActive = isActive,
         createdAt = createdAt,
-        photoCount = photoCount
+        photoCount = photoCount,
+        coverUri = coverUri,
+        previewUris = previewUris,
+        citiesLabel = citiesLabel
     )
 }
