@@ -423,8 +423,8 @@ fun HomeScreen(
                             )
                         }
                     }
-                    if (state.activeSpace == SpaceKind.Personal) {
-                        // Pinned first Social icon — not in slotOrigins, not draggable, not removable.
+                    if (state.activeSpace == SpaceKind.Travel) {
+                        // Pinned first Travel icon — not in slotOrigins, not draggable, not removable.
                         item(key = "trip-albums-shortcut") {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -466,8 +466,11 @@ fun HomeScreen(
                         )
                         }
                     }
-                    items(homeGridApps, key = { it.key }) { app ->
-                        HomeGridIcon(app)
+                    // Social apps live inside SocialSpaceCard on Personal — avoid a duplicate grid.
+                    if (state.activeSpace != SpaceKind.Personal) {
+                        items(homeGridApps, key = { it.key }) { app ->
+                            HomeGridIcon(app)
+                        }
                     }
                 }
                 }

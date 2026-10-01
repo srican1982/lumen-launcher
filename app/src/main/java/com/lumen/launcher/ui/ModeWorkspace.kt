@@ -170,7 +170,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
         if (state.doubleAction.isBlank()) Text(when (state.activeSpace) {
             SpaceKind.Home -> "Double-tap TouchPad for what's next"
             SpaceKind.Work -> "Double-tap TouchPad to capture a task"
-            SpaceKind.Personal -> "Double-tap TouchPad to create"
+            SpaceKind.Personal -> "Swipe up for create studio"
             SpaceKind.Focus -> "Double-tap TouchPad to start or end a session"
             SpaceKind.Travel -> "Double-tap TouchPad for travel search"
             else -> ""

@@ -5,27 +5,80 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.TrendingDown
+import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.lumen.launcher.data.AppCategory
+import com.lumen.launcher.data.AppInfo
+import com.lumen.launcher.data.IconCache
+import com.lumen.launcher.inbox.InboxItem
+import com.lumen.launcher.inbox.InboxSource
 import com.lumen.launcher.social.SocialCreateTool
+import com.lumen.launcher.travel.TripGalleryScreen
 import com.lumen.launcher.ui.social.StickerPackScreen
+import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
@@ -34,84 +87,1014 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.min
 
+/**
+ * Playful Social Space canvas — no TouchPad.
+ * Social Today · Create · Recent conversations · Social apps.
+ */
 @Composable
 fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     val context = LocalContext.current
-    var usage by remember { mutableStateOf<Map<String, Long>?>(null) }
+    var todayMs by remember { mutableStateOf<Long?>(null) }
+    var yesterdayMs by remember { mutableStateOf<Long?>(null) }
+    var packageUsage by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var details by remember { mutableStateOf(false) }
     var stickers by remember { mutableStateOf(false) }
-    val apps = state.visibleApps.filter { it.category == AppCategory.Social }
-    LaunchedEffect(apps) {
+    var tripAlbums by remember { mutableStateOf(false) }
+    val socialApps = remember(state.homeApps, state.visibleApps) {
+        val preferred = state.homeApps.filter { it.category == AppCategory.Social }
+        preferred.ifEmpty {
+            state.visibleApps.filter { it.category == AppCategory.Social }
+        }.distinctBy { it.packageName }.take(24)
+    }
+    val socialPackages = remember(socialApps) { socialApps.map { it.packageName }.toSet() }
+
+    LaunchedEffect(socialPackages) {
         while (true) {
-            usage = withContext(Dispatchers.IO) {
-                val ops = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-                if (ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName) != AppOpsManager.MODE_ALLOWED) null
-                else runCatching {
-                    val start = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                    manager.queryAndAggregateUsageStats(start, System.currentTimeMillis())
-                        .filterKeys { key -> apps.any { it.packageName == key } }
-                        .mapValues { it.value.totalTimeInForeground }
-                }.getOrNull()
+            val snapshot = withContext(Dispatchers.IO) {
+                loadSocialUsage(context, socialPackages)
             }
-            delay(15000)
+            todayMs = snapshot?.today
+            yesterdayMs = snapshot?.yesterday
+            packageUsage = snapshot?.byPackage.orEmpty()
+            delay(15_000)
         }
     }
-    fun duration(ms: Long): String {
-        val minutes = ms / 60000
-        return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+
+    val chats = remember(state.inbox) {
+        state.inbox
+            .filter {
+                !it.isDigest && it.source in setOf(
+                    InboxSource.Messages,
+                    InboxSource.WhatsApp,
+                    InboxSource.Telegram,
+                    InboxSource.Messenger
+                )
+            }
+            .distinctBy { it.title.trim().lowercase() to it.packageName }
+            .take(8)
     }
-    val accent = Color(0xFFE0B7FF)
+
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SocialTodayCard(
+            todayMs = todayMs,
+            yesterdayMs = yesterdayMs,
+            onDetails = {
+                if (todayMs == null && packageUsage.isEmpty()) {
+                    context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                } else {
+                    details = true
+                }
+            },
+            needsAccess = todayMs == null && packageUsage.isEmpty()
+        )
+        CreateSomethingRow(
+            onPhoto = { vm.openSocialTool(SocialCreateTool.Photo) },
+            onScribble = { vm.openSocialTool(SocialCreateTool.Scribble) },
+            onQuote = { vm.openSocialTool(SocialCreateTool.Quote) },
+            onStickers = { stickers = true },
+            onTripAlbums = { tripAlbums = true },
+            onSeeAll = { vm.setRecentsOpen(true) }
+        )
+        RecentConversationsRow(
+            chats = chats,
+            icons = vm.icons,
+            apps = state.visibleApps,
+            onOpen = { vm.openInboxItem(it) },
+            onNewChat = {
+                val preferred = socialApps.firstOrNull {
+                    it.packageName in InboxSource.WhatsApp.packages ||
+                        it.packageName in InboxSource.Messages.packages
+                }
+                if (preferred != null) vm.launch(preferred) else vm.openSearch()
+            },
+            onSeeAll = {
+                if (!state.inboxAccess) vm.requestInboxAccess()
+                else vm.openSearch()
+            },
+            needsAccess = !state.inboxAccess
+        )
+        YourSocialAppsCard(
+            apps = socialApps,
+            icons = vm.icons,
+            onLaunch = { vm.launch(it) },
+            onEdit = { vm.openDrawer() }
+        )
+    }
+
+    if (stickers) StickerPackScreen(onClose = { stickers = false })
+    if (tripAlbums) TripGalleryScreen(onClose = { tripAlbums = false })
+    if (details) {
+        SocialTodayDetailsSheet(
+            todayMs = todayMs,
+            yesterdayMs = yesterdayMs,
+            packageUsage = packageUsage,
+            apps = socialApps,
+            icons = vm.icons,
+            onDismiss = { details = false },
+            onLaunch = { vm.launch(it) }
+        )
+    }
+}
+
+@Composable
+private fun SocialTodayCard(
+    todayMs: Long?,
+    yesterdayMs: Long?,
+    onDetails: () -> Unit,
+    needsAccess: Boolean
+) {
     val shape = RoundedCornerShape(26.dp)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.fillMaxWidth().clip(shape).background(Brush.linearGradient(listOf(Color(0x99542F70), Color(0x99505286), Color(0x99304651)))).border(1.dp, Color.White.copy(alpha=.25f), shape).padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SOCIAL TODAY", color=accent, fontFamily=Outfit, fontSize=12.sp, letterSpacing=2.sp, modifier=Modifier.weight(1f))
-                IconButton(onClick = vm::openPrivateSpace) { Icon(Icons.Outlined.Lock, "Open Private Space", tint=accent) }
-                IconButton(onClick = { vm.openVoice() }) { Icon(Icons.Outlined.MicNone, "Talk to Lumen", tint=accent) }
+    val borderBrush = Brush.linearGradient(
+        listOf(
+            Color(0xFFFF8AD8),
+            Color(0xFFB794F6),
+            Color(0xFF7DD3FC),
+            Color(0xFF86EFAC),
+            Color(0xFFFBBF24)
+        )
+    )
+    val fill = Brush.linearGradient(
+        listOf(Color(0xD94A2A68), Color(0xD93D4578), Color(0xD92A4A62))
+    )
+    val delta = if (todayMs != null && yesterdayMs != null) yesterdayMs - todayMs else null
+    val balance = balanceProgress(todayMs)
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 132.dp)
+            .clip(shape)
+            .background(borderBrush)
+            .padding(1.5.dp)
+            .clip(shape)
+            .background(fill)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1.05f)) {
+                Text(
+                    "SOCIAL TODAY",
+                    color = Color(0xFFE9D5FF),
+                    fontFamily = Outfit,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.3.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    todayMs?.let { formatDuration(it) } ?: "—",
+                    color = Color.White,
+                    fontFamily = Outfit,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 34.sp
+                )
+                when {
+                    needsAccess -> Text(
+                        "Enable usage access",
+                        color = Color.White.copy(0.7f),
+                        fontFamily = Outfit,
+                        fontSize = 12.sp
+                    )
+                    delta == null -> Text(
+                        "Time in social apps",
+                        color = Color.White.copy(0.7f),
+                        fontFamily = Outfit,
+                        fontSize = 12.sp
+                    )
+                    delta >= 0 -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.TrendingDown, null, tint = Color(0xFF86EFAC), modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            "${formatDuration(delta)} less than yesterday",
+                            color = Color(0xFF86EFAC),
+                            fontFamily = Outfit,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.TrendingUp, null, tint = Color(0xFFF9A8D4), modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            "${formatDuration(-delta)} more than yesterday",
+                            color = Color(0xFFF9A8D4),
+                            fontFamily = Outfit,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (needsAccess) "Turn on access ›" else "View details ›",
+                    color = Color(0xFFE9D5FF),
+                    fontFamily = Outfit,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable(onClick = onDetails)
+                )
             }
-            Text(usage?.let { duration(it.values.sum()) } ?: "Your social time", color=Color.White, fontFamily=Outfit, fontSize=32.sp, fontWeight=FontWeight.SemiBold)
-            Text(if (usage == null) "See time spent in your social apps." else "Time in social apps today", color=Color.White.copy(alpha=.75f), fontFamily=Outfit, fontSize=13.sp)
-            TextButton(onClick = {
-                if (usage == null) context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) else details = true
-            }) { Text(if (usage == null) "Enable usage access  ›" else "View details  ›", color=accent) }
+
+            BalanceRing(progress = balance, modifier = Modifier.size(74.dp))
+
+            Spacer(Modifier.width(8.dp))
+            Column(
+                Modifier.weight(0.9f),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    "Good conversations,\nbrighter days",
+                    color = Color.White.copy(0.92f),
+                    fontFamily = Outfit,
+                    fontSize = 12.sp,
+                    fontStyle = FontStyle.Italic,
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.End
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("☺", fontSize = 20.sp)
+            }
         }
-        Column(Modifier.fillMaxWidth().clip(shape).background(Color.White.copy(alpha=.09f)).border(1.dp, Color.White.copy(alpha=.22f), shape).padding(16.dp)) {
-            Text("Create something", color=Color.White, fontFamily=Outfit, fontSize=19.sp, fontWeight=FontWeight.Medium)
-            Text("Turn moments into memories", color=Color.White.copy(alpha=.65f), fontFamily=Outfit, fontSize=12.sp)
-            Spacer(Modifier.height(14.dp))
-            val labels = listOf("Photo", "Scribble", "Quote", "Stickers")
-            val icons = listOf(Icons.Outlined.PhotoCamera, Icons.Outlined.Edit, Icons.Outlined.FormatQuote, Icons.Outlined.EmojiEmotions)
-            val colors = listOf(Color(0xFFE584B3), Color(0xFF8795F5), Color(0xFF7ACBB9), Color(0xFFF2B66F))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                labels.forEachIndexed { index, label ->
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).clickable {
-                        when(index) {
-                            0 -> vm.openSocialTool(SocialCreateTool.Photo)
-                            1 -> vm.openSocialTool(SocialCreateTool.Scribble)
-                            2 -> vm.openSocialTool(SocialCreateTool.Quote)
-                            else -> stickers = true
+    }
+}
+
+@Composable
+private fun BalanceRing(progress: Float, modifier: Modifier = Modifier) {
+    val colors = listOf(
+        Color(0xFFFF6B9D),
+        Color(0xFFC084FC),
+        Color(0xFF60A5FA),
+        Color(0xFF34D399),
+        Color(0xFFFBBF24)
+    )
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 6.5.dp.toPx()
+            val arcSize = Size(this.size.minDimension - stroke, this.size.minDimension - stroke)
+            val topLeft = Offset(
+                (this.size.width - arcSize.width) / 2f,
+                (this.size.height - arcSize.height) / 2f
+            )
+            drawArc(
+                color = Color.White.copy(alpha = 0.12f),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = topLeft,
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+            val sweep = (progress.coerceIn(0.12f, 1f) * 360f)
+            val segment = sweep / colors.size
+            colors.forEachIndexed { i, c ->
+                drawArc(
+                    color = c,
+                    startAngle = -90f + i * segment,
+                    sweepAngle = segment - 2f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Outlined.Favorite, null, tint = Color(0xFFF9A8D4), modifier = Modifier.size(13.dp))
+            Text(
+                "Good\nBalance!",
+                color = Color.White,
+                fontFamily = Outfit,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreateSomethingRow(
+    onPhoto: () -> Unit,
+    onScribble: () -> Unit,
+    onQuote: () -> Unit,
+    onStickers: () -> Unit,
+    onTripAlbums: () -> Unit,
+    onSeeAll: () -> Unit
+) {
+    val shape = RoundedCornerShape(24.dp)
+    data class Tool(
+        val title: String,
+        val caption: String,
+        val icon: ImageVector,
+        val colors: List<Color>,
+        val onClick: () -> Unit
+    )
+    val tools = listOf(
+        Tool("Photo", "Capture", Icons.Outlined.PhotoCamera, listOf(Color(0xFFFF7EB3), Color(0xFFFF5C8A)), onPhoto),
+        Tool("Scribble", "Draw & share", Icons.Outlined.Edit, listOf(Color(0xFF8B9CF7), Color(0xFF6B7FF0)), onScribble),
+        Tool("Quote", "Inspire", Icons.Outlined.FormatQuote, listOf(Color(0xFF5EEAD4), Color(0xFF2DD4BF)), onQuote),
+        Tool("Stickers", "Make it fun", Icons.Outlined.EmojiEmotions, listOf(Color(0xFFFBBF24), Color(0xFFF59E0B)), onStickers)
+    )
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 148.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.09f))
+            .border(0.8.dp, Color.White.copy(alpha = 0.16f), shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Create something",
+                    color = Color.White,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                )
+                Text(
+                    "Turn moments into memories",
+                    color = Color.White.copy(0.65f),
+                    fontFamily = Outfit,
+                    fontSize = 12.sp
+                )
+            }
+            Text(
+                "See all ›",
+                color = Color(0xFFE9D5FF),
+                fontFamily = Outfit,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onSeeAll)
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tools.forEach { tool ->
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clickable(onClick = tool.onClick),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Brush.linearGradient(tool.colors)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(tool.icon, tool.title, tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        tool.title,
+                        color = Color.White,
+                        fontFamily = Outfit,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        maxLines = 1
+                    )
+                    Text(
+                        tool.caption,
+                        color = Color.White.copy(0.55f),
+                        fontFamily = Outfit,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Spacer(Modifier.width(2.dp))
+            TripAlbumPolaroidStack(
+                onClick = onTripAlbums,
+                modifier = Modifier.padding(start = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TripAlbumPolaroidStack(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .width(72.dp)
+            .height(86.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        // Back polaroid
+        Box(
+            Modifier
+                .size(48.dp, 58.dp)
+                .rotate(-14f)
+                .offset(x = (-10).dp, y = 4.dp)
+                .shadow(6.dp, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White)
+                .padding(3.dp)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Brush.verticalGradient(listOf(Color(0xFF7DD3FC), Color(0xFFA78BFA), Color(0xFFF9A8D4))))
+            )
+        }
+        // Middle polaroid
+        Box(
+            Modifier
+                .size(50.dp, 60.dp)
+                .rotate(6f)
+                .offset(x = 8.dp, y = (-2).dp)
+                .shadow(8.dp, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White)
+                .padding(3.dp)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFFFBBF24), Color(0xFFFF7EB3), Color(0xFFC084FC))))
+            )
+        }
+        // Front polaroid — tropical vibe
+        Box(
+            Modifier
+                .size(54.dp, 66.dp)
+                .rotate(-4f)
+                .shadow(10.dp, RoundedCornerShape(5.dp))
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color.White)
+                .padding(4.dp)
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFFFFB86C),
+                                Color(0xFFFF6B9D),
+                                Color(0xFF7C3AED),
+                                Color(0xFF0EA5E9)
+                            )
+                        )
+                    )
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    // Simple palm silhouette
+                    val trunk = Path().apply {
+                        moveTo(size.width * 0.42f, size.height * 0.92f)
+                        quadraticBezierTo(
+                            size.width * 0.48f, size.height * 0.55f,
+                            size.width * 0.55f, size.height * 0.32f
+                        )
+                    }
+                    drawPath(trunk, color = Color(0xFF1E293B).copy(0.55f), style = Stroke(width = 3.5f, cap = StrokeCap.Round))
+                    val leafColor = Color(0xFF14532D).copy(0.7f)
+                    listOf(-40f, -10f, 25f, 55f).forEach { angle ->
+                        rotate(angle, pivot = Offset(size.width * 0.55f, size.height * 0.32f)) {
+                            drawOval(
+                                color = leafColor,
+                                topLeft = Offset(size.width * 0.55f, size.height * 0.18f),
+                                size = Size(size.width * 0.34f, size.height * 0.12f)
+                            )
                         }
-                    }.padding(vertical=4.dp), horizontalAlignment=Alignment.CenterHorizontally) {
-                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Brush.linearGradient(listOf(colors[index], colors[index].copy(alpha=.45f)))), contentAlignment=Alignment.Center) {
-                            Icon(icons[index], label, tint=Color.White, modifier=Modifier.size(25.dp))
-                        }
+                    }
+                    drawCircle(Color.White.copy(0.85f), radius = 5.dp.toPx(), center = Offset(size.width * 0.72f, size.height * 0.18f))
+                }
+                Text(
+                    "Good Vibes\nOnly ♡",
+                    color = Color.White,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 7.sp,
+                    lineHeight = 8.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentConversationsRow(
+    chats: List<InboxItem>,
+    icons: IconCache,
+    apps: List<AppInfo>,
+    onOpen: (InboxItem) -> Unit,
+    onNewChat: () -> Unit,
+    onSeeAll: () -> Unit,
+    needsAccess: Boolean
+) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 148.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(0.8.dp, Color.White.copy(alpha = 0.14f), shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.ChatBubbleOutline,
+                null,
+                tint = Color(0xFFE9D5FF),
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Recent Conversations",
+                color = Color.White,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                if (needsAccess) "Connect" else "See all ›",
+                color = Color(0xFFE9D5FF),
+                fontFamily = Outfit,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onSeeAll)
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            if (chats.isEmpty()) {
+                Text(
+                    if (needsAccess) "Allow notification access for chats"
+                    else "No recent chats yet",
+                    color = Lumen.Muted,
+                    fontFamily = Outfit,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(vertical = 22.dp)
+                )
+            } else {
+                chats.forEach { chat ->
+                    ConversationChip(
+                        chat = chat,
+                        icons = icons,
+                        activityName = apps.firstOrNull { it.packageName == chat.packageName }?.activityName.orEmpty(),
+                        onClick = { onOpen(chat) }
+                    )
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width(68.dp)
+                    .clickable(onClick = onNewChat)
+            ) {
+                Box(
+                    Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(0.10f))
+                        .border(1.2.dp, Color.White.copy(0.28f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Add, "New Chat", tint = Color.White, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                Text("New Chat", color = Color.White.copy(0.85f), fontFamily = Outfit, fontSize = 11.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationChip(
+    chat: InboxItem,
+    icons: IconCache,
+    activityName: String,
+    onClick: () -> Unit
+) {
+    val initial = chat.title.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val hue = remember(chat.title) {
+        val colors = listOf(
+            Color(0xFFFB7185), Color(0xFFA78BFA), Color(0xFF38BDF8),
+            Color(0xFF34D399), Color(0xFFFBBF24), Color(0xFFF472B6)
+        )
+        colors[kotlin.math.abs(chat.title.hashCode()) % colors.size]
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(68.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(hue, hue.copy(alpha = 0.55f)))),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(initial, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 1.dp, y = 1.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1A1224))
+                    .border(1.5.dp, Color(0xFF1A1224), CircleShape)
+                    .padding(1.5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AppIcon(
+                    packageName = chat.packageName,
+                    activityName = activityName,
+                    size = 17.dp,
+                    icons = icons,
+                    corner = 5.dp,
+                    showNotificationBadge = false
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            chat.title.substringBefore(' ').take(10),
+            color = Color.White,
+            fontFamily = Outfit,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            relativeTime(chat.postedAt),
+            color = Color.White.copy(0.55f),
+            fontFamily = Outfit,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun YourSocialAppsCard(
+    apps: List<AppInfo>,
+    icons: IconCache,
+    onLaunch: (AppInfo) -> Unit,
+    onEdit: () -> Unit
+) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(0.8.dp, Color.White.copy(alpha = 0.14f), shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.GridView, null, tint = Color(0xFFE9D5FF), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Your Social Apps",
+                color = Color.White,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                "Edit ›",
+                color = Color(0xFFE9D5FF),
+                fontFamily = Outfit,
+                fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onEdit)
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        if (apps.isEmpty()) {
+            Text(
+                "Add social apps to this Space",
+                color = Lumen.Muted,
+                fontFamily = Outfit,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
+        } else {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                apps.forEach { app ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .width(68.dp)
+                            .clickable { onLaunch(app) }
+                    ) {
+                        AppIcon(
+                            packageName = app.packageName,
+                            activityName = app.activityName,
+                            size = 52.dp,
+                            icons = icons
+                        )
                         Spacer(Modifier.height(6.dp))
-                        Text(label, color=Color.White, fontFamily=Outfit, fontSize=11.sp)
+                        Text(
+                            app.label,
+                            color = Color.White,
+                            fontFamily = Outfit,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
         }
     }
-    if (stickers) StickerPackScreen(onClose = { stickers = false })
-    if (details) AlertDialog(onDismissRequest={details=false}, title={Text("Social Today")}, text={
-        Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-            val entries = usage.orEmpty().entries.filter { it.value > 0 }.sortedByDescending { it.value }
-            if(entries.isEmpty()) Text("No social app usage recorded today.")
-            entries.take(12).forEach { entry ->
-                Text("${apps.firstOrNull { it.packageName == entry.key }?.label ?: entry.key} · ${duration(entry.value)}")
+}
+
+@Composable
+private fun SocialTodayDetailsSheet(
+    todayMs: Long?,
+    yesterdayMs: Long?,
+    packageUsage: Map<String, Long>,
+    apps: List<AppInfo>,
+    icons: IconCache,
+    onDismiss: () -> Unit,
+    onLaunch: (AppInfo) -> Unit
+) {
+    val ranked = remember(packageUsage, apps) {
+        val byPkg = packageUsage.filterKeys { pkg -> apps.any { it.packageName == pkg } }
+        apps
+            .map { it to (byPkg[it.packageName] ?: 0L) }
+            .sortedByDescending { it.second }
+    }
+    val maxMs = ranked.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
+    val delta = if (todayMs != null && yesterdayMs != null) yesterdayMs - todayMs else null
+    val shape = RoundedCornerShape(28.dp)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xF22A1F3D), Color(0xF21A2238), Color(0xF2141C2E))
+                    )
+                )
+                .border(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        listOf(Color(0xFFFF8AD8), Color(0xFFB794F6), Color(0xFF7DD3FC), Color(0xFFFBBF24))
+                    ),
+                    shape
+                )
+                .padding(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "SOCIAL TODAY",
+                        color = Color(0xFFE9D5FF),
+                        fontFamily = Outfit,
+                        fontSize = 11.sp,
+                        letterSpacing = 1.2.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        todayMs?.let { formatDuration(it) } ?: "—",
+                        color = Color.White,
+                        fontFamily = Outfit,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        when {
+                            delta == null -> "Time across your social apps"
+                            delta >= 0 -> "↓ ${formatDuration(delta)} less than yesterday"
+                            else -> "↑ ${formatDuration(-delta)} more than yesterday"
+                        },
+                        color = if (delta != null && delta >= 0) Color(0xFF86EFAC) else Color(0xFFF9A8D4),
+                        fontFamily = Outfit,
+                        fontSize = 12.sp
+                    )
+                }
+                BalanceRing(progress = balanceProgress(todayMs), modifier = Modifier.size(68.dp))
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(0.10f))
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Close, "Close", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Where your time went",
+                color = Color.White.copy(0.7f),
+                fontFamily = Outfit,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Column(
+                Modifier
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (ranked.isEmpty()) {
+                    Text(
+                        "No social app usage recorded today.",
+                        color = Lumen.Muted,
+                        fontFamily = Outfit,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 20.dp)
+                    )
+                }
+                ranked.take(12).forEach { (app, ms) ->
+                    val fraction = (ms.toFloat() / maxMs.toFloat()).coerceIn(0.04f, 1f)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White.copy(0.07f))
+                            .clickable { onLaunch(app) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppIcon(
+                            packageName = app.packageName,
+                            activityName = app.activityName,
+                            size = 42.dp,
+                            icons = icons
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    app.label,
+                                    color = Color.White,
+                                    fontFamily = Outfit,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    if (ms > 0) formatDuration(ms) else "—",
+                                    color = Color.White.copy(0.85f),
+                                    fontFamily = Outfit,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White.copy(0.10f))
+                            ) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth(fraction)
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFFFF8AD8), Color(0xFFA78BFA), Color(0xFF60A5FA))
+                                            )
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.horizontalGradient(listOf(Color(0xFF8B5CF6), Color(0xFFEC4899))))
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Done",
+                    color = Color.White,
+                    fontFamily = Outfit,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
             }
         }
-    }, confirmButton={TextButton(onClick={details=false}) { Text("Done") }})
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val minutes = (ms / 60_000L).coerceAtLeast(0)
+    return if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+}
+
+/** ~0 empty → 1 light use. Caps “good balance” around 2h social time. */
+private fun balanceProgress(todayMs: Long?): Float {
+    if (todayMs == null) return 0.55f
+    val hours = todayMs / 3_600_000f
+    return min(1f, 0.25f + (1f - (hours / 3f).coerceIn(0f, 1f)) * 0.75f)
+}
+
+private fun relativeTime(at: Long): String {
+    val mins = ((System.currentTimeMillis() - at) / 60_000L).coerceAtLeast(0)
+    return when {
+        mins < 1 -> "now"
+        mins < 60 -> "${mins}m ago"
+        mins < 24 * 60 -> "${mins / 60}h ago"
+        else -> "${mins / (24 * 60)}d ago"
+    }
+}
+
+private data class SocialUsageSnapshot(
+    val today: Long,
+    val yesterday: Long,
+    val byPackage: Map<String, Long>
+)
+
+private fun loadSocialUsage(context: Context, packages: Set<String>): SocialUsageSnapshot? {
+    if (packages.isEmpty()) return SocialUsageSnapshot(0, 0, emptyMap())
+    val ops = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+    if (ops.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            context.packageName
+        ) != AppOpsManager.MODE_ALLOWED
+    ) {
+        return null
+    }
+    return runCatching {
+        val zone = ZoneId.systemDefault()
+        val todayStart = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
+        val yesterdayStart = LocalDate.now().minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val now = System.currentTimeMillis()
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val todayMap = manager.queryAndAggregateUsageStats(todayStart, now)
+            .filterKeys { it in packages }
+            .mapValues { it.value.totalTimeInForeground }
+        val yesterdayMap = manager.queryAndAggregateUsageStats(yesterdayStart, todayStart)
+            .filterKeys { it in packages }
+            .mapValues { it.value.totalTimeInForeground }
+        SocialUsageSnapshot(
+            today = todayMap.values.sum(),
+            yesterday = yesterdayMap.values.sum(),
+            byPackage = todayMap
+        )
+    }.getOrNull()
 }
