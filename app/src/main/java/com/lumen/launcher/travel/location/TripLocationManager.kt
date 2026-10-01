@@ -49,21 +49,37 @@ class TripLocationManager(
 
     /**
      * Primary path for Trip Mode: phone location (not camera EXIF).
-     * Reuses a fresh cache (&lt; 2 minutes) when available.
+     * Cache lasts 90s, but a move of >3 km forces a fresh fix + place resolve
+     * so suburb hops still get the right metro when needed.
      */
     @SuppressLint("MissingPermission")
     suspend fun obtainPhoneLocation(forceRefresh: Boolean = false): ResolvedLocation? {
         if (!hasLocationPermission() || !isLocationServicesEnabled()) return null
         val now = System.currentTimeMillis()
         val hit = cached
-        if (!forceRefresh && hit != null && now - hit.timestamp < 120_000L) return hit
-
         val location = currentLocation() ?: recentLastLocation()
-        if (location == null) return hit?.takeIf { now - it.timestamp in 0..120_000L }
-        val resolved = resolver.resolve(location.latitude, location.longitude)
+        if (location != null && hit != null && !forceRefresh) {
+            val moved = if (hit.latitude != null && hit.longitude != null) {
+                MajorCities.distanceKm(location.latitude, location.longitude, hit.latitude, hit.longitude)
+            } else {
+                Double.MAX_VALUE
+            }
+            if (now - hit.timestamp < 90_000L && moved < 3.0) {
+                return hit.copy(
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    timestamp = now
+                )
+            }
+        } else if (location == null) {
+            return hit?.takeIf { now - it.timestamp in 0..120_000L }
+        }
+
+        val loc = location ?: return hit
+        val resolved = resolver.resolve(loc.latitude, loc.longitude)
             .copy(
-                latitude = location.latitude,
-                longitude = location.longitude,
+                latitude = loc.latitude,
+                longitude = loc.longitude,
                 timestamp = now
             )
         cached = resolved

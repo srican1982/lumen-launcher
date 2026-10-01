@@ -3,6 +3,7 @@ package com.lumen.launcher.travel.data
 import android.content.Context
 import android.net.Uri
 import com.lumen.launcher.travel.location.LocationResolver
+import com.lumen.launcher.travel.location.PlaceStickiness
 import com.lumen.launcher.travel.location.TripLocationManager
 import com.lumen.launcher.travel.media.MediaStorePhotoObserver
 import com.lumen.launcher.travel.media.MediaStorePhotoRepository
@@ -218,12 +219,33 @@ class TripRepository private constructor(context: Context) {
             // Phone location once per burst that actually has new camera photos.
             val phonePlace = location.obtainPhoneLocation()
             var current = trip
+            var stickyCity = trip.primaryCity
+            var stickyLat: Double? = phonePlace?.latitude
+            var stickyLng: Double? = phonePlace?.longitude
+            // Seed sticky from the latest placed photo in this trip, if any.
+            dao.getTripPhotos(trip.id).firstOrNull { !it.city.isNullOrBlank() }?.let { last ->
+                stickyCity = last.city
+                stickyLat = last.latitude ?: stickyLat
+                stickyLng = last.longitude ?: stickyLng
+            }
             for (photo in fresh) {
                 // A catch-up import must not tag yesterday's photo with today's phone position.
                 val recentPlace = phonePlace?.takeIf {
                     TripPhotoRules.canUsePhoneLocation(photo.dateTaken, it.timestamp)
                 }
-                val place = resolvePhotoPlace(photo.contentUri, recentPlace, current)
+                val rawPlace = resolvePhotoPlace(photo.contentUri, recentPlace, current)
+                val place = PlaceStickiness.assign(rawPlace, stickyCity, stickyLat, stickyLng)
+                if (place?.city != null &&
+                    (stickyCity == null || !place.city.equals(stickyCity, ignoreCase = true))
+                ) {
+                    // Left the previous metro bubble — open a new main-city folder.
+                    stickyCity = place.city
+                    stickyLat = place.latitude ?: stickyLat
+                    stickyLng = place.longitude ?: stickyLng
+                } else if (stickyCity != null && place?.city.equals(stickyCity, ignoreCase = true)) {
+                    stickyLat = place?.latitude ?: stickyLat
+                    stickyLng = place?.longitude ?: stickyLng
+                }
                 dao.updatePhotoLocation(
                         id = inserted.getValue(photo.mediaStoreId),
                         latitude = place?.latitude,
