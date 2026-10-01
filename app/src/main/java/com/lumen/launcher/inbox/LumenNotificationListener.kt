@@ -1,6 +1,7 @@
 package com.lumen.launcher.inbox
 
 import com.lumen.launcher.media.NowPlayingRepository
+import androidx.core.graphics.drawable.toBitmap
 import android.app.Notification
 import android.app.PendingIntent
 import android.os.Build
@@ -70,9 +71,15 @@ class LumenNotificationListener : NotificationListenerService() {
                     return@forEach
                 }
                 if (InboxSource.fromPackage(sbn.packageName) == null) return@forEach
+                // Group summaries open the inbox, not the person displayed on a chat card.
+                if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return@forEach
                 val parsed = parse(sbn) ?: return@forEach
-                if (items.none { it.title == parsed.title && it.source == parsed.source }) {
+                if (items.none { it.conversationId == parsed.conversationId && it.title == parsed.title && it.packageName == parsed.packageName }) {
                     items += parsed
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        sbn.notification.bubbleMetadata?.intent?.let { InboxHub.registerBubble(parsed.key, it) }
+                    }
+                    sbn.notification.shortcutId?.takeIf { it.isNotBlank() }?.let { InboxHub.registerShortcut(parsed.key, it, sbn.user) }
                     sbn.notification.contentIntent?.let { intents[parsed.key] = it }
                 }
             }
@@ -146,10 +153,13 @@ class LumenNotificationListener : NotificationListenerService() {
         val source = InboxSource.fromPackage(sbn.packageName) ?: return null
         val extras = sbn.notification.extras
         val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(sbn.notification)
+        val sender = style?.messages?.lastOrNull()?.person?.name?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        val isCall = sbn.notification.category == Notification.CATEGORY_CALL
+        val shortcut = sbn.notification.shortcutId?.takeIf { it.isNotBlank() }
         val title = extras.char(Notification.EXTRA_CONVERSATION_TITLE)
-            ?: extras.char(Notification.EXTRA_TITLE)
-            ?: style?.conversationTitle?.toString()
-            ?: style?.user?.name?.toString()
+            ?: style?.conversationTitle?.toString()?.takeIf { it.isNotBlank() }
+            ?: sender
+            ?: extras.char(Notification.EXTRA_TITLE)?.takeUnless { it.equals(source.title, true) || it.equals("WhatsApp Business", true) }
         val preview = style?.messages?.lastOrNull()?.text?.toString()
             ?: extras.char(Notification.EXTRA_BIG_TEXT)
             ?: extras.char(Notification.EXTRA_TEXT)
@@ -161,7 +171,22 @@ class LumenNotificationListener : NotificationListenerService() {
             title = title?.ifBlank { source.title } ?: source.title,
             preview = preview.orEmpty().trim().take(160),
             packageName = sbn.packageName,
-            postedAt = sbn.postTime
+            postedAt = sbn.postTime,
+            isConversation = sbn.notification.contentIntent != null &&
+                (style != null || shortcut != null || sbn.notification.category == Notification.CATEGORY_MESSAGE || isCall ||
+                    source in setOf(InboxSource.WhatsApp, InboxSource.Telegram, InboxSource.Messenger, InboxSource.Messages)) &&
+                !title.isNullOrBlank() && !title.equals(source.title, ignoreCase = true),
+            sender = sender,
+            isCall = isCall,
+            conversationId = shortcut,
+            avatarPath = runCatching {
+                val icon = style?.messages?.lastOrNull()?.person?.icon ?: return@runCatching null
+                val drawable = icon.loadDrawable(this) ?: return@runCatching null
+                val dir = java.io.File(cacheDir, "conversation_avatars").apply { mkdirs() }
+                val file = java.io.File(dir, "${(sbn.packageName + (shortcut ?: title)).hashCode()}.png")
+                file.outputStream().use { drawable.toBitmap(128, 128).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                file.absolutePath
+            }.getOrNull()
         )
     }
 

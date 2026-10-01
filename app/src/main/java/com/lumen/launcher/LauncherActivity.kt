@@ -146,6 +146,9 @@ class LauncherActivity : FragmentActivity() {
                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+        viewModel.onOpenConversation = { item ->
+            com.lumen.launcher.inbox.InboxHub.openConversation(this, item)
+        }
         viewModel.onStartActivity = { intent ->
             runCatching { startActivity(intent) }.isSuccess
         }

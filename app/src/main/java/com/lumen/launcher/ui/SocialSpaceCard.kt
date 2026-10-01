@@ -49,6 +49,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
@@ -61,6 +66,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -108,7 +114,7 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             state.visibleApps.filter { it.category == AppCategory.Social }
         }.distinctBy { it.packageName }.take(24)
     }
-    val socialPackages = remember(socialApps) { socialApps.map { it.packageName }.toSet() }
+    val socialPackages = remember(state.visibleApps) { state.visibleApps.filter { it.category == AppCategory.Social }.map { it.packageName }.toSet() }
 
     LaunchedEffect(socialPackages) {
         while (true) {
@@ -122,18 +128,12 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
         }
     }
 
-    val chats = remember(state.inbox) {
-        state.inbox
-            .filter {
-                !it.isDigest && it.source in setOf(
-                    InboxSource.Messages,
-                    InboxSource.WhatsApp,
-                    InboxSource.Telegram,
-                    InboxSource.Messenger
-                )
-            }
-            .distinctBy { it.title.trim().lowercase() to it.packageName }
-            .take(8)
+    val chats = remember(state.recentConversations, state.hidden, state.privateApps) {
+        com.lumen.launcher.inbox.ConversationRecents.latest(
+            state.recentConversations.filter { chat -> chat.packageName !in state.hidden &&
+                state.privateApps.none { it.substringBefore('/') == chat.packageName } },
+            System.currentTimeMillis(), 5
+        )
     }
 
     Column(
@@ -156,7 +156,6 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             onPhoto = { vm.openSocialTool(SocialCreateTool.Photo) },
             onScribble = { vm.openSocialTool(SocialCreateTool.Scribble) },
             onQuote = { vm.openSocialTool(SocialCreateTool.Quote) },
-            onStickers = { stickers = true },
             onTripAlbums = { tripAlbums = true },
             onSeeAll = { vm.setRecentsOpen(true) }
         )
@@ -164,7 +163,7 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             chats = chats,
             icons = vm.icons,
             apps = state.visibleApps,
-            onOpen = { vm.openInboxItem(it) },
+            onOpen = { vm.openConversation(it) },
             onNewChat = {
                 val preferred = socialApps.firstOrNull {
                     it.packageName in InboxSource.WhatsApp.packages ||
@@ -227,13 +226,13 @@ private fun SocialTodayCard(
     Box(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 132.dp)
+            .heightIn(min = 116.dp)
             .clip(shape)
             .background(borderBrush)
             .padding(1.5.dp)
             .clip(shape)
             .background(fill)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -253,9 +252,9 @@ private fun SocialTodayCard(
                     todayMs?.let { formatDuration(it) } ?: "—",
                     color = Color.White,
                     fontFamily = Outfit,
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.SemiBold,
-                    lineHeight = 34.sp
+                    lineHeight = 30.sp
                 )
                 when {
                     needsAccess -> Text(
@@ -274,11 +273,12 @@ private fun SocialTodayCard(
                         Icon(Icons.Outlined.TrendingDown, null, tint = Color(0xFF86EFAC), modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(3.dp))
                         Text(
-                            "${formatDuration(delta)} less than yesterday",
+                            if (delta < 60_000) "Same as yesterday\nby this time" else "${formatDuration(delta)} less vs yesterday\nby this time",
                             color = Color(0xFF86EFAC),
                             fontFamily = Outfit,
-                            fontSize = 11.sp,
-                            maxLines = 1,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -286,16 +286,17 @@ private fun SocialTodayCard(
                         Icon(Icons.Outlined.TrendingUp, null, tint = Color(0xFFF9A8D4), modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(3.dp))
                         Text(
-                            "${formatDuration(-delta)} more than yesterday",
+                            "${formatDuration(-delta)} more vs yesterday\nby this time",
                             color = Color(0xFFF9A8D4),
                             fontFamily = Outfit,
-                            fontSize = 11.sp,
-                            maxLines = 1,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     if (needsAccess) "Turn on access ›" else "View details ›",
                     color = Color(0xFFE9D5FF),
@@ -306,7 +307,7 @@ private fun SocialTodayCard(
                 )
             }
 
-            BalanceRing(progress = balance, modifier = Modifier.size(74.dp))
+            BalanceRing(progress = balance, modifier = Modifier.size(66.dp))
 
             Spacer(Modifier.width(8.dp))
             Column(
@@ -389,7 +390,6 @@ private fun CreateSomethingRow(
     onPhoto: () -> Unit,
     onScribble: () -> Unit,
     onQuote: () -> Unit,
-    onStickers: () -> Unit,
     onTripAlbums: () -> Unit,
     onSeeAll: () -> Unit
 ) {
@@ -404,18 +404,16 @@ private fun CreateSomethingRow(
     val tools = listOf(
         Tool("Photo", "Capture", Icons.Outlined.PhotoCamera, listOf(Color(0xFFFF7EB3), Color(0xFFFF5C8A)), onPhoto),
         Tool("Scribble", "Draw & share", Icons.Outlined.Edit, listOf(Color(0xFF8B9CF7), Color(0xFF6B7FF0)), onScribble),
-        Tool("Quote", "Inspire", Icons.Outlined.FormatQuote, listOf(Color(0xFF5EEAD4), Color(0xFF2DD4BF)), onQuote),
-        Tool("Stickers", "Make it fun", Icons.Outlined.EmojiEmotions, listOf(Color(0xFFFBBF24), Color(0xFFF59E0B)), onStickers)
+        Tool("Quote", "Inspire", Icons.Outlined.FormatQuote, listOf(Color(0xFF5EEAD4), Color(0xFF2DD4BF)), onQuote)
     )
 
     Column(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 148.dp)
-            .clip(shape)
-            .background(Color.White.copy(alpha = 0.09f))
+            .padding(end = 20.dp)
+            .background(Color.White.copy(alpha = 0.09f), shape)
             .border(0.8.dp, Color.White.copy(alpha = 0.16f), shape)
-            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -424,27 +422,27 @@ private fun CreateSomethingRow(
                     color = Color.White,
                     fontFamily = Outfit,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp
+                    fontSize = 17.sp, lineHeight = 20.sp
                 )
                 Text(
                     "Turn moments into memories",
                     color = Color.White.copy(0.65f),
                     fontFamily = Outfit,
-                    fontSize = 12.sp
+                    fontSize = 12.sp, lineHeight = 15.sp
                 )
             }
             Text(
                 "See all ›",
                 color = Color(0xFFE9D5FF),
                 fontFamily = Outfit,
-                fontSize = 13.sp,
+                fontSize = 13.sp, lineHeight = 16.sp,
                 modifier = Modifier.clickable(onClick = onSeeAll)
             )
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
         Row(
             Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             tools.forEach { tool ->
                 Column(
@@ -462,20 +460,20 @@ private fun CreateSomethingRow(
                     ) {
                         Icon(tool.icon, tool.title, tint = Color.White, modifier = Modifier.size(24.dp))
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         tool.title,
                         color = Color.White,
                         fontFamily = Outfit,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
+                        fontSize = 11.sp, lineHeight = 14.sp,
                         maxLines = 1
                     )
                     Text(
                         tool.caption,
                         color = Color.White.copy(0.55f),
                         fontFamily = Outfit,
-                        fontSize = 9.sp,
+                        fontSize = 9.sp, lineHeight = 12.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -484,7 +482,7 @@ private fun CreateSomethingRow(
             Spacer(Modifier.width(2.dp))
             TripAlbumPolaroidStack(
                 onClick = onTripAlbums,
-                modifier = Modifier.padding(start = 2.dp)
+                modifier = Modifier.offset(x = 22.dp, y = (-16).dp).graphicsLayer { scaleX = 1.12f; scaleY = 1.12f }
             )
         }
     }
@@ -613,11 +611,10 @@ private fun RecentConversationsRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 148.dp)
             .clip(shape)
             .background(Color.White.copy(alpha = 0.08f))
             .border(0.8.dp, Color.White.copy(alpha = 0.14f), shape)
-            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -632,21 +629,22 @@ private fun RecentConversationsRow(
                 color = Color.White,
                 fontFamily = Outfit,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
+                fontSize = 16.sp, lineHeight = 19.sp,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 if (needsAccess) "Connect" else "See all ›",
                 color = Color(0xFFE9D5FF),
                 fontFamily = Outfit,
-                fontSize = 13.sp,
+                fontSize = 13.sp, lineHeight = 16.sp,
                 modifier = Modifier.clickable(onClick = onSeeAll)
             )
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
         Row(
             Modifier
                 .fillMaxWidth()
+                .nestedScroll(remember { SocialRowScrollBoundary() })
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
@@ -657,8 +655,8 @@ private fun RecentConversationsRow(
                     else "No recent chats yet",
                     color = Lumen.Muted,
                     fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(vertical = 22.dp)
+                    fontSize = 12.sp, lineHeight = 15.sp,
+                    modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
                 chats.forEach { chat ->
@@ -678,7 +676,7 @@ private fun RecentConversationsRow(
             ) {
                 Box(
                     Modifier
-                        .size(56.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(0.10f))
                         .border(1.2.dp, Color.White.copy(0.28f), CircleShape),
@@ -686,8 +684,8 @@ private fun RecentConversationsRow(
                 ) {
                     Icon(Icons.Outlined.Add, "New Chat", tint = Color.White, modifier = Modifier.size(26.dp))
                 }
-                Spacer(Modifier.height(6.dp))
-                Text("New Chat", color = Color.White.copy(0.85f), fontFamily = Outfit, fontSize = 11.sp, maxLines = 1)
+                Spacer(Modifier.height(4.dp))
+                Text("New Chat", color = Color.White.copy(0.85f), fontFamily = Outfit, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1)
             }
         }
     }
@@ -706,23 +704,24 @@ private fun ConversationChip(
             Color(0xFFFB7185), Color(0xFFA78BFA), Color(0xFF38BDF8),
             Color(0xFF34D399), Color(0xFFFBBF24), Color(0xFFF472B6)
         )
-        colors[kotlin.math.abs(chat.title.hashCode()) % colors.size]
+        colors[Math.floorMod((chat.packageName + chat.title).hashCode(), colors.size)]
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(68.dp)
+            .width(84.dp)
             .clickable(onClick = onClick)
     ) {
-        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
             Box(
                 Modifier
-                    .size(56.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
                     .background(Brush.linearGradient(listOf(hue, hue.copy(alpha = 0.55f)))),
                 contentAlignment = Alignment.Center
             ) {
-                Text(initial, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                ConversationAvatar(chat)
+
             }
             Box(
                 Modifier
@@ -745,20 +744,21 @@ private fun ConversationChip(
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
-            chat.title.substringBefore(' ').take(10),
+            chat.title,
             color = Color.White,
             fontFamily = Outfit,
-            fontSize = 11.sp,
-            maxLines = 1,
+            fontSize = 11.sp, lineHeight = 14.sp,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             relativeTime(chat.postedAt),
             color = Color.White.copy(0.55f),
             fontFamily = Outfit,
-            fontSize = 10.sp,
+            fontSize = 10.sp, lineHeight = 13.sp,
             maxLines = 1
         )
     }
@@ -812,7 +812,8 @@ private fun YourSocialAppsCard(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .nestedScroll(remember { SocialRowScrollBoundary() })
+                .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.Top
             ) {
@@ -908,8 +909,8 @@ private fun SocialTodayDetailsSheet(
                     Text(
                         when {
                             delta == null -> "Time across your social apps"
-                            delta >= 0 -> "↓ ${formatDuration(delta)} less than yesterday"
-                            else -> "↑ ${formatDuration(-delta)} more than yesterday"
+                            delta >= 0 -> "↓ ${formatDuration(delta)} less than yesterday by now"
+                            else -> "↑ ${formatDuration(-delta)} more than yesterday by now"
                         },
                         color = if (delta != null && delta >= 0) Color(0xFF86EFAC) else Color(0xFFF9A8D4),
                         fontFamily = Outfit,
@@ -1085,16 +1086,51 @@ private fun loadSocialUsage(context: Context, packages: Set<String>): SocialUsag
         val yesterdayStart = LocalDate.now().minusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val now = System.currentTimeMillis()
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val todayMap = manager.queryAndAggregateUsageStats(todayStart, now)
-            .filterKeys { it in packages }
-            .mapValues { it.value.totalTimeInForeground }
-        val yesterdayMap = manager.queryAndAggregateUsageStats(yesterdayStart, todayStart)
-            .filterKeys { it in packages }
-            .mapValues { it.value.totalTimeInForeground }
+        val events = manager.queryEvents(yesterdayStart - 86_400_000L, now)
+        val samples = mutableListOf<com.lumen.launcher.data.UsageTimeline.Event>()
+        val event = android.app.usage.UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED -> samples.add(com.lumen.launcher.data.UsageTimeline.Event(event.timeStamp, event.packageName))
+                android.app.usage.UsageEvents.Event.ACTIVITY_PAUSED -> samples.add(com.lumen.launcher.data.UsageTimeline.Event(event.timeStamp, event.packageName, false))
+                android.app.usage.UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+                android.app.usage.UsageEvents.Event.DEVICE_SHUTDOWN -> samples.add(com.lumen.launcher.data.UsageTimeline.Event(event.timeStamp, null, false))
+            }
+        }
+        val yesterdayEnd = java.time.Instant.ofEpochMilli(now).atZone(zone).minusDays(1).toInstant().toEpochMilli()
+        val todayMap = com.lumen.launcher.data.UsageTimeline.totals(samples, todayStart, now, packages)
+        val yesterdayMap = com.lumen.launcher.data.UsageTimeline.totals(samples, yesterdayStart, yesterdayEnd, packages)
         SocialUsageSnapshot(
             today = todayMap.values.sum(),
             yesterday = yesterdayMap.values.sum(),
             byPackage = todayMap
         )
     }.getOrNull()
+}
+
+private class SocialRowScrollBoundary : NestedScrollConnection {
+    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: NestedScrollSource) = androidx.compose.ui.geometry.Offset(available.x, 0f)
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity) = Velocity(available.x, 0f)
+}
+
+@Composable
+private fun ConversationAvatar(chat: InboxItem) {
+    val atlas = androidx.compose.ui.graphics.ImageBitmap.imageResource(com.lumen.launcher.R.drawable.social_avatar_atlas)
+    val index = Math.floorMod((chat.packageName + (chat.conversationId ?: chat.title)).hashCode(), 6)
+    val cellWidth = atlas.width / 3
+    val cellHeight = atlas.height / 2
+    // A square crop inside each portrait cell avoids stretching faces.
+    val painter = remember(atlas, index) {
+        androidx.compose.ui.graphics.painter.BitmapPainter(atlas,
+            androidx.compose.ui.unit.IntOffset((index % 3) * cellWidth, (index / 3) * cellHeight + (cellHeight - cellWidth) / 3),
+            androidx.compose.ui.unit.IntSize(cellWidth, cellWidth))
+    }
+    coil.compose.AsyncImage(
+        model = chat.avatarPath?.let { java.io.File(it) },
+        contentDescription = if (chat.avatarPath == null) "Placeholder profile photo" else "Profile photo",
+        placeholder = painter, error = painter, fallback = painter,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = Modifier.fillMaxSize()
+    )
 }

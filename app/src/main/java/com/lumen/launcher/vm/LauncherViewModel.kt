@@ -133,6 +133,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val newsRepository = NewsRepository()
     var onAuthenticate: ((onSuccess: () -> Unit, onFail: () -> Unit) -> Unit)? = null
     var onRequestContacts: (() -> Unit)? = null
+    var onOpenConversation: ((InboxItem) -> Boolean)? = null
     var onStartActivity: ((Intent) -> Boolean)? = null
     var onRequestMic: (() -> Unit)? = null
     var onRequestMicQuiet: (() -> Unit)? = null
@@ -210,6 +211,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             socialCreate.creations.collect { list ->
                 _state.update { it.copy(socialCreations = list) }
+            }
+        }
+        viewModelScope.launch {
+            InboxHub.conversations.collect { conversations ->
+                _state.update { it.copy(recentConversations = conversations) }
             }
         }
         viewModelScope.launch {
@@ -426,6 +432,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         for (pkg in order.distinct()) {
             val launch = getApplication<Application>().packageManager.getLaunchIntentForPackage(pkg)
             if (launch != null && startIntent(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) return
+        }
+    }
+
+    fun openConversation(item: InboxItem) {
+        if (!(onOpenConversation?.invoke(item) ?: false)) {
+            android.widget.Toast.makeText(getApplication(), "This conversation link is no longer available. Open a newer message notification.", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
@@ -3270,6 +3282,7 @@ data class LauncherUiState(
     val alarms: List<LumenAlarm> = emptyList(),
     val alarmTone: String = AlarmTones.AURA,
     val inbox: List<InboxItem> = emptyList(),
+    val recentConversations: List<InboxItem> = emptyList(),
     val inboxAccess: Boolean = false,
     val calendarAccess: Boolean = false,
     val missedCalls: List<MissedCall> = emptyList(),

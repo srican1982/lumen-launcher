@@ -6,7 +6,12 @@ data class InboxItem(
     val title: String,
     val preview: String,
     val packageName: String,
-    val postedAt: Long
+    val postedAt: Long,
+    val isConversation: Boolean = false,
+    val sender: String? = null,
+    val isCall: Boolean = false,
+    val avatarPath: String? = null,
+    val conversationId: String? = null
 ) {
     val isDigest: Boolean
         get() {
