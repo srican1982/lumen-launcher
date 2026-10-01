@@ -146,12 +146,15 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
             }
             SpaceKind.Travel -> {
                 TripModeCard(onViewTrip = { albumTrip = it })
-                WorkspaceLine(state.travelDestination.ifBlank { "Where are you going?" }, "Tap to set your destination") { editTrip = true }
+                TravelNavigationBlock(
+                    stops = state.travelStops,
+                    lastSelectedId = state.lastTravelStopId,
+                    vm = vm
+                )
                 state.upNext?.takeIf { it.kind == UpNext.Kind.Flight }?.let { flight ->
                     WorkspaceLine(flight.title, flight.detail) { vm.openUpNext(flight) }
                 }
                 WorkspaceActions {
-                    OutlinedButton(onClick = { if (state.travelDestination.isBlank()) editTrip = true else vm.navigateTravel() }) { Text("Navigate") }
                     OutlinedButton(onClick = { travelCollection = false }) { Text("Documents (" + state.travelAttachments.size + ")") }
                     OutlinedButton(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Departure reminder") }
                     OutlinedButton(onClick = {

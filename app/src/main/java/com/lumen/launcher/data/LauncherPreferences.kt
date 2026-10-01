@@ -74,6 +74,8 @@ class LauncherPreferences(private val context: Context) {
             travelDestination = prefs[TRAVEL_DESTINATION].orEmpty(),
             travelTicket = prefs[TRAVEL_TICKET].orEmpty(),
             travelAttachments = TravelAttachments.decode(prefs[TRAVEL_ATTACHMENTS], prefs[TRAVEL_TICKET].orEmpty()),
+            travelStops = TripStops.decode(prefs[TRAVEL_STOPS]),
+            lastTravelStopId = prefs[LAST_TRAVEL_STOP_ID].orEmpty().ifBlank { null },
             spaceDocks = decodeSpaceDocks(prefs[SPACE_DOCKS].orEmpty()),
             aliasHints = decodeAliasHints(prefs[ALIAS_HINTS].orEmpty()),
             notes = decodeNotes(prefs[NOTES].orEmpty()),
@@ -349,6 +351,22 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit {
             it[TRAVEL_DESTINATION] = destination
             it[TRAVEL_TICKET] = ticket
+        }
+    }
+
+    suspend fun updateTravelStops(
+        add: List<TripStop> = emptyList(),
+        removeId: String? = null,
+        replace: List<TripStop>? = null,
+        lastSelectedId: String? = null
+    ) {
+        context.launcherStore.edit { prefs ->
+            val current = TripStops.decode(prefs[TRAVEL_STOPS])
+            val next = replace ?: TripStops.merge(current, add, removeId)
+            prefs[TRAVEL_STOPS] = TripStops.encode(next)
+            if (lastSelectedId != null) {
+                prefs[LAST_TRAVEL_STOP_ID] = lastSelectedId
+            }
         }
     }
 
@@ -631,6 +649,8 @@ class LauncherPreferences(private val context: Context) {
         val TRAVEL_DESTINATION = stringPreferencesKey("travel_destination")
         val TRAVEL_ATTACHMENTS = stringPreferencesKey("travel_attachments")
         val TRAVEL_TICKET = stringPreferencesKey("travel_ticket")
+        val TRAVEL_STOPS = stringPreferencesKey("travel_stops")
+        val LAST_TRAVEL_STOP_ID = stringPreferencesKey("last_travel_stop_id")
         val SPACE_DOCKS = stringPreferencesKey("space_docks")
         val ALIAS_HINTS = stringPreferencesKey("alias_hints")
         val NOTES = stringPreferencesKey("lumen_notes")
@@ -690,6 +710,8 @@ data class LauncherState(
     val travelDestination: String = "",
     val travelTicket: String = "",
     val travelAttachments: List<TravelAttachment> = emptyList(),
+    val travelStops: List<TripStop> = emptyList(),
+    val lastTravelStopId: String? = null,
     val spaceDocks: Map<String, List<String>> = emptyMap(),
     val aliasHints: Map<String, Int> = emptyMap(),
     val notes: List<CaptureNote> = emptyList(),
