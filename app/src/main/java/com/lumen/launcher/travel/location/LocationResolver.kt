@@ -15,8 +15,8 @@ import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
 /**
- * Reverse-geocodes to a **major trip city** (metro / main city), not every suburb.
- * Cache cells are ~1 km so nearby suburbs share the same lookup.
+ * Reverse-geocodes GPS into a full admin hierarchy for trip clustering.
+ * Cache cells are ~1 km so nearby suburbs share one lookup.
  */
 class LocationResolver(private val context: Context) {
     private val cache = ConcurrentHashMap<String, ResolvedLocation>()
@@ -29,24 +29,35 @@ class LocationResolver(private val context: Context) {
             }
             val resolved = runCatching {
                 if (!Geocoder.isPresent()) return@runCatching null
-                val list = addresses(latitude, longitude)
-                val a = list?.firstOrNull()
-                val major = MajorPlaceResolver.resolve(a, latitude, longitude)
-                ResolvedLocation(
-                    latitude = latitude,
-                    longitude = longitude,
-                    countryCode = a?.countryCode,
-                    countryName = a?.countryName,
-                    city = major
-                )
-            }.getOrNull() ?: ResolvedLocation(
-                latitude = latitude,
-                longitude = longitude,
-                city = MajorPlaceResolver.resolve(null, latitude, longitude)
-            )
-            if (resolved.countryName != null || resolved.city != null) cache[key] = resolved
+                val a = addresses(latitude, longitude)?.firstOrNull() ?: return@runCatching null
+                fromAddress(a, latitude, longitude)
+            }.getOrNull() ?: ResolvedLocation(latitude = latitude, longitude = longitude)
+            if (resolved.countryName != null || resolved.city != null || resolved.locality != null) {
+                cache[key] = resolved
+            }
             resolved
         }
+
+    private fun fromAddress(a: Address, latitude: Double, longitude: Double): ResolvedLocation {
+        val levels = AdminPlaceLabeler.AdminLevels(
+            locality = a.locality?.trim()?.takeIf { it.isNotBlank() }
+                ?: a.subLocality?.trim()?.takeIf { it.isNotBlank() },
+            subAdminArea = a.subAdminArea?.trim()?.takeIf { it.isNotBlank() },
+            adminArea = a.adminArea?.trim()?.takeIf { it.isNotBlank() },
+            countryName = a.countryName?.trim()?.takeIf { it.isNotBlank() },
+            countryCode = a.countryCode?.trim()?.takeIf { it.isNotBlank() }
+        )
+        return ResolvedLocation(
+            latitude = latitude,
+            longitude = longitude,
+            countryCode = levels.countryCode,
+            countryName = levels.countryName,
+            city = AdminPlaceLabeler.displayForPhoto(levels),
+            locality = levels.locality,
+            subAdminArea = levels.subAdminArea,
+            adminArea = levels.adminArea
+        )
+    }
 
     private suspend fun addresses(lat: Double, lng: Double): List<Address>? =
         withTimeoutOrNull(4_000L) {
@@ -78,12 +89,13 @@ class LocationResolver(private val context: Context) {
         private val legacyExecutor = java.util.concurrent.ThreadPoolExecutor(
             0, 1, 30L, java.util.concurrent.TimeUnit.SECONDS,
             java.util.concurrent.SynchronousQueue(),
-            java.util.concurrent.ThreadFactory { task -> Thread(task, "TripGeocoder").apply { isDaemon = true } }
+            java.util.concurrent.ThreadFactory { task ->
+                Thread(task, "TripGeocoder").apply { isDaemon = true }
+            }
         )
     }
 
     private fun cacheKey(lat: Double, lng: Double): String {
-        // ~0.01 deg ≈ 1 km — suburbs around a metro share one geocode cell.
         val a = (lat * 100).roundToInt()
         val b = (lng * 100).roundToInt()
         return "$a,$b"

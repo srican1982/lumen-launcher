@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import com.lumen.launcher.travel.TripPhotoRules
 import com.lumen.launcher.travel.location.LocationResolver
-import com.lumen.launcher.travel.location.MajorCities
 import com.lumen.launcher.travel.location.TripLocationManager
 import com.lumen.launcher.travel.location.TripPlaceOrganizer
 import com.lumen.launcher.travel.media.MediaStorePhotoObserver
@@ -232,7 +231,10 @@ class TripRepository private constructor(context: Context) {
                     longitude = place?.longitude,
                     countryCode = place?.countryCode ?: trip.countryCode,
                     countryName = place?.countryName ?: trip.countryName,
-                    city = place?.city
+                    city = place?.city,
+                    locality = place?.locality,
+                    subAdminArea = place?.subAdminArea,
+                    adminArea = place?.adminArea
                 )
             }
             refreshTripIdentity(trip.id)
@@ -299,19 +301,6 @@ class TripRepository private constructor(context: Context) {
             return LocationResolver(app).resolve(exif.first, exif.second)
         }
         if (phonePlace != null) return phonePlace
-        // Last resort: snap to start coords' metro only as weak metadata (not a place section).
-        val lat = trip.startLatitude
-        val lng = trip.startLongitude
-        if (lat != null && lng != null) {
-            val metro = MajorCities.nearest(lat, lng, trip.countryCode)?.name
-            return ResolvedLocation(
-                latitude = lat,
-                longitude = lng,
-                countryCode = trip.countryCode,
-                countryName = trip.countryName,
-                city = metro
-            )
-        }
         return null
     }
 

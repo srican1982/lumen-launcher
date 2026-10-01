@@ -4,37 +4,32 @@ import com.lumen.launcher.travel.model.PlaceSection
 import com.lumen.launcher.travel.model.TripPhoto
 
 /**
- * Trip owns photos. Location only forms **optional place sections** after evidence.
+ * Trip owns photos. Location forms optional place sections via:
+ * 1) distance clustering on GPS
+ * 2) admin hierarchy labels from reverse geocoding (locality → district → province → country)
  *
- * Rules:
- * - Start-zone grace: photos near where Trip Mode turned on never become a place.
- * - Metro snap: suburbs collapse into one major destination (Chula Vista → San Diego).
- * - Significance: ≥[minPhotos] in a metro, or dwell ≥[minDwellMs].
+ * No worldwide city hardcoding required.
  */
 object TripPlaceOrganizer {
-    /** ~20 miles — departure / drive-out area, not a destination. */
+    /** ~20 miles — departure area where Trip Mode was turned on. */
     const val START_ZONE_KM = 32.0
-    /** Minimum photos in a metro before it becomes a place section. */
+    /** Photos within this distance can join the same destination cluster. */
+    const val CLUSTER_KM = 35.0
     const val MIN_PHOTOS = 3
-    /** Or remain in that metro this long (ms). */
     const val MIN_DWELL_MS = 25L * 60_000L
-    /** Separate destination sections when metro centers are this far apart. */
-    const val DEST_SEPARATION_KM = 40.0
 
     data class Result(
         val sections: List<PlaceSection>,
-        /** Best auto title, e.g. "San Diego Trip", or null to keep Current Trip. */
         val suggestedTitle: String?,
         val dominantPlace: String?,
         val countryCode: String?,
         val countryName: String?
     )
 
-    private data class Tagged(
+    private data class Point(
         val photo: TripPhoto,
         val lat: Double,
         val lng: Double,
-        val metro: String,
         val inStartZone: Boolean
     )
 
@@ -47,34 +42,27 @@ object TripPlaceOrganizer {
             return Result(emptyList(), null, null, null, null)
         }
 
-        val tagged = photos.mapNotNull { photo ->
+        val points = photos.mapNotNull { photo ->
             val lat = photo.latitude ?: return@mapNotNull null
             val lng = photo.longitude ?: return@mapNotNull null
-            val metro = MajorCities.nearest(lat, lng, photo.countryCode)?.name
-                ?: photo.city?.takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
             val inStart = startLat != null && startLng != null &&
-                MajorCities.distanceKm(lat, lng, startLat, startLng) <= START_ZONE_KM
-            Tagged(photo, lat, lng, metro, inStart)
+                GeoMath.distanceKm(lat, lng, startLat, startLng) <= START_ZONE_KM
+            Point(photo, lat, lng, inStart)
         }
 
-        val byMetro = tagged
-            .filter { !it.inStartZone }
-            .groupBy { it.metro }
-
-        val rawSections = mutableListOf<PlaceSection>()
-        for ((metro, group) in byMetro) {
-            if (!isSignificant(group)) continue
+        val candidates = points.filter { !it.inStartZone }
+        val clusters = cluster(candidates).filter { isSignificant(it) }.mapNotNull { group ->
             val centerLat = group.map { it.lat }.average()
             val centerLng = group.map { it.lng }.average()
             if (startLat != null && startLng != null &&
-                MajorCities.distanceKm(centerLat, centerLng, startLat, startLng) <= START_ZONE_KM
+                GeoMath.distanceKm(centerLat, centerLng, startLat, startLng) <= START_ZONE_KM
             ) {
-                continue
+                return@mapNotNull null
             }
+            val label = labelFor(group) ?: return@mapNotNull null
             val ordered = group.sortedBy { it.photo.dateTaken }
-            rawSections += PlaceSection(
-                label = metro,
+            PlaceSection(
+                label = label,
                 count = group.size,
                 photoIds = ordered.map { it.photo.id },
                 centerLat = centerLat,
@@ -84,8 +72,12 @@ object TripPlaceOrganizer {
             )
         }
 
-        val merged = mergeNearby(rawSections)
-        val claimed = merged.flatMap { it.photoIds }.toSet()
+        // Merge same-label sections (e.g. two clusters both "Colombo area").
+        val destinations = mergeSameLabels(clusters).sortedWith(
+            compareByDescending<PlaceSection> { it.count }.thenBy { it.firstTaken ?: 0L }
+        )
+
+        val claimed = destinations.flatMap { it.photoIds }.toSet()
         val unclustered = photos.filter { it.id !in claimed }
         val other = if (unclustered.isNotEmpty()) {
             listOf(
@@ -100,81 +92,113 @@ object TripPlaceOrganizer {
             emptyList()
         }
 
-        val destinations = merged.sortedWith(
-            compareByDescending<PlaceSection> { it.count }.thenBy { it.firstTaken ?: 0L }
-        )
         val countryCode = photos.mapNotNull { it.countryCode }.groupingBy { it }.eachCount()
             .maxByOrNull { it.value }?.key
         val countryName = photos.mapNotNull { it.countryName }.groupingBy { it }.eachCount()
             .maxByOrNull { it.value }?.key
+        val countries = destinations.mapNotNull { section ->
+            photos.filter { it.id in section.photoIds.toSet() }
+                .mapNotNull { it.countryName?.takeIf(String::isNotBlank) }
+                .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+        }.distinct()
 
         return Result(
             sections = destinations + other,
-            suggestedTitle = suggestTitle(destinations),
-            dominantPlace = destinations.firstOrNull()?.label,
+            suggestedTitle = suggestTitle(destinations, countries, countryName),
+            dominantPlace = destinations.firstOrNull()?.let { AdminPlaceLabeler.titlePlace(it.label) },
             countryCode = countryCode,
             countryName = countryName
         )
     }
 
-    private fun isSignificant(group: List<Tagged>): Boolean {
-        if (group.size >= MIN_PHOTOS) return true
-        if (group.isEmpty()) return false
-        val minT = group.minOf { it.photo.dateTaken }
-        val maxT = group.maxOf { it.photo.dateTaken }
-        return (maxT - minT) >= MIN_DWELL_MS
-    }
-
-    private fun mergeNearby(sections: List<PlaceSection>): List<PlaceSection> {
-        if (sections.size <= 1) return sections
-        val remaining = sections.sortedByDescending { it.count }.toMutableList()
-        val out = mutableListOf<PlaceSection>()
-        while (remaining.isNotEmpty()) {
-            val base = remaining.removeAt(0)
-            val bLat = base.centerLat
-            val bLng = base.centerLng
-            val absorbed = mutableListOf<PlaceSection>()
-            if (bLat != null && bLng != null) {
-                val it = remaining.iterator()
-                while (it.hasNext()) {
-                    val other = it.next()
-                    val oLat = other.centerLat ?: continue
-                    val oLng = other.centerLng ?: continue
-                    if (MajorCities.distanceKm(bLat, bLng, oLat, oLng) <= DEST_SEPARATION_KM) {
-                        absorbed += other
-                        it.remove()
-                    }
+    private fun cluster(points: List<Point>): List<List<Point>> {
+        if (points.isEmpty()) return emptyList()
+        val parent = IntArray(points.size) { it }
+        fun find(i: Int): Int {
+            var x = i
+            while (parent[x] != x) x = parent[x]
+            return x
+        }
+        fun union(a: Int, b: Int) {
+            val ra = find(a)
+            val rb = find(b)
+            if (ra != rb) parent[rb] = ra
+        }
+        for (i in points.indices) {
+            for (j in i + 1 until points.size) {
+                if (GeoMath.distanceKm(
+                        points[i].lat, points[i].lng,
+                        points[j].lat, points[j].lng
+                    ) <= CLUSTER_KM
+                ) {
+                    union(i, j)
                 }
             }
-            if (absorbed.isEmpty()) {
-                out += base
-            } else {
-                val all = listOf(base) + absorbed
-                val ids = all.flatMap { it.photoIds }
-                out += PlaceSection(
-                    label = base.label,
+        }
+        return points.indices.groupBy { find(it) }.values.map { idxs -> idxs.map { points[it] } }
+    }
+
+    private fun isSignificant(group: List<Point>): Boolean {
+        if (group.size >= MIN_PHOTOS) return true
+        if (group.isEmpty()) return false
+        return group.maxOf { it.photo.dateTaken } - group.minOf { it.photo.dateTaken } >= MIN_DWELL_MS
+    }
+
+    private fun labelFor(group: List<Point>): String? {
+        val levels = group.map {
+            AdminPlaceLabeler.AdminLevels(
+                locality = it.photo.locality,
+                subAdminArea = it.photo.subAdminArea,
+                adminArea = it.photo.adminArea,
+                countryName = it.photo.countryName,
+                countryCode = it.photo.countryCode
+            )
+        }
+        AdminPlaceLabeler.labelCluster(levels)?.let { return it }
+        // Last resort: majority city tag from geocoder / legacy field.
+        return group.mapNotNull { it.photo.city?.takeIf(String::isNotBlank) }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+    }
+
+    private fun mergeSameLabels(sections: List<PlaceSection>): List<PlaceSection> {
+        if (sections.size <= 1) return sections
+        return sections.groupBy { it.label.lowercase() }.map { (_, group) ->
+            if (group.size == 1) group.first()
+            else {
+                val ids = group.flatMap { it.photoIds }
+                PlaceSection(
+                    label = group.maxBy { it.count }.label,
                     count = ids.size,
                     photoIds = ids,
-                    centerLat = all.mapNotNull { it.centerLat }.average().takeIf { !it.isNaN() },
-                    centerLng = all.mapNotNull { it.centerLng }.average().takeIf { !it.isNaN() },
-                    firstTaken = all.mapNotNull { it.firstTaken }.minOrNull(),
-                    lastTaken = all.mapNotNull { it.lastTaken }.maxOrNull()
+                    centerLat = group.mapNotNull { it.centerLat }.average().takeIf { !it.isNaN() },
+                    centerLng = group.mapNotNull { it.centerLng }.average().takeIf { !it.isNaN() },
+                    firstTaken = group.mapNotNull { it.firstTaken }.minOrNull(),
+                    lastTaken = group.mapNotNull { it.lastTaken }.maxOrNull()
                 )
             }
         }
-        return out
     }
 
-    private fun suggestTitle(destinations: List<PlaceSection>): String? {
+    private fun suggestTitle(
+        destinations: List<PlaceSection>,
+        clusterCountries: List<String>,
+        fallbackCountry: String?
+    ): String? {
         if (destinations.isEmpty()) return null
-        return when (destinations.size) {
-            1 -> "${destinations[0].label} Trip"
-            2 -> "${destinations[0].label} + ${destinations[1].label}"
-            else -> destinations.take(2).joinToString(" + ") { it.label } + " Trip"
+        if (destinations.size == 1) {
+            return "${AdminPlaceLabeler.titlePlace(destinations[0].label)} Trip"
+        }
+        val countries = clusterCountries.ifEmpty {
+            listOfNotNull(fallbackCountry?.takeIf { it.isNotBlank() })
+        }
+        return when {
+            countries.size == 1 -> "${countries[0]} Trip"
+            countries.size == 2 -> "${countries[0]} + ${countries[1]}"
+            countries.size > 2 -> countries.take(2).joinToString(" + ")
+            else -> destinations.take(2).joinToString(" + ") { AdminPlaceLabeler.titlePlace(it.label) }
         }
     }
 
-    /** Whether an auto title may still be overwritten by inference. */
     fun isAutoTitle(title: String): Boolean {
         val t = title.trim()
         if (t.equals("Current Trip", ignoreCase = true)) return true

@@ -29,7 +29,7 @@ object PlaceStickiness {
                 return incoming.copy(city = stickyCity)
             }
             if (lat != null && lng != null && stickyLat != null && stickyLng != null) {
-                val d = MajorCities.distanceKm(lat, lng, stickyLat, stickyLng)
+                val d = GeoMath.distanceKm(lat, lng, stickyLat, stickyLng)
                 if (d <= STICK_KM) {
                     // Still in the same metro bubble (e.g. Cerritos → Norwalk).
                     return incoming.copy(city = stickyCity)
@@ -37,7 +37,7 @@ object PlaceStickiness {
             }
             // Geocode failed but we still have a sticky place and coords are close-ish unknown:
             if (city == null && stickyLat != null && stickyLng != null && lat != null && lng != null) {
-                val d = MajorCities.distanceKm(lat, lng, stickyLat, stickyLng)
+                val d = GeoMath.distanceKm(lat, lng, stickyLat, stickyLng)
                 if (d <= STICK_KM) return incoming.copy(city = stickyCity)
             }
         }

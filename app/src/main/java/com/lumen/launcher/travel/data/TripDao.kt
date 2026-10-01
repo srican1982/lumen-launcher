@@ -53,9 +53,20 @@ interface TripDao {
     suspend fun insertTripPhoto(photo: TripPhotoEntity): Long
 
     @Query("""UPDATE trip_photos SET latitude = :latitude, longitude = :longitude,
-        countryCode = :countryCode, countryName = :countryName, city = :city WHERE id = :id""")
-    suspend fun updatePhotoLocation(id: Long, latitude: Double?, longitude: Double?,
-        countryCode: String?, countryName: String?, city: String?)
+        countryCode = :countryCode, countryName = :countryName, city = :city,
+        locality = :locality, subAdminArea = :subAdminArea, adminArea = :adminArea
+        WHERE id = :id""")
+    suspend fun updatePhotoLocation(
+        id: Long,
+        latitude: Double?,
+        longitude: Double?,
+        countryCode: String?,
+        countryName: String?,
+        city: String?,
+        locality: String? = null,
+        subAdminArea: String? = null,
+        adminArea: String? = null
+    )
 
     @Query("SELECT COUNT(*) FROM trip_photos WHERE mediaStoreId = :mediaStoreId")
     suspend fun countByMediaStoreId(mediaStoreId: Long): Int

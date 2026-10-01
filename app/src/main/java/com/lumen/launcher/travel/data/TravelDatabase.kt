@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [TripEntity::class, TripPhotoEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class TravelDatabase : RoomDatabase() {
@@ -32,6 +32,13 @@ abstract class TravelDatabase : RoomDatabase() {
                         override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             db.execSQL("ALTER TABLE trips ADD COLUMN startLatitude REAL")
                             db.execSQL("ALTER TABLE trips ADD COLUMN startLongitude REAL")
+                        }
+                    },
+                    object : androidx.room.migration.Migration(3, 4) {
+                        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                            db.execSQL("ALTER TABLE trip_photos ADD COLUMN locality TEXT")
+                            db.execSQL("ALTER TABLE trip_photos ADD COLUMN subAdminArea TEXT")
+                            db.execSQL("ALTER TABLE trip_photos ADD COLUMN adminArea TEXT")
                         }
                     }
                 ).build().also { instance = it }

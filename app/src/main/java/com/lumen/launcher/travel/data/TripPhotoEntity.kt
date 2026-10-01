@@ -35,6 +35,9 @@ data class TripPhotoEntity(
     val countryCode: String? = null,
     val countryName: String? = null,
     val city: String? = null,
+    val locality: String? = null,
+    val subAdminArea: String? = null,
+    val adminArea: String? = null,
     val relativePath: String? = null,
     val addedAt: Long,
     @ColumnInfo(defaultValue = "0") val removed: Boolean = false
@@ -51,6 +54,9 @@ data class TripPhotoEntity(
         countryCode = countryCode,
         countryName = countryName,
         city = city,
+        locality = locality,
+        subAdminArea = subAdminArea,
+        adminArea = adminArea,
         relativePath = relativePath,
         addedAt = addedAt
     )

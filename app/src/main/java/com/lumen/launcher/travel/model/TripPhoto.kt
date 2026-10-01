@@ -12,6 +12,9 @@ data class TripPhoto(
     val countryCode: String? = null,
     val countryName: String? = null,
     val city: String? = null,
+    val locality: String? = null,
+    val subAdminArea: String? = null,
+    val adminArea: String? = null,
     val relativePath: String? = null,
     val addedAt: Long
 ) {

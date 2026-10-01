@@ -60,7 +60,7 @@ class TripLocationManager(
         val location = currentLocation() ?: recentLastLocation()
         if (location != null && hit != null && !forceRefresh) {
             val moved = if (hit.latitude != null && hit.longitude != null) {
-                MajorCities.distanceKm(location.latitude, location.longitude, hit.latitude, hit.longitude)
+                GeoMath.distanceKm(location.latitude, location.longitude, hit.latitude, hit.longitude)
             } else {
                 Double.MAX_VALUE
             }
