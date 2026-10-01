@@ -85,11 +85,14 @@ fun TripAlbumScreen(
     onClose: () -> Unit,
     tripVm: TripViewModel = viewModel()
 ) {
+    val liveTripFlow = remember(tripVm, trip.id) { tripVm.trip(trip.id) }
+    val liveTrip by liveTripFlow.collectAsState(initial = trip)
+    val shown = liveTrip ?: trip
     val photoFlow = remember(tripVm, trip.id) { tripVm.photos(trip.id) }
-    val cityFlow = remember(tripVm, trip.id) { tripVm.cityBuckets(trip.id) }
+    val placeFlow = remember(tripVm, trip.id) { tripVm.placeSections(trip.id) }
     val photos by photoFlow.collectAsState(initial = emptyList())
-    val cities by cityFlow.collectAsState(initial = emptyList())
-    var filter by remember(trip.id) { mutableStateOf("All") }
+    val places by placeFlow.collectAsState(initial = emptyList())
+    var filter by remember(trip.id) { mutableStateOf<String?>(null) } // null = All
     var selected by remember(trip.id) { mutableStateOf(setOf<Long>()) }
     var pendingDelete by remember { mutableStateOf(emptyList<Long>()) }
     var deleteError by remember { mutableStateOf<String?>(null) }
@@ -98,17 +101,21 @@ fun TripAlbumScreen(
     LaunchedEffect(photos) {
         selected = selected.intersect(photos.map { it.id }.toSet())
     }
-    LaunchedEffect(cities) {
-        if (filter != "All" && cities.none { it.city == filter }) filter = "All"
+    LaunchedEffect(places) {
+        if (filter != null && places.none { it.label == filter }) filter = null
     }
 
-    val filtered = remember(photos, filter) {
-        when (filter) {
-            "All" -> photos
-            "Other" -> photos.filter { it.city.isNullOrBlank() }
-            else -> photos.filter { it.city.equals(filter, ignoreCase = true) }
+    val filtered = remember(photos, places, filter) {
+        val label = filter ?: return@remember photos
+        val section = places.firstOrNull { it.label == label }
+        if (section != null) {
+            val ids = section.photoIds.toSet()
+            photos.filter { it.id in ids }
+        } else {
+            photos
         }
     }
+    val destinations = remember(places) { places.filterNot { it.isOther } }
     val selecting = selected.isNotEmpty()
     val selectedPhotos = remember(photos, selected) {
         photos.filter { it.id in selected }
@@ -152,7 +159,7 @@ fun TripAlbumScreen(
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    trip.displayTitle,
+                                    shown.displayTitle,
                                     color = Lumen.Text,
                                     fontFamily = Outfit,
                                     fontWeight = FontWeight.SemiBold,
@@ -161,10 +168,10 @@ fun TripAlbumScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text(trip.flagEmoji, fontSize = 18.sp)
+                                Text(shown.flagEmoji, fontSize = 18.sp)
                             }
                             Text(
-                                formatTripRange(trip.startTime, trip.endTime) + " · " +
+                                formatTripRange(shown.startTime, shown.endTime) + " · " +
                                     if (photos.size == 1) "1 photo" else "${photos.size} photos",
                                 color = Lumen.Muted,
                                 fontFamily = Outfit,
@@ -173,11 +180,10 @@ fun TripAlbumScreen(
                         }
                     }
 
-                    val place = trip.primaryCity ?: trip.citiesLabel?.substringBefore(" · ")
-                    if (!place.isNullOrBlank() || photos.isNotEmpty()) {
+                    if (destinations.isNotEmpty()) {
                         LocationSummaryCard(
-                            city = place ?: "Trip photos",
-                            count = if (filter == "All") photos.size else filtered.size
+                            city = destinations.joinToString(" · ") { it.label },
+                            count = if (filter == null) photos.size else filtered.size
                         )
                         Spacer(Modifier.height(12.dp))
                     }
@@ -189,15 +195,15 @@ fun TripAlbumScreen(
                         item {
                             FilterPill(
                                 label = "All (${photos.size})",
-                                selected = filter == "All",
-                                onClick = { filter = "All" }
+                                selected = filter == null,
+                                onClick = { filter = null }
                             )
                         }
-                        items(cities, key = { it.city }) { bucket ->
+                        items(places, key = { it.label }) { section ->
                             FilterPill(
-                                label = "${bucket.city} (${bucket.count})",
-                                selected = filter == bucket.city,
-                                onClick = { filter = bucket.city }
+                                label = "${section.label} (${section.count})",
+                                selected = filter == section.label,
+                                onClick = { filter = section.label }
                             )
                         }
                     }

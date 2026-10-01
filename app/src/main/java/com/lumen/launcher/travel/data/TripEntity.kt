@@ -14,7 +14,10 @@ data class TripEntity(
     val primaryCity: String? = null,
     val title: String,
     val isActive: Boolean,
-    val createdAt: Long
+    val createdAt: Long,
+    /** Where Trip Mode was turned on — start-zone grace uses this, not the first city name. */
+    val startLatitude: Double? = null,
+    val startLongitude: Double? = null
 ) {
     fun toModel(
         photoCount: Int = 0,
@@ -31,6 +34,8 @@ data class TripEntity(
         title = title,
         isActive = isActive,
         createdAt = createdAt,
+        startLatitude = startLatitude,
+        startLongitude = startLongitude,
         photoCount = photoCount,
         coverUri = coverUri,
         previewUris = previewUris,

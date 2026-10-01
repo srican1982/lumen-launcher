@@ -10,6 +10,8 @@ data class Trip(
     val title: String,
     val isActive: Boolean,
     val createdAt: Long,
+    val startLatitude: Double? = null,
+    val startLongitude: Double? = null,
     val photoCount: Int = 0,
     val coverUri: String? = null,
     val previewUris: List<String> = emptyList(),

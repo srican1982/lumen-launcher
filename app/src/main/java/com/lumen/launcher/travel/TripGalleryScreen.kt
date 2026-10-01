@@ -96,7 +96,7 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel()) 
                             fontSize = 26.sp
                         )
                         Text(
-                            "Your journeys, kept as folders",
+                            "Your journeys as trip albums",
                             color = Lumen.Muted,
                             fontFamily = Outfit,
                             fontSize = 13.sp

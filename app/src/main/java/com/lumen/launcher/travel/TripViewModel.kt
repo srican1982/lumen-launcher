@@ -12,6 +12,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lumen.launcher.travel.data.TripRepository
 import com.lumen.launcher.travel.model.CityBucket
+import com.lumen.launcher.travel.model.PlaceSection
 import com.lumen.launcher.travel.model.Trip
 import com.lumen.launcher.travel.model.TripPhoto
 import com.lumen.launcher.travel.model.TripUiState
@@ -86,7 +87,16 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         )
     }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripUiState())
 
-    fun cityBuckets(tripId: Long): Flow<List<CityBucket>> = repo.cityBucketsFlow(tripId)
+    fun placeSections(tripId: Long): Flow<List<PlaceSection>> = repo.placeSectionsFlow(tripId)
+
+    fun cityBuckets(tripId: Long): Flow<List<CityBucket>> = placeSections(tripId)
+
+    fun trip(tripId: Long): Flow<Trip?> = combine(
+        repo.activeTripFlow,
+        repo.pastTripsFlow
+    ) { active, past ->
+        if (active?.id == tripId) active else past.firstOrNull { it.id == tripId }
+    }.distinctUntilChanged()
 
     fun photos(tripId: Long): Flow<List<TripPhoto>> = repo.photosFlow(tripId)
 

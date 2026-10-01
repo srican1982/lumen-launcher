@@ -1,9 +1,21 @@
 package com.lumen.launcher.travel.model
 
-data class CityBucket(
-    val city: String,
-    val count: Int
+/** Meaningful destination section inside a trip album (not a top-level album). */
+data class PlaceSection(
+    val label: String,
+    val count: Int,
+    val photoIds: List<Long> = emptyList(),
+    val centerLat: Double? = null,
+    val centerLng: Double? = null,
+    val firstTaken: Long? = null,
+    val lastTaken: Long? = null,
+    val isOther: Boolean = false
 )
+
+/** @deprecated Prefer [PlaceSection] — kept as alias for call sites mid-migration. */
+typealias CityBucket = PlaceSection
+
+val PlaceSection.city: String get() = label
 
 data class TripUiState(
     val tripModeEnabled: Boolean = false,
