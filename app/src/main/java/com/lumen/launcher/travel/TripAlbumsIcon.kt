@@ -19,58 +19,107 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.lumen.launcher.data.IconTreatment
+import com.lumen.launcher.ui.LocalIconGlassStrength
+import com.lumen.launcher.ui.LocalIconTreatment
 import com.lumen.launcher.ui.LocalGlass
-import com.lumen.launcher.ui.theme.LumenPalette
+import com.lumen.launcher.ui.iconHasGlass
 
 /**
  * Trip Albums — pinned Social shortcut.
- * Chromatic bloom on a white tile; rim/shadow adapt for White Glass and dark themes.
+ * Follows the same icon treatments as app icons:
+ * - Original / Glass / etc.: white tile + chromatic bloom
+ * - White Glass: frosted glass tile + white bloom
+ * - White Glass · Color: frosted glass tile + chromatic bloom
  */
 @Composable
 fun TripAlbumsIcon(
     size: Dp,
     modifier: Modifier = Modifier
 ) {
-    val whiteGlass = LumenPalette.whiteGlass
+    val treatment = LocalIconTreatment.current
+    val glassStrength = LocalIconGlassStrength.current
     val glass = LocalGlass.current
     val shape = RoundedCornerShape(22.dp)
-    val tile = if (whiteGlass) Color.White.copy(alpha = 0.96f) else Color.White
-    val rim = if (whiteGlass) {
-        Brush.verticalGradient(listOf(glass.strokeTop, glass.strokeBottom))
-    } else {
-        Brush.verticalGradient(
+    val frosted = treatment == IconTreatment.WhiteGlass || treatment == IconTreatment.GlassColor
+    val monoBloom = treatment == IconTreatment.WhiteGlass
+    val s = (glassStrength * 2f).coerceIn(0.35f, 1.6f)
+
+    val tileBrush = when {
+        frosted -> Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = (0.40f * s).coerceIn(0.22f, 0.55f)),
+                Color.White.copy(alpha = (0.22f * s).coerceIn(0.12f, 0.36f)),
+                Color.White.copy(alpha = (0.18f * s).coerceIn(0.10f, 0.30f))
+            )
+        )
+        treatment == IconTreatment.Glass -> Brush.verticalGradient(
+            listOf(glass.filmTop, glass.filmBottom)
+        )
+        else -> Brush.verticalGradient(listOf(Color.White, Color.White))
+    }
+    val rim = when {
+        frosted || iconHasGlass(treatment) -> Brush.verticalGradient(
+            listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.12f))
+        )
+        else -> Brush.verticalGradient(
             listOf(Color.White.copy(0.55f), Color.Black.copy(0.06f))
         )
     }
-    val shadowAmbient = if (whiteGlass) Color(0x22000000) else Color(0x44000000)
-    val shadowSpot = if (whiteGlass) Color(0x28C084FC) else Color(0x33000000)
+    val elevation = when (treatment) {
+        IconTreatment.WhiteGlass, IconTreatment.GlassColor, IconTreatment.Glass -> 0.dp
+        else -> 8.dp
+    }
+
+    val spectrum = listOf(
+        Color(0xFF5AC8FA),
+        Color(0xFF40C8E0),
+        Color(0xFF34C759),
+        Color(0xFFFFD60A),
+        Color(0xFFFF9F0A),
+        Color(0xFFFF3B30),
+        Color(0xFFFF2D55),
+        Color(0xFFAF52DE)
+    )
+    val petals = if (monoBloom) {
+        List(8) { Color.White.copy(alpha = 0.96f) }
+    } else {
+        spectrum
+    }
+    val hubColor = if (monoBloom) Color.White else Color.White
+    val hubShadow = if (monoBloom) Color.Black.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.14f)
 
     Box(
         modifier
             .size(size)
-            .shadow(if (whiteGlass) 5.dp else 8.dp, shape, ambientColor = shadowAmbient, spotColor = shadowSpot)
+            .then(
+                if (elevation > 0.dp) {
+                    Modifier.shadow(elevation, shape, ambientColor = Color(0x44000000), spotColor = Color(0x33000000))
+                } else Modifier
+            )
             .clip(shape)
-            .background(tile)
-            .border(0.9.dp, rim, shape),
+            .background(tileBrush)
+            .border(0.85.dp, rim, shape),
         contentAlignment = Alignment.Center
     ) {
+        // Soft top sheen for frosted tiles (matches IconCache frostedTile highlight)
+        if (frosted) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.White.copy(alpha = 0.18f * s),
+                            0.45f to Color.Transparent
+                        )
+                    )
+            )
+        }
         Canvas(Modifier.fillMaxSize(0.82f)) {
             val cx = this.size.width / 2f
             val cy = this.size.height / 2f
             val outer = minOf(this.size.width, this.size.height) * 0.48f
             val hub = outer * 0.18f
-
-            // Eight-petal spectrum (clockwise from top), soft overlap — album mark, not a 1:1 copy.
-            val petals = listOf(
-                Color(0xFF5AC8FA), // blue
-                Color(0xFF40C8E0), // cyan
-                Color(0xFF34C759), // green
-                Color(0xFFFFD60A), // yellow
-                Color(0xFFFF9F0A), // orange
-                Color(0xFFFF3B30), // red
-                Color(0xFFFF2D55), // pink
-                Color(0xFFAF52DE)  // purple
-            )
 
             for (i in petals.indices.reversed()) {
                 val angle = i * (360f / petals.size)
@@ -79,14 +128,13 @@ fun TripAlbumsIcon(
                 }
             }
 
-            // Lifted white hub
             drawCircle(
-                color = Color.Black.copy(alpha = if (whiteGlass) 0.10f else 0.14f),
+                color = hubShadow,
                 radius = hub * 1.12f,
                 center = Offset(cx, cy + outer * 0.018f)
             )
             drawCircle(
-                color = Color.White,
+                color = hubColor,
                 radius = hub,
                 center = Offset(cx, cy)
             )
@@ -94,7 +142,6 @@ fun TripAlbumsIcon(
     }
 }
 
-/** Pointed leaf petal aimed up — rounded sides, soft tip. */
 private fun bloomPetal(center: Offset, outer: Float, hub: Float): Path {
     val tip = Offset(center.x, center.y - outer)
     val base = Offset(center.x, center.y - hub * 0.15f)
