@@ -291,29 +291,28 @@ fun TodoPage(
                     }
                 )
                 Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).clickable { openWhen() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Schedule,
-                        contentDescription = "Pick date and time",
-                        tint = if (TodoTime.hasClock(dueAt) || TodoTime.dayLabel(dueAt) != "Today") Lumen.Text else Lumen.Faint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Box(
-                    Modifier
-                        .padding(horizontal = 2.dp)
-                        .width(1.dp)
-                        .height(18.dp)
-                        .background(Color.White.copy(alpha = 0.18f))
-                )
-                Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).clickable { viewModel.openVoice() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Outlined.MicNone, contentDescription = "Speak a task", tint = Lumen.Faint, modifier = Modifier.size(20.dp))
                 }
+            }
+            Spacer(Modifier.height(8.dp))
+            val reminderSet = TodoTime.hasClock(dueAt) || TodoTime.dayLabel(dueAt) != "Today"
+            Row(
+                Modifier.clip(RoundedCornerShape(18.dp))
+                    .background(Lumen.Accent.copy(alpha = if (reminderSet) .24f else .13f))
+                    .clickable(onClickLabel = "Choose reminder date and time") { openWhen() }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Outlined.Schedule, null, tint = Lumen.Accent, modifier = Modifier.size(20.dp))
+                Text(
+                    if (reminderSet) TodoTime.dayLabel(dueAt) + if (TodoTime.hasClock(dueAt)) " · " + TodoTime.timeLabel(dueAt) else " · Set time"
+                    else "Set reminder",
+                    color = Lumen.Text, fontFamily = Outfit, fontSize = 14.sp, fontWeight = FontWeight.Medium
+                )
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

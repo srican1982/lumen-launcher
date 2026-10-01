@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -42,7 +43,7 @@ import java.io.File
 val Squircle: Shape = RoundedCornerShape(percent = 30)
 
 @Composable
-fun SpaceBackdrop(path: String?) {
+fun SpaceBackdrop(path: String?, extraBlur: Dp = 0.dp) {
     val context = LocalContext.current
     Crossfade(targetState = path, modifier = Modifier.fillMaxSize(), label = "space-wallpaper") { current ->
         if (!current.isNullOrBlank()) {
@@ -55,7 +56,8 @@ fun SpaceBackdrop(path: String?) {
                     .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0.87f) }),
+                modifier = Modifier.fillMaxSize().then(Modifier.graphicsLayer { scaleX = 1.04f; scaleY = 1.04f }).blur(12.dp + extraBlur)
             )
         }
     }
@@ -70,8 +72,9 @@ fun AmbientBackdrop() {
             .background(
                 Brush.verticalGradient(
                     0f to Color.Black.copy(alpha = 0.18f),
-                    0.55f to Color.Transparent,
-                    1f to Color.Transparent
+                    0.35f to Color.Black.copy(alpha = 0.03f),
+                    0.65f to Color(0xFF141923).copy(alpha = 0.14f),
+                    1f to Color(0xFF141923).copy(alpha = 0.20f)
                 )
             )
             .background(glass.veil)

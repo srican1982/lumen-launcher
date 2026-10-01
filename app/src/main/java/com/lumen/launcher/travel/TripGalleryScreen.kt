@@ -61,7 +61,7 @@ private val Gold = Color(0xFFE8C98A)
 private val TripPurple = Color(0xFFB794F6)
 
 @Composable
-fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel()) {
+fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), initialTripId: Long? = null) {
     val state by tripVm.uiState.collectAsState()
     var selected by remember { mutableStateOf<Trip?>(null) }
     LaunchedEffect(Unit) { tripVm.onForeground() }
@@ -69,6 +69,13 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel()) 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val trips = remember(state.activeTrip, state.pastTrips) {
         listOfNotNull(state.activeTrip) + state.pastTrips
+    }
+
+    var initialOpened by remember(initialTripId) { mutableStateOf(false) }
+    LaunchedEffect(trips, initialTripId) {
+        if (!initialOpened && initialTripId != null) {
+            trips.find { it.id == initialTripId }?.let { selected = it; initialOpened = true }
+        }
     }
 
     Dialog(

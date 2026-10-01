@@ -4,6 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -76,7 +79,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     var travelCollection by remember { mutableStateOf<Boolean?>(null) }
     var albumTrip by remember { mutableStateOf<Trip?>(null) }
     Column(
-        Modifier.fillMaxWidth().glass(RoundedCornerShape(22.dp), LocalGlass.current).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xF21B1C22)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(24.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -98,8 +101,8 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 else Text("A little space for your day.", color = Lumen.Muted)
                 task?.let { WorkspaceLine(it.text, "Next task ? tap to view") { vm.openTodoList() } }
                 WorkspaceActions {
-                    OutlinedButton(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Reminder") }
-                    OutlinedButton(onClick = { if (state.calendarAccess) vm.openCalendarApp() else vm.requestCalendarAccess() }) { Text(if (state.calendarAccess) "Calendar" else "Connect calendar") }
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Reminder") }
+                    WorkspacePill(onClick = { if (state.calendarAccess) vm.openCalendarApp() else vm.requestCalendarAccess() }) { Text(if (state.calendarAccess) "Calendar" else "Connect calendar") }
                 }
             }
             SpaceKind.Work -> {
@@ -107,13 +110,13 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + " ? Open meeting") { vm.openCalendarEvent(event) }
                 else Text(if (state.calendarAccess) "No upcoming meeting." else "Connect your calendar to see your next meeting.", color = Lumen.Muted, fontSize = 12.sp)
                 WorkspaceActions {
-                    OutlinedButton(onClick = { vm.openCapture(CaptureKind.Task) }) { Text("Add task") }
-                    OutlinedButton(onClick = { vm.openCapture(CaptureKind.Note) }) { Text("Meeting note") }
-                    OutlinedButton(onClick = { vm.startFocus(25, task?.id) }) { Text("Focus 25m") }
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Task) }) { Text("Add task") }
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Note) }) { Text("Meeting note") }
+                    WorkspacePill(onClick = { vm.startFocus(25, task?.id) }) { Text("Focus 25m") }
                     if (event != null && event.begin <= now + 15 * 60_000L && event.location.trim().startsWith("https://")) {
-                        OutlinedButton(onClick = { vm.joinWorkspaceMeeting(event) }) { Text("Join meeting") }
+                        WorkspacePill(onClick = { vm.joinWorkspaceMeeting(event) }) { Text("Join meeting") }
                     }
-                    if (!state.calendarAccess) OutlinedButton(onClick = vm::requestCalendarAccess) { Text("Calendar access") }
+                    if (!state.calendarAccess) WorkspacePill(onClick = vm::requestCalendarAccess) { Text("Calendar access") }
                 }
             }
             SpaceKind.Personal -> {
@@ -121,10 +124,10 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 else if (message != null) WorkspaceLine(message.title, message.preview) { vm.openInboxItem(message) }
                 else Text("You're caught up. Make something worth sharing.", color = Lumen.Muted)
                 WorkspaceActions {
-                    OutlinedButton(onClick = { vm.openSocialTool(SocialCreateTool.Quote) }) { Text("Quote") }
-                    OutlinedButton(onClick = { vm.openSocialTool(SocialCreateTool.Scribble) }) { Text("Scribble") }
-                    OutlinedButton(onClick = { vm.openSocialTool(SocialCreateTool.Photo) }) { Text("Photo") }
-                    OutlinedButton(onClick = { vm.setRecentsOpen(true) }) { Text("Create studio") }
+                    WorkspacePill(onClick = { vm.openSocialTool(SocialCreateTool.Quote) }) { Text("Quote") }
+                    WorkspacePill(onClick = { vm.openSocialTool(SocialCreateTool.Scribble) }) { Text("Scribble") }
+                    WorkspacePill(onClick = { vm.openSocialTool(SocialCreateTool.Photo) }) { Text("Photo") }
+                    WorkspacePill(onClick = { vm.setRecentsOpen(true) }) { Text("Create studio") }
                 }
             }
             SpaceKind.Focus -> {
@@ -135,13 +138,13 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 }
                 Text("Focus silences calls and notification interruptions. Your previous settings return when the timer ends, with a completion alert. Alarms and media stay available.", color = Lumen.Muted, fontSize = 12.sp)
                 WorkspaceActions {
-                    if (activeFocus) OutlinedButton(onClick = vm::endFocus) { Text("End session") }
+                    if (activeFocus) WorkspacePill(onClick = vm::endFocus) { Text("End session") }
                     else {
-                        OutlinedButton(onClick = { vm.startFocus(25, state.focusTask?.id) }) { Text("Start 25m") }
-                        OutlinedButton(onClick = { vm.startFocus(50, state.focusTask?.id) }) { Text("Start 50m") }
-                        OutlinedButton(onClick = { customFocus = true }) { Text("Custom") }
+                        WorkspacePill(onClick = { vm.startFocus(25, state.focusTask?.id) }) { Text("Start 25m") }
+                        WorkspacePill(onClick = { vm.startFocus(50, state.focusTask?.id) }) { Text("Start 50m") }
+                        WorkspacePill(onClick = { customFocus = true }) { Text("Custom") }
                     }
-                    OutlinedButton(onClick = { vm.selectSpace(SpaceKind.Home) }) { Text("Back to Home") }
+                    WorkspacePill(onClick = { vm.selectSpace(SpaceKind.Home) }) { Text("Back to Home") }
                 }
             }
             SpaceKind.Travel -> {
@@ -151,9 +154,9 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                     WorkspaceLine(flight.title, flight.detail) { vm.openUpNext(flight) }
                 }
                 WorkspaceActions {
-                    OutlinedButton(onClick = { travelCollection = false }) { Text("Documents (" + state.travelAttachments.size + ")") }
-                    OutlinedButton(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Departure reminder") }
-                    OutlinedButton(onClick = {
+                    WorkspacePill(onClick = { travelCollection = false }) { Text("Documents (" + state.travelAttachments.size + ")") }
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Departure reminder") }
+                    WorkspacePill(onClick = {
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com"))) }
                             .onFailure { error = "No browser is available to open translation." }
                     }) { Text("Translate") }

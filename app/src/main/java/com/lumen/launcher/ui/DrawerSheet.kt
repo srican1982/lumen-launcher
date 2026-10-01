@@ -131,11 +131,15 @@ fun DrawerSheet(
     val categorySectionsFiltered = remember(categorySectionsBase, query, state.aliases) {
         filterSections(categorySectionsBase, query, state.aliases)
     }
+    val mostUsedSections = remember(state.visibleApps, state.launchHours, query, state.aliases) {
+        val apps = com.lumen.launcher.data.AppUsageRanking.rank(state.visibleApps, state.launchHours)
+        filterSections(listOf("Most used" to apps), query, state.aliases)
+    }
     val displaySections = when (selectedDrawerTab) {
         DrawerTab.AZ -> azSections
         DrawerTab.RECENT -> recentSections
         DrawerTab.CATEGORIES -> categorySectionsFiltered
-        DrawerTab.MOST_USED -> emptyList()
+        DrawerTab.MOST_USED -> mostUsedSections
     }
     val showAlphabet = selectedDrawerTab == DrawerTab.AZ && query.isBlank()
     val alphabetIndex = remember(azSections, showAlphabet, azBase) {
@@ -355,10 +359,10 @@ fun DrawerSheet(
             )
             Spacer(Modifier.height(14.dp))
             Box(modifier = Modifier.fillMaxSize()) {
-                if (selectedDrawerTab == DrawerTab.MOST_USED) {
+                if (selectedDrawerTab == DrawerTab.MOST_USED && mostUsedSections.all { it.second.isEmpty() }) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "Most used is coming soon",
+                            if (query.isNotBlank()) "No matching apps" else "Open apps with Lumen to see your most used here.",
                             color = Color.White.copy(alpha = 0.6f),
                             fontFamily = Outfit,
                             fontSize = 15.sp
@@ -550,8 +554,7 @@ private fun categorySections(apps: List<AppInfo>): List<Pair<String, List<AppInf
 
 /**
  * A-Z / Most used / Categories / Recent pill row under the search field.
- * A-Z, Recent, and Categories drive real content; Most used is a
- * placeholder until usage-frequency tracking exists.
+ * Most used ranks the locally saved launch history.
  */
 @Composable
 private fun DrawerTabRow(

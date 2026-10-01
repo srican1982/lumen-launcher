@@ -123,35 +123,43 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
     val entries = state.travelAttachments.filter { category == null || it.travelCategory == category }
     val shape = RoundedCornerShape(30.dp)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxWidth().padding(12.dp).imePadding().fillMaxHeight(.92f)
+        Column(Modifier.fillMaxWidth().padding(12.dp).imePadding().fillMaxHeight(.98f)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xED493752), Color(0xEB253B3A), Color(0xF02C293C))))
-            .border(1.dp, Color.White.copy(.28f), shape).padding(20.dp)) {
+            .background(Brush.linearGradient(listOf(Color(0xFF393347), Color(0xFF253339), Color(0xFF302D40))))
+            .border(1.dp, Color.White.copy(.28f), shape).padding(16.dp)) {
+            Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp).size(34.dp, 4.dp)
+                .clip(RoundedCornerShape(3.dp)).background(Color(0xFFAAA0CF).copy(alpha = .45f)))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("YOUR TRIP, TOGETHER", color = Color(0xFFDDC4F4), fontSize = 10.sp, letterSpacing = 1.6.sp)
                     Text(if (adding) "Add travel document" else category?.title ?: "Travel documents",
-                        fontFamily = Outfit, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Medium)
+                        fontFamily = Outfit, color = Color.White, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
                 }
-                IconButton(onClick = {
+                IconButton(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(.08f))
+                    .border(1.dp, Color.White.copy(.18f), RoundedCornerShape(50)), onClick = {
                     if (adding) adding = false else if (category != null) selected = null else onDismiss()
                 }) { Icon(if (adding || category != null) Icons.Outlined.ArrowBack else Icons.Outlined.Close, "Back", tint = Color.White) }
             }
             Text(if (adding) "Choose what you want to save for this trip."
                 else category?.description ?: "Files, links and ticket apps, all in one place.",
-                color = Color(0xFFD5C8E1), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                color = Color(0xFFD5C8E1), fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 8.dp, bottom = 14.dp))
             if (adding) {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(TravelCategory.entries.chunked(2)) { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { group ->
-                                Column(Modifier.weight(1f).clip(RoundedCornerShape(22.dp))
-                                    .background(Color.White.copy(.09f)).border(1.dp, Color.White.copy(.25f), RoundedCornerShape(22.dp))
-                                    .clickable { selected = group.name; adding = false }.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    TravelBadge(group)
-                                    Text(group.title, color = Color.White, fontFamily = Outfit, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                                    Text(group.description, color = Color(0xFFD5C8E1), fontSize = 12.sp, minLines = 2)
+                                Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(18.dp))
+                                    .background(Brush.linearGradient(listOf(group.tint.copy(.12f), Color.White.copy(.07f)))).border(1.dp, Color.White.copy(.25f), RoundedCornerShape(18.dp))
+                                    .clickable { selected = group.name; adding = false }.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        TravelBadge(group)
+                                        Spacer(Modifier.weight(1f))
+                                        Icon(Icons.Outlined.ChevronRight, null, tint = Color(0xFFD5C8E1), modifier = Modifier.size(20.dp))
+                                    }
+                                    Text(group.title, color = Color.White, fontFamily = Outfit, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(if (group == TravelCategory.Other) "Any other travel documents" else group.description,
+                                        color = Color(0xFFD5C8E1), fontSize = 11.sp, lineHeight = 15.sp, minLines = 2)
                                 }
                             }
                             if (row.size == 1) Spacer(Modifier.weight(1f))
@@ -228,8 +236,13 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
             HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Color.White.copy(.16f))
-            Text("Removing a shortcut keeps your original file.", color = Color(0xFFC8BED3), fontSize = 11.sp)
-            Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End).padding(top = 8.dp)) { Text("Done") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.VerifiedUser, null, tint = Color(0xFFC8BED3), modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Removing a shortcut keeps your original file.", color = Color(0xFFC8BED3), fontSize = 10.sp, lineHeight = 14.sp)
+            }
+            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD09AF4), contentColor = Color(0xFF291738))) { Text("Done") }
         }
     }
     if (links && category != null) TravelLinkDialog(category, onDismiss = { links = false }) { url, title ->

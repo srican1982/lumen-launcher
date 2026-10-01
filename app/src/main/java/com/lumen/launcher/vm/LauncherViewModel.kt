@@ -181,6 +181,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     init {
+        viewModelScope.launch {
+            val repository = com.lumen.launcher.travel.data.TripRepository.get(application)
+            kotlinx.coroutines.flow.combine(repository.activeTripFlow, repository.pastTripsFlow) { active, past ->
+                (listOfNotNull(active) + past).distinctBy { it.id }
+            }.collect { trips ->
+                _state.update { it.copy(searchTrips = trips) }
+                if (_state.value.sheet == Sheet.Search) onQueryChange(_state.value.query)
+            }
+        }
+
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
             addAction(Intent.ACTION_PACKAGE_REMOVED)
@@ -345,6 +355,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setWorkspaceOpen(open: Boolean) { _state.update { it.copy(workspaceOpen = open) } }
+
     fun onHomeVisible() {
         resumeFocusSetup()
 
@@ -356,6 +368,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 query = "",
                 sheet = Sheet.None,
                 privatePageActive = false,
+                workspaceOpen = false,
                 homePulse = it.homePulse + 1
             )
         }
@@ -1058,11 +1071,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openSearch() {
-        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList(), modeSearch = false) }
+        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList(), modeSearch = true) }
+        onQueryChange("")
     }
 
     fun openModeSearch() {
-        _state.update { it.copy(sheet = Sheet.Search, query = "", hits = emptyList(), modeSearch = true) }
+        openSearch()
     }
 
     fun searchPlace(query: String) {
@@ -1298,28 +1312,27 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(sheet = Sheet.Settings) }
     }
 
+    private var searchJob: kotlinx.coroutines.Job? = null
+
     fun onQueryChange(query: String) {
+        searchJob?.cancel()
         _state.update { current ->
-            current.copy(
-                query = query,
-                hits = SearchInterpreter.interpret(
-                    query = query,
-                    apps = current.visibleApps,
-                    recents = current.recents,
-                    aliases = current.aliases
-                )
-            )
+            val next = current.copy(query = query)
+            next.copy(hits = com.lumen.launcher.search.SpaceSearch.results(next))
         }
-        viewModelScope.launch {
-            val people = withContext(Dispatchers.IO) { PeopleActions.hits(contacts, query) }
-            if (query != _state.value.query) return@launch
-            if (people.isEmpty()) return@launch
-            _state.update { current ->
-                val rest = current.hits.filterNot { hit ->
-                    hit is SearchHit.Action && hit.id in setOf("call", "whatsapp", "whatsapp_call")
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(100)
+            val people = withContext(Dispatchers.IO) {
+                val explicit = PeopleActions.hits(contacts, query)
+                if (explicit.isNotEmpty() || query.isBlank()) explicit else contacts.matches(query).flatMap { person ->
+                    listOf(
+                        SearchHit.Action("call", person.name, "Call · ${person.phone}", query, phone = person.phone),
+                        SearchHit.Action("whatsapp", "WhatsApp ${person.name}", "Open contact chat", query, phone = person.phone)
+                    )
                 }
-                current.copy(hits = people + rest)
             }
+            if (query != _state.value.query) return@launch
+            _state.update { it.copy(hits = com.lumen.launcher.search.SpaceSearch.results(it, people)) }
         }
     }
 
@@ -1347,8 +1360,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun submitSearch() {
         val hits = _state.value.hits
-        val strong = hits.filterIsInstance<SearchHit.App>().firstOrNull { it.score >= 860 }
-        val first = strong ?: hits.firstOrNull { it !is SearchHit.Math }
+        val first = hits.firstOrNull { it !is SearchHit.Math }
         if (first != null) runHit(first)
     }
 
@@ -2770,6 +2782,52 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         return runCatching { getApplication<Application>().startActivity(ready) }.isSuccess
     }
 
+    private fun runLocalSearchHit(hit: SearchHit.Action): Boolean {
+        val s = _state.value
+        when {
+            hit.id.startsWith("task:") -> {
+                val task = s.todos.find { it.id == hit.id.removePrefix("task:") } ?: return true
+                closeSheet()
+                selectSpace(task.space)
+                openTodoList()
+            }
+            hit.id.startsWith("note:") -> {
+                val note = s.notes.find { it.id == hit.id.removePrefix("note:") } ?: return true
+                _state.update { it.copy(sheet = Sheet.SearchDetail, searchDetail = note.text) }
+            }
+            hit.id.startsWith("event:") -> {
+                s.upcomingEvents.find { it.id.toString() == hit.id.removePrefix("event:") }?.let { closeSheet(); openCalendarEvent(it) }
+            }
+            hit.id.startsWith("inbox:") -> {
+                s.inbox.find { it.key == hit.id.removePrefix("inbox:") }?.let { closeSheet(); openInboxItem(it) }
+            }
+            hit.id.startsWith("create:") -> {
+                val tool = SocialCreateTool.entries.find { it.name == hit.id.removePrefix("create:") } ?: return true
+                closeSheet()
+                openSocialTool(tool)
+            }
+            hit.id.startsWith("document:") -> _state.update { it.copy(sheet = Sheet.TravelDocs, searchTravelCategory = null, searchDocumentUri = hit.id.removePrefix("document:")) }
+            hit.id.startsWith("travel:") -> _state.update { it.copy(sheet = Sheet.TravelDocs, searchTravelCategory = com.lumen.launcher.data.TravelCategory.entries.find { c -> c.name == hit.id.removePrefix("travel:") }, searchDocumentUri = null) }
+            hit.id.startsWith("trip:") || hit.id == "trip_albums" -> _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = hit.id.removePrefix("trip:").toLongOrNull()) }
+            hit.id == "tasks" -> { closeSheet(); openTodoList() }
+            hit.id == "notes" -> openCapture(CaptureKind.Note)
+            hit.id == "calendar" -> { closeSheet(); openCalendarApp() }
+            hit.id == "files" -> {
+                val intent = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://com.android.externalstorage.documents/root/primary"), "vnd.android.document/root").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                runCatching { getApplication<Application>().startActivity(intent) }.onFailure {
+                    runCatching { getApplication<Application>().startActivity(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    ) }
+                }
+                closeSheet()
+            }
+            hit.id == "weather" -> runHit(SearchHit.Web("weather"))
+            hit.id == "places" -> searchPlace(hit.query)
+            else -> return false
+        }
+        return true
+    }
+
     fun runHit(hit: SearchHit) {
         val context = getApplication<Application>()
         when (hit) {
@@ -2790,6 +2848,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             is SearchHit.IntentGroup -> hit.apps.firstOrNull()?.let { launch(it) }
             is SearchHit.Discovery -> hit.apps.firstOrNull()?.let { launch(it) }
             is SearchHit.Action -> {
+                if (runLocalSearchHit(hit)) return
                 when (hit.id) {
                     "wifi" -> start(Settings.ACTION_WIFI_SETTINGS)
                     "bluetooth" -> start(Settings.ACTION_BLUETOOTH_SETTINGS)
@@ -3124,7 +3183,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 }
 
-enum class Sheet { None, Search, Drawer, Menu, Settings, AppActions, AppPicker, Voice, Folder, FolderEditor, Capture }
+enum class Sheet { SearchDetail, TravelDocs, TripAlbums, None, Search, Drawer, Menu, Settings, AppActions, AppPicker, Voice, Folder, FolderEditor, Capture }
 
 enum class DrawerFilter { Az, MostUsed, Categories }
 
@@ -3148,6 +3207,11 @@ data class LauncherUiState(
     val query: String = "",
     val modeSearch: Boolean = false,
     val hits: List<SearchHit> = emptyList(),
+    val searchTrips: List<com.lumen.launcher.travel.model.Trip> = emptyList(),
+    val searchTripId: Long? = null,
+    val searchTravelCategory: com.lumen.launcher.data.TravelCategory? = null,
+    val searchDocumentUri: String? = null,
+    val searchDetail: String = "",
     val selectedCategory: AppCategory = AppCategory.All,
     val drawerFilter: DrawerFilter = DrawerFilter.Az,
     val sheet: Sheet = Sheet.None,
@@ -3162,6 +3226,7 @@ data class LauncherUiState(
     val privatePageActive: Boolean = false,
     val privatePrompting: Boolean = false,
     val homePulse: Int = 0,
+    val workspaceOpen: Boolean = false,
     val news: List<NewsItem> = emptyList(),
     val newsLoading: Boolean = false,
     val newsInterests: Set<String> = emptySet(),

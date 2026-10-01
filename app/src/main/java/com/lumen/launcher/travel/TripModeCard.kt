@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 private val TripPurple = Color(0xFFB794F6)
 private val TripPurpleDeep = Color(0xFF9B6DEF)
 private val CardFill = Color.White.copy(alpha = 0.08f)
-private val CardStroke = Color.White.copy(alpha = 0.14f)
+private val CardStroke = Color(0xFFBF94EE).copy(alpha = 0.22f)
 
 @Composable
 fun TripModeCard(

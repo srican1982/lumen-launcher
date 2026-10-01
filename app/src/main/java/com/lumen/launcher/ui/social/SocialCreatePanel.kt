@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,12 +78,13 @@ import com.lumen.launcher.ui.theme.LumenPalette
 import com.lumen.launcher.ui.theme.Outfit
 import java.io.File
 
-private val PanelShape = RoundedCornerShape(40.dp)
+private val PanelGold = Color(0xFFE4CB91)
+private val PanelShape = RoundedCornerShape(28.dp)
 private val CardShape = RoundedCornerShape(22.dp)
 private val TileShape = RoundedCornerShape(18.dp)
 
 /** Lilac (or white in the White Glass theme) for the header sparkle and "See all". */
-private val Lilac: Color get() = if (LumenPalette.whiteGlass) Color.White else Color(0xFFC4B5FD)
+private val Lilac: Color get() = PanelGold
 
 @Composable
 fun SocialCreatePanel(
@@ -126,7 +128,8 @@ fun SocialCreatePanel(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .width(248.dp)
+                .fillMaxWidth(0.546f)
+                .widthIn(max = 238.dp)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -144,7 +147,7 @@ fun SocialCreatePanel(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(start = 10.dp, top = 8.dp, bottom = 10.dp)
+                    .padding(start = 6.dp, top = 6.dp, bottom = 8.dp)
                     .shadow(
                         elevation = 28.dp,
                         shape = PanelShape,
@@ -153,35 +156,35 @@ fun SocialCreatePanel(
                     )
                     .clip(PanelShape)
                     // Frost stack: dark veil for contrast, then bright white glass on top.
-                    .background(Color.Black.copy(alpha = 0.34f))
+                    .background(Color(0xC9232926))
                     .background(
                         Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.34f),
-                            0.45f to Color.White.copy(alpha = 0.22f),
-                            1f to Color.White.copy(alpha = 0.16f)
+                            0f to Color(0xFFB6AD95).copy(alpha = 0.10f),
+                            0.45f to Color(0xFF51623F).copy(alpha = 0.05f),
+                            1f to Color(0xFF9B87AC).copy(alpha = 0.12f)
                         )
                     )
                     .border(
                         1.dp,
                         Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.62f),
+                            0f to PanelGold.copy(alpha = 0.30f),
                             1f to Color.White.copy(alpha = 0.18f)
                         ),
                         PanelShape
                     )
                     .clickable(interactionSource = blockTouches, indication = null, onClick = {})
-                    .padding(horizontal = 12.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
             ) {
-                // Drag handle
-                Box(
-                    Modifier
-                        .padding(top = 12.dp)
-                        .align(Alignment.CenterHorizontally)
-                        .size(width = 44.dp, height = 5.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color.White.copy(alpha = 0.40f))
-                )
-                Column(Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 22.dp),
+                val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+                    in 5..11 -> "Good Morning,"
+                    in 12..16 -> "Good Afternoon,"
+                    else -> "Good Evening,"
+                }
+                Text(greeting, color = PanelGold, fontFamily = Outfit, fontWeight = FontWeight.SemiBold,
+                    fontSize = 23.sp, modifier = Modifier.padding(top = 22.dp))
+                Text("Create something today.", color = PanelGold.copy(alpha = .72f), fontFamily = Outfit, fontSize = 12.sp)
+                Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
                     Canvas(Modifier.size(48.dp)) {
                         val gold = Color(0xFFE7D294)
@@ -189,9 +192,9 @@ fun SocialCreatePanel(
                         drawCircle(gold, radius = size.minDimension * .36f, style = Stroke(1.8.dp.toPx()))
                         drawCircle(gold, radius = 3.dp.toPx(), center = Offset(size.width * .79f, size.height * .23f))
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(9.dp))
                     Text("Lumen Panel", color = Color.White, fontFamily = Outfit,
-                        fontWeight = FontWeight.SemiBold, fontSize = 25.sp, textAlign = TextAlign.Center)
+                        fontWeight = FontWeight.SemiBold, fontSize = 21.sp, textAlign = TextAlign.Center)
                     Text("Create & share", color = Color.White.copy(.72f), fontFamily = Outfit, fontSize = 13.sp)
                 }
 
@@ -202,21 +205,21 @@ fun SocialCreatePanel(
                         icon = CreateIcons.Squiggle,
                         gradient = listOf(Color(0xFF7C4DDF), Color(0xFF9A7FE3), Color(0xFF6F6FD8))
                     ) { onOpenTool(SocialCreateTool.Scribble) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(9.dp))
                     CreateToolCard(
                         title = "Quote",
                         subtitle = "Capture thoughts that matter.",
                         icon = Icons.Filled.FormatQuote,
                         gradient = listOf(Color(0xFF2563EB), Color(0xFF3B82D6), Color(0xFF56B5E0))
                     ) { onOpenTool(SocialCreateTool.Quote) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(9.dp))
                     CreateToolCard(
                         title = "Photo",
                         subtitle = "Add a personal touch.",
                         icon = Icons.Outlined.Image,
                         gradient = listOf(Color(0xFFC98B3A), Color(0xFFA77356), Color(0xFF7E6A8A))
                     ) { onOpenTool(SocialCreateTool.Photo) }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(9.dp))
                     CreateToolCard(
                         title = "Lumen Stickers",
                         subtitle = if (stickerCount == 1) "1 sticker" else "$stickerCount stickers",
@@ -266,8 +269,7 @@ fun SocialCreatePanel(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
+                        .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
                     if (creations.isEmpty()) {
@@ -313,19 +315,19 @@ private fun CreateToolCard(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(86.dp)
+            .height(74.dp)
             .clip(CardShape)
             .background(Color.Black.copy(alpha = 0.18f))
             .background(
                 Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.28f),
-                    1f to Color.White.copy(alpha = 0.12f)
+                    0f to Color.White.copy(alpha = 0.055f),
+                    1f to Color.White.copy(alpha = 0.018f)
                 )
             )
             .border(
                 1.dp,
                 Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.55f),
+                    0f to PanelGold.copy(alpha = 0.30f),
                     1f to Color.White.copy(alpha = 0.16f)
                 ),
                 CardShape
@@ -334,10 +336,10 @@ private fun CreateToolCard(
             .padding(start = 14.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size(34.dp))
+        Icon(icon, null, tint = PanelGold, modifier = Modifier.size(28.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 2, lineHeight = 19.sp)
+            Text(title, color = PanelGold, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 2, lineHeight = 19.sp)
             Text(
                 subtitle,
                 color = Color.White.copy(alpha = 0.78f),
@@ -351,7 +353,7 @@ private fun CreateToolCard(
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             null,
-            tint = Color.White.copy(alpha = 0.88f),
+            tint = PanelGold.copy(alpha = 0.88f),
             modifier = Modifier.size(24.dp)
         )
     }

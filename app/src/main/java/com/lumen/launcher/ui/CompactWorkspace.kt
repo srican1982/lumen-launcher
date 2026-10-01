@@ -1,5 +1,6 @@
 package com.lumen.launcher.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,9 +41,9 @@ import java.util.Date
 fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @Composable () -> Unit) {
     val context = LocalContext.current
     val media by NowPlayingRepository.state.collectAsState()
-    var expanded by remember(state.activeSpace) { mutableStateOf(false) }
-    var boardingPasses by remember { mutableStateOf(false) }
-    var travelCategory by remember { mutableStateOf<TravelCategory?>(null) }
+    val expanded = state.workspaceOpen
+    var boardingPasses by remember(state.activeSpace, state.homePulse) { mutableStateOf(false) }
+    var travelCategory by remember(state.activeSpace, state.homePulse) { mutableStateOf<TravelCategory?>(null) }
     val savedCategories = TravelCategory.entries.filter { category -> state.travelAttachments.any { it.travelCategory == category } }
     val showPasses = state.activeSpace == SpaceKind.Travel && savedCategories.isNotEmpty()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -51,7 +52,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         while (state.focusUntil > System.currentTimeMillis()) { now = System.currentTimeMillis(); delay(1000) }
         now = System.currentTimeMillis()
     }
-    LaunchedEffect(state.sheet, state.pagerPage, state.socialCreateTool, state.recentsOpen) { expanded = false }
+    LaunchedEffect(state.activeSpace, state.homePulse, state.sheet, state.pagerPage, state.socialCreateTool, state.recentsOpen) { vm.setWorkspaceOpen(false) }
     val task = state.spaceTodos.firstOrNull { !it.done }
     val event = state.upcomingEvents.firstOrNull { it.end > now }
     val message = state.inbox.firstOrNull { !it.isDigest && it.source in setOf(
@@ -91,10 +92,13 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
             Column(
                 Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .clickable(onClickLabel = "Open ${state.activeSpace.title} controls") { expanded = true }
+                    .clickable(onClickLabel = "Open ${state.activeSpace.title} controls") { vm.setWorkspaceOpen(true) }
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
             ) {
+                if (state.activeSpace == SpaceKind.Travel && !showPasses) {
+                    TravelMapEmblem(Modifier.align(Alignment.CenterHorizontally).size(36.dp))
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(state.activeSpace.title.uppercase(), color = Lumen.Text.copy(alpha = 0.72f), fontFamily = Outfit,
                         fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
@@ -155,23 +159,4 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         }
     }
     if (boardingPasses) TravelCollection(state, vm, travelCategory) { boardingPasses = false }
-    if (expanded) {
-        ModalBottomSheet(
-            onDismissRequest = { expanded = false },
-            containerColor = Color(0xFF24232E),
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            contentWindowInsets = { WindowInsets.safeDrawing },
-        ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 4.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                ModeWorkspace(state, vm)
-            }
-        }
-    }
 }

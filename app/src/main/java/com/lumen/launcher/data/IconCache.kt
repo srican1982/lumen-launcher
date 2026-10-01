@@ -66,13 +66,15 @@ class IconCache(private val context: Context) {
     /** White Glass · Color icons: the app's colored logo sitting on a frosted white tile. */
     suspend fun getFrostedColor(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#frostcolor5-" + strength
+        val key = "$packageName/$activityName#frostcolor6-" + strength
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
             val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
             val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
-            val bitmap = runCatching { renderFrostedColor(drawable, adaptive, SIZE, strength) }
+            val bitmap = runCatching {
+                renderFrostedColor(drawable, adaptive, SIZE, strength, stripMapsPlate = packageName == "com.google.android.apps.maps")
+            }
                 .getOrElse { adaptive?.let { renderDimensional(it, SIZE, strength) } ?: renderSculpted(drawable, SIZE, strength) }
                 .asImageBitmap()
             cache.put(key, bitmap)
@@ -362,14 +364,14 @@ class IconCache(private val context: Context) {
      * If the logo itself is white (its color lives in the background layer, e.g. WhatsApp),
      * it is painted in that background color so it stays colorful.
      */
-    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int, strength: Float = 1f): Bitmap {
+    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int, strength: Float = 1f, stripMapsPlate: Boolean = false): Bitmap {
         var logo: Bitmap? = null
         // 1) Two-layer icon: the logo layer.
         if (adaptive?.foreground != null) {
             val fg = renderLayer(adaptive.foreground, size)
             if (analyze(fg, opaqueOnly = true).coverage in 0.02f..0.6f) {
-                // Maps-style FG often includes a white plate — strip pale fill so only the pin remains.
-                val cleaned = stripPaleBackground(fg)
+                // White is often the logo itself. Only Maps needs its pale plate removed.
+                val cleaned = if (stripMapsPlate) stripPaleBackground(fg) else fg
                 logo = if (isPale(cleaned)) {
                     val bgColor = adaptive.background?.let { layerColor(it, size) }
                     if (bgColor != null) recolor(cleaned, bgColor) else cleaned
@@ -395,7 +397,7 @@ class IconCache(private val context: Context) {
             }
             // 3) Pure artwork: inset on glass, but still strip a white plate if present (Maps).
             if (logo == null) {
-                val cleaned = stripPaleBackground(full)
+                val cleaned = if (stripMapsPlate) stripPaleBackground(full) else full
                 val mini = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
                 val c = Canvas(mini)
                 val inset = size * 0.16f
@@ -427,6 +429,8 @@ class IconCache(private val context: Context) {
         }
         // Only strip when a clear pale plate dominates (e.g. Maps white square).
         if (opaque == 0 || pale < opaque * 0.35f) return src
+        // Keep the original artwork if cleanup would leave an empty or tiny mark.
+        if (opaque - pale < px.size * 0.02f) return src
         for (i in px.indices) {
             val c = px[i]
             if ((c ushr 24) < 16) continue

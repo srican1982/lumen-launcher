@@ -59,10 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.AppInfo
 import com.lumen.launcher.data.SpaceKind
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.TextButton
 import com.lumen.launcher.search.SearchHit
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
@@ -114,103 +110,36 @@ fun SearchSheet(
                 query = state.query,
                 onQueryChange = viewModel::onQueryChange,
                 focusRequester = focusRequester,
-                onSearch = {
-                    if (state.modeSearch) {
-                        keyboard?.hide()
-                        if (state.activeSpace == SpaceKind.Travel) viewModel.searchPlace(state.query)
-                    } else viewModel.submitSearch()
-                },
-                hint = if (state.modeSearch) modeSearchHint(state.activeSpace) else "Search apps or actions",
+                onSearch = { keyboard?.hide(); viewModel.submitSearch() },
+                hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
                 onVoice = { keyboard?.hide(); viewModel.openVoice() }
             )
-            if (state.modeSearch) {
-                Column(Modifier.fillMaxWidth().heightIn(max = 230.dp).verticalScroll(rememberScrollState())) {
-                    ModeSearchActions(state, viewModel)
-                }
-            }
             Spacer(Modifier.height(14.dp))
             if (state.query.isBlank()) {
-                Text(
-                    "Try saying what you want",
-                    color = Lumen.Faint,
-                    fontSize = 11.sp,
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 1.4.sp
-                )
-                Spacer(Modifier.height(10.dp))
                 ExampleChips(
-                    examples = if (state.modeSearch) when(state.activeSpace) {
-                        SpaceKind.Travel -> listOf("Nearby restaurants", "Airport", "Hotels nearby")
-                        SpaceKind.Work -> listOf("Meeting", "Project", "Email")
-                        SpaceKind.Personal -> listOf("Family", "Friends", "WhatsApp")
-                        SpaceKind.Focus -> listOf("Reading", "Study", "Writing")
-                        else -> listOf("Open camera", "Set a timer", "Call John")
-                    } else listOf(
-                        "WhatsApp",
-                        "Call John",
-                        "Turn on Bluetooth",
-                        "Find photo editor"
-                    ),
+                    examples = when (state.activeSpace) {
+                        SpaceKind.Work -> listOf("Teams", "Tasks", "Calendar", "Files")
+                        SpaceKind.Personal -> listOf("WhatsApp", "Photo", "Quote")
+                        SpaceKind.Focus -> listOf("Tasks")
+                        SpaceKind.Travel -> listOf("Boarding", "Hotel", "Ticket", "Trip photos")
+                        else -> listOf("watsap", "today tasks", "Bluetooth", "weather")
+                    },
                     onSelect = viewModel::onQueryChange
                 )
-                if (state.recentApps.isNotEmpty()) {
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        "RECENT",
-                        color = Lumen.Faint,
-                        fontSize = 11.sp,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 1.4.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(state.recentApps, key = { it.key }) { app ->
-                            IconSlot(
-                                label = app.label,
-                                packageName = app.packageName,
-                                activityName = app.activityName,
-                                iconSize = state.iconSizeDp.dp,
-                                icons = viewModel.icons,
-                                onClick = { viewModel.launch(app) },
-                                onLongClick = { viewModel.showAppActions(app) }
-                            )
-                        }
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val apps = state.hits.filterIsInstance<SearchHit.App>()
-                    val top = apps.firstOrNull()
-                    if (top != null) {
-                        item(key = "top") {
-                            Text(
-                                "TOP MATCH",
-                                color = Lumen.Faint,
-                                fontSize = 11.sp,
-                                fontFamily = Outfit,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 1.4.sp,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
-                            )
-                            AppRow(top, viewModel, featured = true)
-                        }
-                    }
-                    items(state.hits.size) { index ->
-                        val hit = state.hits[index]
-                        if (hit is SearchHit.App && hit.app.key == top?.app?.key) return@items
-                        when (hit) {
-                            is SearchHit.Math -> MathRow(hit)
-                            is SearchHit.App -> AppRow(hit, viewModel)
-                            is SearchHit.Action -> ActionRow(hit, viewModel)
-                            is SearchHit.IntentGroup -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
-                            is SearchHit.Discovery -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
-                            is SearchHit.Web -> WebRow(hit, viewModel)
-                        }
+                Spacer(Modifier.height(12.dp))
+            }
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(state.hits.size) { index ->
+                    when (val hit = state.hits[index]) {
+                        is SearchHit.Math -> MathRow(hit)
+                        is SearchHit.App -> AppRow(hit, viewModel, featured = index == 0 && state.query.isNotBlank())
+                        is SearchHit.Action -> ActionRow(hit, viewModel)
+                        is SearchHit.IntentGroup -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
+                        is SearchHit.Discovery -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
+                        is SearchHit.Web -> WebRow(hit, viewModel)
                     }
                 }
             }
@@ -387,8 +316,8 @@ private fun GroupRow(
             .background(Color.White.copy(alpha = 0.07f))
             .padding(14.dp)
     ) {
-        Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
-        Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light)
+        Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Spacer(Modifier.height(10.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(apps.take(6), key = { it.key }) { app ->
@@ -433,8 +362,8 @@ private fun ResultRow(
         }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light)
+            Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

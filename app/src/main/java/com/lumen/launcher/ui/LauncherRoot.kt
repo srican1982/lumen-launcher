@@ -112,7 +112,7 @@ fun LauncherRoot(
         if (pagerState.settledPage != 2) listTyping = false
     }
     val createUiOpen = state.recentsOpen || state.socialCreateTool != null
-    val homeIdle = state.sheet == Sheet.None && !state.privatePageActive && !createUiOpen
+    val homeIdle = !state.workspaceOpen && state.sheet == Sheet.None && !state.privatePageActive && !createUiOpen
     val privateExpand = remember { Animatable(0f) }
     LaunchedEffect(state.privatePageActive) {
         if (state.privatePageActive) {
@@ -156,13 +156,16 @@ fun LauncherRoot(
                     onPinch = viewModel::openSettings
                 )
         ) {
-            SpaceBackdrop(state.spaceWallpaper)
+            val workspaceBlur by androidx.compose.animation.core.animateDpAsState(if (state.workspaceOpen) 22.dp else 0.dp, tween(240), label = "workspace-blur")
+            SpaceBackdrop(state.spaceWallpaper, workspaceBlur)
+            WallpaperWindowBlur(state.spaceWallpaper == null, 12.dp + workspaceBlur)
             AmbientBackdrop()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .then(
                         when {
+                            workspaceBlur > 0.dp -> Modifier.blur(workspaceBlur)
                             state.recentsOpen || state.socialCreateTool != null -> Modifier.blur(24.dp)
                             state.sheet == Sheet.Voice -> Modifier.blur(22.dp)
                             state.sheet == Sheet.Drawer -> Modifier.blur(28.dp)
@@ -246,6 +249,7 @@ fun LauncherRoot(
                 }
             }
             }
+            if (state.workspaceOpen) WorkspacePopup(state, viewModel)
             if (privateExpand.value > 0.01f) {
                 val p = privateExpand.value
                 val originX = if (state.touchpadRight > state.touchpadLeft) {
@@ -282,6 +286,26 @@ fun LauncherRoot(
                         Box(Modifier.graphicsLayer { alpha = ((p - 0.32f) / 0.68f).coerceIn(0f, 1f) }) {
                             PrivatePage(state = state, viewModel = viewModel)
                         }
+                    }
+                }
+            }
+            if (state.sheet == Sheet.SearchDetail) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = viewModel::closeSheet,
+                    title = { androidx.compose.material3.Text("Note") },
+                    text = { androidx.compose.material3.Text(state.searchDetail) },
+                    confirmButton = { androidx.compose.material3.TextButton(onClick = viewModel::closeSheet) { androidx.compose.material3.Text("Done") } }
+                )
+            }
+            if (state.sheet == Sheet.TripAlbums) {
+                com.lumen.launcher.travel.TripGalleryScreen(onClose = viewModel::closeSheet, initialTripId = state.searchTripId)
+            }
+            if (state.sheet == Sheet.TravelDocs) {
+                TravelCollection(state, viewModel, state.searchTravelCategory, onDismiss = viewModel::closeSheet)
+                val context = androidx.compose.ui.platform.LocalContext.current
+                LaunchedEffect(state.searchDocumentUri) {
+                    state.travelAttachments.find { it.uri == state.searchDocumentUri }?.let { item ->
+                        if (openTravelItem(context, state, viewModel, item)) viewModel.closeSheet()
                     }
                 }
             }

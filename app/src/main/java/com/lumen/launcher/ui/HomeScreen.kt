@@ -373,7 +373,7 @@ fun HomeScreen(
             }
             Spacer(Modifier.height(12.dp))
             ActionBar(
-                hint = copy.prompt,
+                hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
                 onClick = viewModel::openModeSearch,
                 onLongClick = { viewModel.openCapture() },
                 modifier = restBlur
@@ -403,7 +403,9 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(gridGap)
                 ) {
                     item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
-                        CompactWorkspace(state, viewModel) {
+                        if (state.activeSpace == SpaceKind.Personal) {
+                            SocialSpaceCard(state, viewModel)
+                        } else CompactWorkspace(state, viewModel) {
                             TouchpadIsland(
                                 enabled = !recentsOpen && !editing,
                                 state = state,
