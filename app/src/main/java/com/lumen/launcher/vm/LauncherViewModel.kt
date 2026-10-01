@@ -73,8 +73,6 @@ import com.lumen.launcher.data.NeedNowResolver
 import com.lumen.launcher.data.TodoItem
 import com.lumen.launcher.data.TodoRepeat
 import com.lumen.launcher.data.TodoTime
-import com.lumen.launcher.data.TripStop
-import com.lumen.launcher.data.TripStopNavigator
 import com.lumen.launcher.data.UpNext
 import com.lumen.launcher.data.UpNextResolver
 import com.lumen.launcher.inbox.InboxDigest
@@ -1027,75 +1025,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.setTravel(destination.trim(), ticket) }
     }
 
-    fun addTripStop(stop: TripStop) {
-        viewModelScope.launch {
-            preferences.updateTravelStops(add = listOf(stop), lastSelectedId = stop.id)
-            // Keep legacy destination in sync with the latest stop for older shortcuts.
-            preferences.setTravel(stop.query.ifBlank { stop.place }, _state.value.travelTicket)
-        }
-    }
-
-    fun removeTripStop(stop: TripStop) {
-        viewModelScope.launch { preferences.updateTravelStops(removeId = stop.id) }
-    }
-
-    fun markTripStopNext(stop: TripStop) {
-        viewModelScope.launch {
-            val updated = _state.value.travelStops.map {
-                it.copy(markedNext = it.id == stop.id)
-            }
-            preferences.updateTravelStops(replace = updated, lastSelectedId = stop.id)
-        }
-    }
-
-    fun navigateToStop(stop: TripStop) {
-        viewModelScope.launch {
-            preferences.updateTravelStops(lastSelectedId = stop.id)
-        }
-        _state.update { it.copy(travelDestination = stop.query.ifBlank { stop.place }, lastTravelStopId = stop.id) }
-        openMapsQuery(stop.query.ifBlank { stop.place }, stop.latitude, stop.longitude)
-    }
-
-    fun navigateTravel() {
-        val next = TripStopNavigator.nextStop(
-            stops = _state.value.travelStops,
-            lastSelectedId = _state.value.lastTravelStopId
-        )
-        if (next != null) {
-            navigateToStop(next)
-            return
-        }
-        val destination = _state.value.travelDestination
-        if (destination.isBlank()) {
-            openSearch()
-            return
-        }
-        openMapsQuery(destination, null, null)
-    }
-
-    private fun openMapsQuery(query: String, lat: Double?, lng: Double?) {
-        val geo = if (lat != null && lng != null) {
-            Uri.parse("geo:$lat,$lng?q=${Uri.encode(query)}")
-        } else {
-            Uri.parse("geo:0,0?q=${Uri.encode(query)}")
-        }
-        if (!startIntent(Intent(Intent.ACTION_VIEW, geo))) {
-            startIntent(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://www.google.com/maps/search/?api=1&query=${Uri.encode(query)}")
-                )
-            )
-        }
-    }
-
     fun runModeAction() {
         when (_state.value.activeSpace) {
             SpaceKind.Home -> _state.value.upNext?.let(::openUpNext) ?: openCapture(CaptureKind.Reminder)
             SpaceKind.Work -> openCapture(CaptureKind.Task)
             SpaceKind.Personal -> setRecentsOpen(true)
             SpaceKind.Focus -> if (_state.value.focusing) endFocus() else startFocus(25, _state.value.focusTask?.id)
-            SpaceKind.Travel -> navigateTravel()
+            SpaceKind.Travel -> openSearch()
             SpaceKind.Private -> openPrivateSpace()
         }
     }

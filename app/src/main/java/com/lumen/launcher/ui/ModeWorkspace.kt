@@ -96,7 +96,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 if (next != null) WorkspaceLine(next.title, next.detail) { vm.openUpNext(next) }
                 else if (event != null) WorkspaceLine(event.title, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(event.begin))) { vm.openCalendarEvent(event) }
                 else Text("A little space for your day.", color = Lumen.Muted)
-                task?.let { WorkspaceLine(it.text, "Next task  tap to view") { vm.openTodoList() } }
+                task?.let { WorkspaceLine(it.text, "Next task ? tap to view") { vm.openTodoList() } }
                 WorkspaceActions {
                     OutlinedButton(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Reminder") }
                     OutlinedButton(onClick = { if (state.calendarAccess) vm.openCalendarApp() else vm.requestCalendarAccess() }) { Text(if (state.calendarAccess) "Calendar" else "Connect calendar") }
@@ -104,7 +104,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
             }
             SpaceKind.Work -> {
                 WorkspaceLine(task?.text ?: "Choose your next task", "Tap to manage work tasks") { vm.openTodoList() }
-                if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + "  Open meeting") { vm.openCalendarEvent(event) }
+                if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + " ? Open meeting") { vm.openCalendarEvent(event) }
                 else Text(if (state.calendarAccess) "No upcoming meeting." else "Connect your calendar to see your next meeting.", color = Lumen.Muted, fontSize = 12.sp)
                 WorkspaceActions {
                     OutlinedButton(onClick = { vm.openCapture(CaptureKind.Task) }) { Text("Add task") }
@@ -146,11 +146,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
             }
             SpaceKind.Travel -> {
                 TripModeCard(onViewTrip = { albumTrip = it })
-                TravelNavigationBlock(
-                    stops = state.travelStops,
-                    lastSelectedId = state.lastTravelStopId,
-                    vm = vm
-                )
+                WorkspaceLine(state.travelDestination.ifBlank { "Where are you going?" }, "Tap to set your destination") { editTrip = true }
                 state.upNext?.takeIf { it.kind == UpNext.Kind.Flight }?.let { flight ->
                     WorkspaceLine(flight.title, flight.detail) { vm.openUpNext(flight) }
                 }
@@ -173,7 +169,7 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
             SpaceKind.Work -> "Double-tap TouchPad to capture a task"
             SpaceKind.Personal -> "Double-tap TouchPad to create"
             SpaceKind.Focus -> "Double-tap TouchPad to start or end a session"
-            SpaceKind.Travel -> "Double-tap TouchPad to navigate"
+            SpaceKind.Travel -> "Double-tap TouchPad for travel search"
             else -> ""
         }, color = Lumen.Faint, fontSize = 11.sp)
         if (state.homeApps.isEmpty()) TextButton(onClick = { chooseApps = true }) { Text("Choose apps for ${state.activeSpace.title}") }

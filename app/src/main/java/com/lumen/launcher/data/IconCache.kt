@@ -66,7 +66,7 @@ class IconCache(private val context: Context) {
     /** White Glass · Color icons: the app's colored logo sitting on a frosted white tile. */
     suspend fun getFrostedColor(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
-        val key = "$packageName/$activityName#frostcolor4-" + strength
+        val key = "$packageName/$activityName#frostcolor5-" + strength
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             cache.get(key)?.let { return@withContext it }
@@ -368,12 +368,15 @@ class IconCache(private val context: Context) {
         if (adaptive?.foreground != null) {
             val fg = renderLayer(adaptive.foreground, size)
             if (analyze(fg, opaqueOnly = true).coverage in 0.02f..0.6f) {
-                logo = if (isPale(fg)) {
+                // Maps-style FG often includes a white plate — strip pale fill so only the pin remains.
+                val cleaned = stripPaleBackground(fg)
+                logo = if (isPale(cleaned)) {
                     val bgColor = adaptive.background?.let { layerColor(it, size) }
-                    if (bgColor != null) recolor(fg, bgColor) else fg
+                    if (bgColor != null) recolor(cleaned, bgColor) else cleaned
                 } else {
-                    fg
+                    cleaned
                 }
+                if (cleaned !== fg) fg.recycle()
             } else {
                 fg.recycle()
             }
@@ -390,18 +393,50 @@ class IconCache(private val context: Context) {
                     candidate.recycle()
                 }
             }
-            // 3) Pure artwork: the whole icon, smaller, sitting on the glass.
+            // 3) Pure artwork: inset on glass, but still strip a white plate if present (Maps).
             if (logo == null) {
+                val cleaned = stripPaleBackground(full)
                 val mini = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
                 val c = Canvas(mini)
                 val inset = size * 0.16f
                 c.clipPath(squircle(size, inset))
-                c.drawBitmap(full, null, RectF(inset, inset, size - inset, size - inset), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+                c.drawBitmap(cleaned, null, RectF(inset, inset, size - inset, size - inset), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+                if (cleaned !== full) cleaned.recycle()
                 logo = mini
             }
             full.recycle()
         }
         return frostedTile(logo!!, size, strength)
+    }
+
+    /**
+     * Removes near-white / light-grey plate pixels so logos like Maps keep only the
+     * colorful mark when placed on a frosted White Glass · Color tile.
+     */
+    private fun stripPaleBackground(src: Bitmap): Bitmap {
+        val w = src.width
+        val h = src.height
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+        var opaque = 0
+        var pale = 0
+        for (c in px) {
+            if ((c ushr 24) < 128) continue
+            opaque++
+            if (isPaleColor(c)) pale++
+        }
+        // Only strip when a clear pale plate dominates (e.g. Maps white square).
+        if (opaque == 0 || pale < opaque * 0.35f) return src
+        for (i in px.indices) {
+            val c = px[i]
+            if ((c ushr 24) < 16) continue
+            if (isPaleColor(c)) {
+                px[i] = 0
+            }
+        }
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        out.setPixels(px, 0, w, 0, 0, w, h)
+        return out
     }
 
     /** Keeps the original colors of every pixel that clearly differs from [background]. */

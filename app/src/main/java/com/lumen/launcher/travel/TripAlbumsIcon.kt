@@ -26,9 +26,10 @@ import com.lumen.launcher.ui.LocalIconTreatment
 /**
  * Trip Albums — pinned Social shortcut.
  *
- * Matches how Maps reads on the home grid:
- * - Normal / Glass / Glass Color → solid white tile + chromatic bloom
- * - White Glass → frosted glass tile + white bloom
+ * Matches home-grid icon treatments:
+ * - White Glass → frosted tile + white bloom
+ * - White Glass · Color → frosted tile + chromatic bloom (same glass plate as other apps)
+ * - Other themes → solid white tile + chromatic bloom
  */
 @Composable
 fun TripAlbumsIcon(
@@ -38,11 +39,11 @@ fun TripAlbumsIcon(
     val treatment = LocalIconTreatment.current
     val glassStrength = LocalIconGlassStrength.current
     val shape = RoundedCornerShape(22.dp)
-    val whiteGlass = treatment == IconTreatment.WhiteGlass
+    val frosted = treatment == IconTreatment.WhiteGlass || treatment == IconTreatment.GlassColor
+    val monoBloom = treatment == IconTreatment.WhiteGlass
     val s = (glassStrength * 2f).coerceIn(0.35f, 1.6f)
 
-    // Solid white plate (Maps-style) unless White Glass, which stays frosted.
-    val tileBrush = if (whiteGlass) {
+    val tileBrush = if (frosted) {
         Brush.verticalGradient(
             listOf(
                 Color.White.copy(alpha = (0.40f * s).coerceIn(0.22f, 0.55f)),
@@ -53,7 +54,7 @@ fun TripAlbumsIcon(
     } else {
         Brush.verticalGradient(listOf(Color.White, Color.White))
     }
-    val rim = if (whiteGlass) {
+    val rim = if (frosted) {
         Brush.verticalGradient(
             listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.12f))
         )
@@ -62,7 +63,7 @@ fun TripAlbumsIcon(
             listOf(Color.White.copy(0.55f), Color.Black.copy(0.08f))
         )
     }
-    val elevation = if (whiteGlass) 0.dp else 8.dp
+    val elevation = if (frosted) 0.dp else 8.dp
 
     val spectrum = listOf(
         Color(0xFF5AC8FA),
@@ -74,13 +75,13 @@ fun TripAlbumsIcon(
         Color(0xFFFF2D55),
         Color(0xFFAF52DE)
     )
-    val petals = if (whiteGlass) {
+    val petals = if (monoBloom) {
         List(8) { Color.White.copy(alpha = 0.96f) }
     } else {
         spectrum
     }
     val hubColor = Color.White
-    val hubShadow = Color.Black.copy(alpha = if (whiteGlass) 0.18f else 0.14f)
+    val hubShadow = Color.Black.copy(alpha = if (monoBloom) 0.18f else 0.14f)
 
     Box(
         modifier
@@ -102,7 +103,7 @@ fun TripAlbumsIcon(
             .border(0.85.dp, rim, shape),
         contentAlignment = Alignment.Center
     ) {
-        if (whiteGlass) {
+        if (frosted) {
             Box(
                 Modifier
                     .fillMaxSize()
