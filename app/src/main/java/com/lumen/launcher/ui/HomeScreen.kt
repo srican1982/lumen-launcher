@@ -135,7 +135,7 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Color.Black.copy(alpha = 0.42f) else Color.Transparent)) {
         val gridGap = 12.dp
         val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
@@ -403,24 +403,26 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(gridGap)
                 ) {
                     item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
-                        if (state.activeSpace == SpaceKind.Personal) {
-                            SocialSpaceCard(state, viewModel)
-                        } else CompactWorkspace(state, viewModel) {
-                            TouchpadIsland(
-                                enabled = !recentsOpen && !editing,
-                                state = state,
-                                icons = viewModel.icons,
-                                dropReady = overPad,
-                                onGesture = viewModel::runBlankGesture,
-                                onPrivateArmed = viewModel::armPrivateSpace,
-                                onBoundsInWindow = { l, t, r, b ->
-                                    padBox.value = Rect(l, t, r, b)
-                                    viewModel.setTouchpadWindow(l, t, r, b)
-                                },
-                                framed = false,
-                                markSize = 40.dp,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        when (state.activeSpace) {
+                            SpaceKind.Personal -> SocialSpaceCard(state, viewModel)
+                            SpaceKind.Focus -> FocusSpaceCard(state, viewModel)
+                            else -> CompactWorkspace(state, viewModel) {
+                                TouchpadIsland(
+                                    enabled = !recentsOpen && !editing,
+                                    state = state,
+                                    icons = viewModel.icons,
+                                    dropReady = overPad,
+                                    onGesture = viewModel::runBlankGesture,
+                                    onPrivateArmed = viewModel::armPrivateSpace,
+                                    onBoundsInWindow = { l, t, r, b ->
+                                        padBox.value = Rect(l, t, r, b)
+                                        viewModel.setTouchpadWindow(l, t, r, b)
+                                    },
+                                    framed = false,
+                                    markSize = 40.dp,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                     if (state.activeSpace == SpaceKind.Travel) {
@@ -449,25 +451,27 @@ fun HomeScreen(
                             }
                         }
                     }
-                    if (!state.focusing) items(state.folders.filter { it.space == state.activeSpace.name }, key = { "folder-${it.id}" }) { folder ->
-                        val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
-                        androidx.compose.runtime.DisposableEffect(folder.id) {
-                            onDispose { folderWindows.remove(folder.id) }
-                        }
-                        Box(Modifier.onGloballyPositioned { folderWindows[folder.id] = it.boundsInWindow() }) {
-                        HomeFolderTile(
-                            name = folder.name,
-                            apps = apps,
-                            iconSize = homeIconSize,
-                            icons = viewModel.icons,
-                            showLabel = state.showLabels,
-                            onClick = { viewModel.openFolder(folder) },
-                            onLongClick = { viewModel.editFolder(folder) }
-                        )
+                    if (!state.focusing && state.activeSpace != SpaceKind.Focus) {
+                        items(state.folders.filter { it.space == state.activeSpace.name }, key = { "folder-${it.id}" }) { folder ->
+                            val apps = folder.appKeys.mapNotNull { key -> state.visibleApps.find { it.key == key } }
+                            androidx.compose.runtime.DisposableEffect(folder.id) {
+                                onDispose { folderWindows.remove(folder.id) }
+                            }
+                            Box(Modifier.onGloballyPositioned { folderWindows[folder.id] = it.boundsInWindow() }) {
+                            HomeFolderTile(
+                                name = folder.name,
+                                apps = apps,
+                                iconSize = homeIconSize,
+                                icons = viewModel.icons,
+                                showLabel = state.showLabels,
+                                onClick = { viewModel.openFolder(folder) },
+                                onLongClick = { viewModel.editFolder(folder) }
+                            )
+                            }
                         }
                     }
-                    // Social apps live inside SocialSpaceCard on Personal — avoid a duplicate grid.
-                    if (state.activeSpace != SpaceKind.Personal) {
+                    // Social / Focus canvases own their apps — avoid a duplicate grid.
+                    if (state.activeSpace != SpaceKind.Personal && state.activeSpace != SpaceKind.Focus) {
                         items(homeGridApps, key = { it.key }) { app ->
                             HomeGridIcon(app)
                         }
@@ -684,7 +688,9 @@ private fun ActionBar(
 
 @Composable
 private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
-    val left = ((state.focusUntil - System.currentTimeMillis()).coerceAtLeast(0L) / 60000L).toInt()
+    val remaining = if (state.focusPaused) state.focusPausedRemainingMs
+    else (state.focusUntil - System.currentTimeMillis()).coerceAtLeast(0L)
+    val left = (remaining / 60000L).toInt()
     val task = state.focusTask?.text ?: "This space"
     Row(
         modifier = Modifier
@@ -695,9 +701,14 @@ private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text("FOCUS", color = Lumen.Accent, fontFamily = Outfit, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text("FOCUS", color = Color(0xFF34D399), fontFamily = Outfit, fontSize = 11.sp, fontWeight = FontWeight.Medium)
             Text(task, color = Lumen.Text, fontFamily = Outfit, fontSize = 15.sp, maxLines = 1)
-            Text("$left min left", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
+            Text(
+                if (state.focusPaused) "Paused · $left min left" else "$left min left",
+                color = Lumen.Faint,
+                fontFamily = Outfit,
+                fontSize = 12.sp
+            )
         }
         Text(
             "End",
@@ -706,7 +717,7 @@ private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
             fontSize = 13.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(14.dp))
-                .background(Lumen.Accent)
+                .background(Color(0xFF059669))
                 .clickable(onClick = viewModel::endFocus)
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         )

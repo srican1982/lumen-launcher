@@ -37,7 +37,13 @@ object FocusSession {
         // A previous session must release its rule before a new one takes ownership.
         if (!restore(c)) return@withLock false
         try {
-            check(p.edit().putLong("until", until).commit())
+            val now = System.currentTimeMillis()
+            check(p.edit()
+                .putLong("until", until)
+                .putLong("started", now)
+                .putLong("total", (until - now).coerceAtLeast(60_000L))
+                .remove("paused_remaining")
+                .commit())
             // Arrange restoration before activating quiet mode.
             schedule(c, until)
             val nm = c.getSystemService(NotificationManager::class.java)
@@ -65,6 +71,69 @@ object FocusSession {
             false
         }
     }
+
+    /** Freeze the countdown; keep quiet mode. Returns remaining ms, or 0 if nothing to pause. */
+    suspend fun pause(c: Context): Long = mutex.withLock {
+        val p = ledger(c)
+        val until = p.getLong("until", 0)
+        val already = p.getLong("paused_remaining", 0)
+        if (already > 0) return@withLock already
+        if (until <= 0L) return@withLock 0L
+        val remaining = (until - System.currentTimeMillis()).coerceAtLeast(0L)
+        if (remaining <= 0L) return@withLock 0L
+        c.getSystemService(AlarmManager::class.java).cancel(pending(c, until))
+        check(p.edit().putLong("paused_remaining", remaining).putLong("until", 0).commit())
+        remaining
+    }
+
+    /** Resume a paused session. Returns new until, or 0 on failure. */
+    suspend fun resume(c: Context, taskId: String): Long = mutex.withLock {
+        val p = ledger(c)
+        val remaining = p.getLong("paused_remaining", 0)
+        if (remaining <= 0L) return@withLock 0L
+        val until = System.currentTimeMillis() + remaining
+        return@withLock try {
+            schedule(c, until)
+            check(p.edit().putLong("until", until).remove("paused_remaining").commit())
+            LauncherPreferences(c).setFocus(until, taskId)
+            until
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    /** Extend a running or paused session by [extraMs]. Returns new until when running, else 0. */
+    suspend fun extend(c: Context, extraMs: Long, taskId: String): Long = mutex.withLock {
+        val p = ledger(c)
+        val add = extraMs.coerceAtLeast(0L)
+        val paused = p.getLong("paused_remaining", 0)
+        if (paused > 0L) {
+            val next = paused + add
+            check(p.edit()
+                .putLong("paused_remaining", next)
+                .putLong("total", p.getLong("total", next) + add)
+                .commit())
+            return@withLock 0L
+        }
+        val until = p.getLong("until", 0)
+        if (until <= System.currentTimeMillis()) return@withLock 0L
+        val next = until + add
+        return@withLock try {
+            c.getSystemService(AlarmManager::class.java).cancel(pending(c, until))
+            schedule(c, next)
+            check(p.edit()
+                .putLong("until", next)
+                .putLong("total", p.getLong("total", next - System.currentTimeMillis()) + add)
+                .commit())
+            LauncherPreferences(c).setFocus(next, taskId)
+            next
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
+    fun pausedRemaining(c: Context): Long = ledger(c).getLong("paused_remaining", 0)
+    fun totalMs(c: Context): Long = ledger(c).getLong("total", 0)
 
     /** Returns false if Android denied restoration; retain ownership data for retry. */
     private fun restore(c: Context): Boolean {

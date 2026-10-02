@@ -13,6 +13,15 @@ class SpaceSearchTest {
     private fun state(space: SpaceKind, query: String = "") = LauncherUiState(
         apps = listOf(teams, game, whatsapp), spaceOverride = space, query = query
     )
+    @Test fun focusUsesSharedSuggestionsAndExclusions() {
+        val s = state(SpaceKind.Focus).copy(
+            todos = listOf(TodoItem("t", "Client proposal")), focusTaskId = "t",
+            focusSuggestionTask = "Client proposal", focusSuggestedKeys = listOf(whatsapp.key, teams.key),
+            focusPins = mapOf("Exclude:FocusTask:t" to listOf(teams.key)))
+        assertEquals(listOf(whatsapp), FocusContext.apps(s))
+        assertEquals(listOf(whatsapp), SpaceSearch.results(s).filterIsInstance<SearchHit.App>().map { it.app })
+        assertTrue(SpaceSearch.results(s.copy(query = "Teams")).filterIsInstance<SearchHit.App>().any { it.app == teams })
+    }
     @Test fun typoStillFindsWhatsappInEverySpace() {
         listOf(SpaceKind.Home, SpaceKind.Work, SpaceKind.Personal, SpaceKind.Focus, SpaceKind.Travel).forEach {
             assertTrue(SpaceSearch.results(state(it, "watsap")).filterIsInstance<SearchHit.App>().any { hit -> hit.app == whatsapp })

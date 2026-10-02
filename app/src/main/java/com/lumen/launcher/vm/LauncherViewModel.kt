@@ -317,6 +317,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                         later = stored.later,
                         focusUntil = stored.focusUntil,
                         focusTaskId = stored.focusTaskId,
+                        focusPausedRemainingMs = com.lumen.launcher.focus.FocusSession.pausedRemaining(getApplication()),
+                        focusTotalMs = com.lumen.launcher.focus.FocusSession.totalMs(getApplication()),
                         focusPins = stored.focusPins,
                         spaceWallpapers = stored.spaceWallpapers,
                         notificationBadges = stored.notificationBadges
@@ -755,7 +757,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         repeat: String = "",
         priority: Boolean = false
     ): String {
-        val trimmed = text.trim()
+        val trimmed = text.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
         if (trimmed.isBlank()) return ""
         val space = _state.value.activeSpace.takeUnless { it == SpaceKind.Private } ?: SpaceKind.Home
         val item = TodoItem(
@@ -1123,8 +1125,65 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(duePickerTodoId = "") }
     }
 
-    fun toggleFocusPin(app: AppInfo) {
-        val space = _state.value.activeSpace.name
+    private data class FocusSuggestionKey(val task: String, val apps: List<String>, val credential: String)
+    private data class FocusSuggestionEntry(val keys: List<String>, val expires: Long)
+    private val focusSuggestionCache = linkedMapOf<FocusSuggestionKey, FocusSuggestionEntry>()
+
+    private fun focusHistory(): Map<String, Map<String, Int>> {
+        val saved = getApplication<Application>().getSharedPreferences("focus_learning", 0)
+        return runCatching {
+            val root = org.json.JSONObject(saved.getString("history", "{}").orEmpty())
+            root.keys().asSequence().associateWith { task ->
+                val counts = root.getJSONObject(task)
+                counts.keys().asSequence().associateWith { counts.optInt(it) }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun learnFocusLaunch(app: AppInfo) {
+        val s = _state.value
+        val task = s.focusTask ?: return
+        if (!s.focusRunning || s.activeSpace != SpaceKind.Focus || app.key in s.privateApps) return
+        val history = focusHistory().toMutableMap()
+        val counts = history.remove(task.text).orEmpty().toMutableMap()
+        counts[app.key] = ((counts[app.key] ?: 0) + 1).coerceAtMost(10)
+        history[task.text] = counts
+        val root = org.json.JSONObject()
+        history.entries.toList().takeLast(100).forEach { (text, apps) -> root.put(text, org.json.JSONObject(apps)) }
+        getApplication<Application>().getSharedPreferences("focus_learning", 0).edit().putString("history", root.toString()).apply()
+    }
+
+    suspend fun suggestFocusApps(task: String, apps: List<AppInfo>): List<String> {
+        val credential = _state.value.geminiApiKey.ifBlank { BuildConfig.GEMINI_API_KEY }
+        val learned = com.lumen.launcher.data.FocusLearning.rank(task, focusHistory(), apps.map { it.key }.toSet())
+        val local = com.lumen.launcher.data.NeedNowResolver.matchTaskApps(TodoItem("", task), apps).map { it.key }
+        val cacheKey = FocusSuggestionKey(task.trim(), apps.map { "${it.key}:${it.label}" }.sorted(), credential)
+        val cached = focusSuggestionCache[cacheKey]?.takeIf { it.expires > System.currentTimeMillis() }
+        val ai = if ((learned + local).distinct().size >= 2 || credential.isBlank()) emptyList() else if (cached != null) cached.keys else {
+            val result = withContext(Dispatchers.IO) { com.lumen.launcher.data.FocusAiSuggestions.suggest(credential, task, apps) }
+            focusSuggestionCache[cacheKey] = FocusSuggestionEntry(result.orEmpty(),
+                if (result == null) System.currentTimeMillis() + 60_000 else Long.MAX_VALUE)
+            if (focusSuggestionCache.size > 64) focusSuggestionCache.remove(focusSuggestionCache.keys.first())
+            result.orEmpty()
+        }
+        val people = withContext(Dispatchers.IO) { PeopleActions.hits(contacts, task).filter { it.phone.isNotBlank() } }
+        val ranked = (learned + ai + local).distinct().take(4)
+        if (_state.value.focusTask?.text == task) _state.update {
+            it.copy(focusSuggestionTask = task, focusSuggestedKeys = ranked, focusPeopleActions = people)
+        }
+        return ranked
+    }
+
+    fun excludeFocusApp(app: AppInfo, scope: String) {
+        val name = "Exclude:$scope"
+        val excluded = _state.value.focusPins[name].orEmpty()
+        val next = if (app.key in excluded) excluded - app.key else (excluded + app.key).takeLast(100)
+        persistFocusPins(_state.value.focusPins + (name to next) +
+            (scope to _state.value.focusPins[scope].orEmpty().filterNot { it == app.key }))
+    }
+
+    fun toggleFocusPin(app: AppInfo, scope: String = _state.value.activeSpace.name) {
+        val space = scope
         val current = _state.value.focusPins[space].orEmpty()
         val nextForSpace = if (app.key in current) {
             current.filterNot { it == app.key }
@@ -1255,7 +1314,15 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         val until = System.currentTimeMillis() + minutes.coerceIn(1, 24 * 60) * 60 * 1000L
         viewModelScope.launch {
             if (com.lumen.launcher.focus.FocusSession.start(context, until, task?.id.orEmpty())) {
-                _state.update { it.copy(focusUntil = until, focusTaskId = task?.id.orEmpty()) }
+                val total = until - System.currentTimeMillis()
+                _state.update {
+                    it.copy(
+                        focusUntil = until,
+                        focusTaskId = task?.id.orEmpty(),
+                        focusPausedRemainingMs = 0L,
+                        focusTotalMs = total
+                    )
+                }
                 selectSpace(SpaceKind.Focus)
                 goToPage(1)
             } else explain("Focus could not enable quiet mode. Check Lumen's Do Not Disturb access.")
@@ -1265,8 +1332,54 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun endFocus() {
         viewModelScope.launch {
             val restored = com.lumen.launcher.focus.FocusSession.finish(getApplication())
-            _state.update { it.copy(focusUntil = 0L, focusTaskId = "") }
+            _state.update { it.copy(focusUntil = 0L, focusTaskId = "", focusPausedRemainingMs = 0L, focusTotalMs = 0L) }
             if (!restored) android.widget.Toast.makeText(getApplication(), "Open Do Not Disturb settings to turn off Lumen Focus.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun pauseFocus() {
+        viewModelScope.launch {
+            val remaining = com.lumen.launcher.focus.FocusSession.pause(getApplication())
+            if (remaining <= 0L) return@launch
+            val taskId = _state.value.focusTaskId
+            preferences.setFocus(0L, taskId)
+            _state.update { it.copy(focusUntil = 0L, focusPausedRemainingMs = remaining) }
+        }
+    }
+
+    fun resumeFocus() {
+        viewModelScope.launch {
+            val taskId = _state.value.focusTaskId
+            val until = com.lumen.launcher.focus.FocusSession.resume(getApplication(), taskId)
+            if (until <= 0L) return@launch
+            _state.update { it.copy(focusUntil = until, focusPausedRemainingMs = 0L) }
+        }
+    }
+
+    fun extendFocus(minutes: Int = 15) {
+        viewModelScope.launch {
+            val add = minutes.coerceIn(1, 120) * 60_000L
+            val taskId = _state.value.focusTaskId
+            val paused = _state.value.focusPausedRemainingMs
+            if (paused > 0L) {
+                com.lumen.launcher.focus.FocusSession.extend(getApplication(), add, taskId)
+                _state.update {
+                    it.copy(
+                        focusPausedRemainingMs = paused + add,
+                        focusTotalMs = (it.focusTotalMs.takeIf { t -> t > 0 } ?: paused) + add
+                    )
+                }
+                return@launch
+            }
+            val until = com.lumen.launcher.focus.FocusSession.extend(getApplication(), add, taskId)
+            if (until <= 0L) return@launch
+            _state.update {
+                it.copy(
+                    focusUntil = until,
+                    focusTotalMs = (it.focusTotalMs.takeIf { t -> t > 0 }
+                        ?: (until - System.currentTimeMillis())) + add
+                )
+            }
         }
     }
 
@@ -2740,7 +2853,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             component = ComponentName(app.packageName, app.activityName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
         }
-        startIntent(intent)
+        if (!startIntent(intent)) return
+        learnFocusLaunch(app)
         viewModelScope.launch {
             preferences.recordLaunch(app.key)
             val spoken = _state.value.query.trim().ifBlank { _state.value.voiceHeard.trim() }
@@ -3267,6 +3381,9 @@ data class LauncherUiState(
     val todos: List<TodoItem> = emptyList(),
     val heyLumen: Boolean = false,
     val smartVoice: Boolean = true,
+    val focusSuggestionTask: String = "",
+    val focusSuggestedKeys: List<String> = emptyList(),
+    val focusPeopleActions: List<SearchHit.Action> = emptyList(),
     val geminiApiKey: String = "",
     val flowEnabled: Set<String> = defaultFlowEnabled(),
     val flowOrder: List<String> = defaultFlowNames(),
@@ -3310,6 +3427,8 @@ data class LauncherUiState(
     val later: List<LaterItem> = emptyList(),
     val focusUntil: Long = 0L,
     val focusTaskId: String = "",
+    val focusPausedRemainingMs: Long = 0L,
+    val focusTotalMs: Long = 0L,
     val focusPins: Map<String, List<String>> = emptyMap(),
     val captureKind: CaptureKind = CaptureKind.Task,
     val duePickerTodoId: String = "",
@@ -3379,7 +3498,13 @@ data class LauncherUiState(
         get() = todos.find { it.id == focusTaskId } ?: spaceTodos.filterNot { it.done }.firstOrNull()
 
     val focusing: Boolean
-        get() = focusUntil > System.currentTimeMillis()
+        get() = focusUntil > System.currentTimeMillis() || focusPausedRemainingMs > 0L
+
+    val focusRunning: Boolean
+        get() = focusUntil > System.currentTimeMillis() && focusPausedRemainingMs <= 0L
+
+    val focusPaused: Boolean
+        get() = focusPausedRemainingMs > 0L
 
     val dailyReview: DailyReview
         get() = DailyReviewResolver.resolve(spaceTodos, upcomingEvents)

@@ -139,7 +139,7 @@ fun LauncherRoot(
                 white = state.theme.isWhiteGlass
             ),
             LocalNotificationBadgeMode provides if (state.activeSpace == com.lumen.launcher.data.SpaceKind.Focus || state.focusing) com.lumen.launcher.badge.NotificationBadgeMode.Off else state.notificationBadges,
-            LocalNotificationBadgeCounts provides badgeCounts
+            LocalNotificationBadgeCounts provides if (state.activeSpace == com.lumen.launcher.data.SpaceKind.Focus) emptyMap() else badgeCounts
         ) {
         Box(
             modifier = Modifier

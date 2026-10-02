@@ -38,9 +38,13 @@ object NeedNowResolver {
     }
 
     fun matchTaskApps(task: TodoItem, apps: List<AppInfo>): List<AppInfo> {
-        return taskNeedles(task).mapNotNull { needles ->
+        val specific = taskNeedles(task).mapNotNull { needles ->
             find(*needles.toTypedArray(), apps = apps)
         }.distinctBy { it.key }
+        val capabilities = com.lumen.launcher.search.IntentIndex.match(task.text).flatMap {
+            com.lumen.launcher.search.IntentIndex.appsFor(it, apps)
+        }
+        return (specific + capabilities).distinctBy { it.key }.take(4)
     }
 
     private fun taskNeedles(task: TodoItem): List<List<String>> {
@@ -54,6 +58,12 @@ object NeedNowResolver {
             )
         }
         return when {
+            Regex("\\b(website|webpage|coding|code|programming|html|css)\\b").containsMatchIn(q) -> listOf(
+                listOf("chrome", "firefox", "browser"),
+                listOf("vscode", "acode", "spck", "code editor"),
+                listOf("github", "gitlab"),
+                listOf("notes", "keep", "notepad")
+            )
             q.contains("timesheet") || q.contains("time sheet") -> listOf(
                 listOf("adp", "workday", "kronos", "paychex", "timesheet"),
                 listOf("outlook", "gmail"),
@@ -70,7 +80,7 @@ object NeedNowResolver {
                 listOf("phone", "dialer"),
                 listOf("notes", "keep")
             )
-            q.contains("doc") || q.contains("slides") || q.contains("sheet") -> listOf(
+            q.contains("doc") || q.contains("slides") || q.contains("sheet") || q.contains("write") || q.contains("report") || q.contains("proposal") -> listOf(
                 listOf("docs", "sheets", "slides", "drive"),
                 listOf("chrome", "browser")
             )
@@ -87,6 +97,7 @@ object NeedNowResolver {
                 listOf("teams", "slack", "meet", "zoom"),
                 listOf("chrome", "browser")
             )
+            q.contains("study") || q.contains("research") || q.contains("read") -> listOf(listOf("chrome", "browser"), listOf("notes", "keep", "notepad"), listOf("drive", "files", "pdf"))
             else -> listOf(
                 task.text.split(Regex("\\s+")).filter { it.length >= 4 }.map { it.lowercase() }
             )

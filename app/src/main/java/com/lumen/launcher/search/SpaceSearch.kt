@@ -16,9 +16,7 @@ object SpaceSearch {
     fun results(s: LauncherUiState, people: List<SearchHit.Action> = emptyList()): List<SearchHit> {
         val q = s.query.trim()
         val space = s.activeSpace
-        val focusKeys = s.focusPins[SpaceKind.Focus.name].orEmpty() + s.modeApps[SpaceKind.Focus.name].orEmpty()
-        val focusCandidates = s.visibleApps.filter { it.key in focusKeys || it.category in setOf(AppCategory.Work, AppCategory.Utilities) }
-        val focusApps = FocusAppsResolver.apps(s.focusTask, focusCandidates, s.recents, SpaceKind.Focus, focusKeys, limit = 4)
+        val focusApps = FocusContext.apps(s)
         val preferredKeys = (if (space == SpaceKind.Focus) focusApps else s.homeApps).map { it.key }.toSet()
         fun boost(app: AppInfo): Int = when {
             space == SpaceKind.Home -> 0
@@ -52,6 +50,11 @@ object SpaceSearch {
             if (q.isNotBlank() && match < 600) return
             val context = if (owner == space && space != SpaceKind.Home) 140 else 0
             scored += SearchHit.Action(id, title, detail, q) to (match + context)
+        }
+        if (space == SpaceKind.Focus) FocusContext.actions(s).forEach { action ->
+            if (q.isBlank() || FuzzySearch.score(q, action.title) >= 600 || action.title.contains(q, true)) {
+                scored += action to 1150
+            }
         }
         val now = System.currentTimeMillis()
         s.todos.filter { !it.done && it.space != SpaceKind.Private }.forEach { task ->

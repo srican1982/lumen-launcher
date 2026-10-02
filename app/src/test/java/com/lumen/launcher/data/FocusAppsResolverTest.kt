@@ -90,6 +90,21 @@ class FocusAppsResolverTest {
         assertThat(ranked.map { it.label }.take(2)).containsExactly("ADP", "Photos").inOrder()
     }
 
+    @Test
+    fun websiteTaskChangesSuggestionsEvenWithFourPins() {
+        val installed = listOf(photos, maps, phone, contacts, chrome, notes)
+        val pins = listOf(photos.key, maps.key, phone.key, contacts.key)
+        fun picks(text: String) = FocusAppsResolver.picks(
+            task = TodoItem("same-id", text, space = SpaceKind.Focus),
+            apps = installed, recents = emptyList(), space = SpaceKind.Focus,
+            focusPins = pins
+        )
+        assertThat(picks("Test").first().app).isEqualTo(photos)
+        val website = picks("Create a website")
+        assertThat(website.take(2).map { it.app }).containsExactly(chrome, notes).inOrder()
+        assertThat(website.first().why).isEqualTo(FocusWhy.Task)
+    }
+
     private fun app(label: String, pkg: String, category: AppCategory) =
         AppInfo(label, pkg, "", 0L, category)
 }

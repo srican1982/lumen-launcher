@@ -15,9 +15,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun FocusDurationDialog(onDismiss: () -> Unit, onStart: (Int) -> Unit) {
-    var hours by rememberSaveable { mutableStateOf("0") }
-    var minutes by rememberSaveable { mutableStateOf("25") }
+fun FocusDurationDialog(onDismiss: () -> Unit, onStart: (Int) -> Unit, initialMinutes: Int = 25, confirmLabel: String = "Start focus") {
+    var hours by rememberSaveable { mutableStateOf((initialMinutes / 60).toString()) }
+    var minutes by rememberSaveable { mutableStateOf((initialMinutes % 60).toString()) }
     val h = hours.toIntOrNull() ?: 0
     val m = minutes.toIntOrNull() ?: 0
     val total = h * 60 + m
@@ -57,7 +57,7 @@ fun FocusDurationDialog(onDismiss: () -> Unit, onStart: (Int) -> Unit) {
                     color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
             }
         },
-        confirmButton = { Button(onClick = { if (valid) onStart(total) }, enabled = valid, modifier = Modifier.height(50.dp), shape = RoundedCornerShape(16.dp)) { Text("Start focus") } },
+        confirmButton = { Button(onClick = { if (valid) onStart(total) }, enabled = valid, modifier = Modifier.height(50.dp), shape = RoundedCornerShape(16.dp)) { Text(confirmLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
