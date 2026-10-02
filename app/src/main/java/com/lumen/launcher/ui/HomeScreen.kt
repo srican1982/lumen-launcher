@@ -380,7 +380,10 @@ fun HomeScreen(
             )
             if (state.focusing && state.activeSpace != SpaceKind.Focus) {
                 Spacer(Modifier.height(10.dp))
-                FocusBanner(state, viewModel)
+                com.lumen.launcher.ui.focus.FocusStatusPill(
+                    state = state,
+                    onOpenFocus = { viewModel.selectSpace(SpaceKind.Focus) }
+                )
             }
             Spacer(Modifier.height(4.dp))
             Box(

@@ -131,7 +131,12 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                 }
             }
             SpaceKind.Focus -> {
-                WorkspaceLine(state.focusTask?.text ?: "What are you working on?", "Choose one task") { chooseTask = true }
+                Text(
+                    if (activeFocus || state.focusPaused) "Quiet, without becoming unreachable."
+                    else "Set who can reach you, then start Focus.",
+                    color = Lumen.Muted,
+                    fontSize = 12.sp
+                )
                 if (activeFocus || state.focusPaused) {
                     val seconds = if (state.focusPaused) (state.focusPausedRemainingMs / 1000).coerceAtLeast(0)
                     else ((state.focusUntil - now) / 1000).coerceAtLeast(0)
@@ -143,20 +148,15 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
                         fontSize = 30.sp
                     )
                 }
-                Text("Focus silences calls and notification interruptions. Your previous settings return when the timer ends, with a completion alert. Alarms and media stay available.", color = Lumen.Muted, fontSize = 12.sp)
                 WorkspaceActions {
                     if (activeFocus || state.focusPaused) {
                         if (state.focusPaused) WorkspacePill(onClick = vm::resumeFocus) { Text("Resume") }
                         else WorkspacePill(onClick = vm::pauseFocus) { Text("Pause") }
                         WorkspacePill(onClick = { vm.extendFocus(15) }) { Text("+15 min") }
-                        WorkspacePill(onClick = vm::endFocus) { Text("End session") }
+                        WorkspacePill(onClick = vm::endFocus) { Text("End") }
                     } else {
-                        WorkspacePill(onClick = { vm.startFocus(15, state.focusTask?.id) }) { Text("Start 15m") }
-                        WorkspacePill(onClick = { vm.startFocus(30, state.focusTask?.id) }) { Text("Start 30m") }
-                        WorkspacePill(onClick = { vm.startFocus(45, state.focusTask?.id) }) { Text("Start 45m") }
-                        WorkspacePill(onClick = { customFocus = true }) { Text("Custom") }
+                        WorkspacePill(onClick = { vm.selectSpace(SpaceKind.Focus) }) { Text("Open Focus") }
                     }
-                    WorkspacePill(onClick = { vm.selectSpace(SpaceKind.Home) }) { Text("Back to Home") }
                 }
             }
             SpaceKind.Travel -> {

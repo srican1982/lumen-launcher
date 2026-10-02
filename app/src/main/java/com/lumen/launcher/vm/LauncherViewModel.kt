@@ -1057,7 +1057,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             SpaceKind.Home -> _state.value.upNext?.let(::openUpNext) ?: openCapture(CaptureKind.Reminder)
             SpaceKind.Work -> openCapture(CaptureKind.Task)
             SpaceKind.Personal -> setRecentsOpen(true)
-            SpaceKind.Focus -> if (_state.value.focusing) endFocus() else startFocus(25, _state.value.focusTask?.id)
+            SpaceKind.Focus -> {
+                if (_state.value.focusing) selectSpace(SpaceKind.Focus)
+                else startFocus(
+                    com.lumen.launcher.focus.FocusAllowedPeopleRepository.get(getApplication())
+                        .settingsNow().lastDurationMinutes
+                )
+            }
             SpaceKind.Travel -> openSearch()
             SpaceKind.Private -> openPrivateSpace()
         }
@@ -1287,7 +1293,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun startFocus(minutes: Int = 30, taskId: String? = null) {
-        focusSetup.edit().putInt("minutes", minutes).putString("task", taskId).apply()
+        focusSetup.edit().putInt("minutes", minutes).putString("task", taskId.orEmpty()).apply()
         val context = getApplication<Application>()
         fun explain(message: String) = android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
         if (!com.lumen.launcher.focus.FocusSession.hasAccess(context)) {
@@ -1309,20 +1315,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         focusSetup.edit().clear().apply()
-        val task = taskId?.let { id -> _state.value.todos.find { it.id == id } }
-            ?: _state.value.spaceTodos.filterNot { it.done }.firstOrNull()
-        val until = System.currentTimeMillis() + minutes.coerceIn(1, 24 * 60) * 60 * 1000L
         viewModelScope.launch {
-            if (com.lumen.launcher.focus.FocusSession.start(context, until, task?.id.orEmpty())) {
-                val total = until - System.currentTimeMillis()
+            val manager = com.lumen.launcher.focus.FocusSessionManager.get(context)
+            if (manager.start(minutes.coerceIn(5, 24 * 60))) {
+                val snap = manager.snapshotNow()
                 _state.update {
                     it.copy(
-                        focusUntil = until,
-                        focusTaskId = task?.id.orEmpty(),
+                        focusUntil = snap.until,
                         focusPausedRemainingMs = 0L,
-                        focusTotalMs = total
+                        focusTotalMs = snap.totalMs
                     )
                 }
+                // Stay on / open Focus Space — switching away later must not end the session.
                 selectSpace(SpaceKind.Focus)
                 goToPage(1)
             } else explain("Focus could not enable quiet mode. Check Lumen's Do Not Disturb access.")
