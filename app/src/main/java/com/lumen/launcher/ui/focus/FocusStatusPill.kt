@@ -36,7 +36,6 @@ import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 import kotlinx.coroutines.delay
 
-private val FocusGreen = Color(0xFF34D399)
 
 /**
  * Compact pill on other Spaces while Focus keeps running.
@@ -67,12 +66,8 @@ fun FocusStatusPill(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Color(0xCC142018))
-            .border(
-                1.dp,
-                Brush.horizontalGradient(listOf(FocusGreen.copy(0.55f), Color(0xFF60A5FA).copy(0.35f))),
-                shape
-            )
+            .background(FocusCard.copy(alpha = 0.92f))
+            .border(1.dp, FocusGradient, shape)
             .clickable(onClick = onOpenFocus)
             .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -81,10 +76,10 @@ fun FocusStatusPill(
             Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(FocusGreen.copy(0.2f)),
+                .background(FocusAccent.copy(0.22f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.Eco, null, tint = FocusGreen, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Eco, null, tint = FocusAccent, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(10.dp))
         Text(

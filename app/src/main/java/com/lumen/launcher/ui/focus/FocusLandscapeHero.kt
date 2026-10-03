@@ -21,18 +21,38 @@ internal fun FocusLandscapeHero() {
     Box(Modifier.fillMaxWidth().height(190.dp)) {
         androidx.compose.foundation.Image(
             painter = androidx.compose.ui.res.painterResource(com.lumen.launcher.R.drawable.focus_moonlit_lake),
-            contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
         )
-        Column(Modifier.padding(top=4.dp)) {
-            Text("Deep Focus", style = TextStyle(brush=Brush.horizontalGradient(listOf(Color(0xFF8DBAFF),Color(0xFFA082FF)))), fontSize=30.sp, lineHeight=36.sp,fontWeight=FontWeight.Bold)
-            Text("Silence distractions.\nStay connected to what\ntruly matters.",color=FocusMuted,fontSize=13.sp,lineHeight=18.sp)
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement=Arrangement.spacedBy(18.dp)) {
-                listOf(Icons.Outlined.NotificationsOff to "Quieter\nnotifications",Icons.Outlined.People to "Selected\ncallers",Icons.Outlined.Shield to "Peace\nof mind").forEach { (icon,label)->
-                    Column { Icon(icon,null,tint=Color(0xFFACBDE6),modifier=Modifier.size(20.dp));Text(label,color=FocusMuted,fontSize=10.sp,lineHeight=13.sp) }
+        Column(Modifier.padding(top = 4.dp)) {
+            Text(
+                "Focus without\ngoing unreachable.",
+                style = TextStyle(brush = FocusTitleGradient),
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Silence everything except\nthe people you choose.",
+                color = FocusMuted,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                listOf(
+                    Icons.Outlined.Timer to "Choose\nduration",
+                    Icons.Outlined.People to "Who can\nreach you",
+                    Icons.Outlined.Tune to "What else\ninterrupts"
+                ).forEach { (icon, label) ->
+                    Column {
+                        Icon(icon, null, tint = FocusIconTint, modifier = Modifier.size(20.dp))
+                        Text(label, color = FocusMuted, fontSize = 10.sp, lineHeight = 13.sp)
+                    }
                 }
             }
         }
-        Text("A quieter you\nA brighter tomorrow.",Modifier.align(Alignment.BottomEnd).padding(bottom=4.dp),color=Color(0xFFADB4DC),fontSize=10.sp,lineHeight=14.sp)
     }
 }

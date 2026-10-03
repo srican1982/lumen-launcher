@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,10 +33,14 @@ import com.lumen.launcher.ui.theme.Outfit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val FocusGreen = Color(0xFF83F5AC)
 
 @Composable
-fun FocusPeoplePicker(selected: List<FocusPerson>, onDismiss: () -> Unit, onSave: (List<FocusPerson>) -> Unit) {
+fun FocusPeoplePicker(
+    selected: List<FocusPerson>,
+    onDismiss: () -> Unit,
+    onSave: (List<FocusPerson>) -> Unit,
+    dismissSignal: Int = 0
+) {
     val context = LocalContext.current
     var access by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { access = it }
@@ -43,6 +48,10 @@ fun FocusPeoplePicker(selected: List<FocusPerson>, onDismiss: () -> Unit, onSave
     var people by remember { mutableStateOf(emptyList<FocusPerson>()) }
     var draft by remember { mutableStateOf(selected) }
     var error by remember { mutableStateOf("") }
+    val dismissBaseline = remember { dismissSignal }
+    LaunchedEffect(dismissSignal) {
+        if (dismissSignal != dismissBaseline) onDismiss()
+    }
     LaunchedEffect(access) {
         if (access) {
             val result = withContext(Dispatchers.IO) { runCatching {
@@ -60,11 +69,11 @@ fun FocusPeoplePicker(selected: List<FocusPerson>, onDismiss: () -> Unit, onSave
     val filtered = (draft + people).distinctBy { it.id }.filter { it.name.contains(query.trim(), true) || it.phone.contains(query.trim()) }
     Dialog(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).clip(RoundedCornerShape(26.dp))
-            .background(Color(0xFF17212B)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            .background(FocusInk).border(1.dp, FocusBorder, RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Important people", color = Color.White, fontSize = 22.sp)
-            Text("Calls enabled here are allowed during Focus. Message choices are saved preferences only; Android message exceptions use all favorites.", color = Color.White.copy(.65f), fontSize = 12.sp)
+            Text("Calls enabled here are allowed during Focus. Message choices are saved preferences only; Android message exceptions use all favorites.", color = FocusMuted, fontSize = 12.sp)
             OutlinedTextField(query, { query = it }, placeholder = { Text("Search contacts") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (!access) TextButton(onClick = { permission.launch(Manifest.permission.READ_CONTACTS) }) { Text("Allow Contacts access", color = FocusGreen) }
+            if (!access) TextButton(onClick = { permission.launch(Manifest.permission.READ_CONTACTS) }) { Text("Allow Contacts access", color = FocusAccent) }
             if (error.isNotBlank()) Text(error, color = Color(0xFFFDA4AF))
             LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 340.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (filtered.isEmpty()) item { Text("No matching contacts", color = Color.White.copy(.6f)) }
@@ -84,7 +93,7 @@ fun FocusPeoplePicker(selected: List<FocusPerson>, onDismiss: () -> Unit, onSave
                             TextButton(onClick = {
                                 val next = FocusReach.entries[(saved.reach.ordinal + 1) % FocusReach.entries.size]
                                 draft = draft.map { if (it.id == person.id) it.copy(reach = next) else it }
-                            }) { Text(saved.reach.label() + "", color = FocusGreen) }
+                            }) { Text(saved.reach.label() + "", color = FocusAccent) }
                         }
                         if (person.contactLookupKey.isNotBlank()) TextButton(onClick = {
                             val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Uri.encode(person.contactLookupKey))
@@ -96,7 +105,7 @@ fun FocusPeoplePicker(selected: List<FocusPerson>, onDismiss: () -> Unit, onSave
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onDismiss) { Text("Cancel") }
-                TextButton({ onSave(draft) }) { Text("Done", color = FocusGreen) }
+                TextButton({ onSave(draft) }) { Text("Done", color = FocusAccent) }
             }
         }
     }

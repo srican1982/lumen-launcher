@@ -135,7 +135,7 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(listOf(Color(0xFF0B2337), Color(0xFF090E14), Color(0xFF101723))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
+    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
         val gridGap = 12.dp
         val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
@@ -901,7 +901,7 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                     .clip(chipShape)
                     .then(
                         when {
-                            active && selected == SpaceKind.Focus -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFB6B7FF), Color(0xFF8E94F5))))
+                            active && selected == SpaceKind.Focus -> Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
                             active && white -> Modifier.background(
                                 Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
                             )

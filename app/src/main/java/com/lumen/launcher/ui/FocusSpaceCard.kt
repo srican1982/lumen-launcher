@@ -41,6 +41,15 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var showPeople by remember { mutableStateOf(false) }
     var customFocus by remember { mutableStateOf(false) }
+    // Launcher Home does not destroy this Activity — close Focus overlays on homePulse.
+    val homePulse = state.homePulse
+    val homePulseBaseline = remember { homePulse }
+    LaunchedEffect(homePulse) {
+        if (homePulse != homePulseBaseline) {
+            showPeople = false
+            customFocus = false
+        }
+    }
 
     LaunchedEffect(state.focusRunning) {
         while (state.focusRunning) {
@@ -80,6 +89,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 settings = settings,
                 groups = groups,
                 capabilityNote = capability,
+                dismissSignal = homePulse,
                 onDuration = { peopleRepo.setLastDuration(it) },
                 onOpenPeople = { showPeople = true },
                 onSettingsChange = { peopleRepo.setSettings(it) },
@@ -92,6 +102,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     if (showPeople) {
         FocusPeoplePicker(
             selected = people,
+            dismissSignal = homePulse,
             onDismiss = { showPeople = false },
             onSave = {
                 peopleRepo.setPeople(it)
