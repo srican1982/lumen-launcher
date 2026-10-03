@@ -23,7 +23,8 @@ enum class IconSkin(val title: String) {
                 Mono -> IconTreatment.Mono
                 WhiteGlass -> IconTreatment.WhiteGlass
                 MatchSpace -> when {
-                    focusing || space == SpaceKind.Focus -> IconTreatment.Mono
+                    // Focus keeps colorful original icons in the default Lumen theme.
+                    focusing || space == SpaceKind.Focus -> IconTreatment.Original
                     space == SpaceKind.Work -> IconTreatment.Work
                     space == SpaceKind.Travel -> IconTreatment.Contrast
                     space == SpaceKind.Private -> IconTreatment.Original

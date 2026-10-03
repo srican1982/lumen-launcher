@@ -177,7 +177,8 @@ fun LauncherRoot(
                 HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 1,
-                userScrollEnabled = homeIdle && !listTyping,
+                // Focus owns its own horizontal app/group rows — don't let those swipes flip pages.
+                userScrollEnabled = homeIdle && !listTyping && state.activeSpace != SpaceKind.Focus,
                 flingBehavior = PagerDefaults.flingBehavior(
                     state = pagerState,
                     snapAnimationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -251,6 +252,13 @@ fun LauncherRoot(
             }
             }
             if (state.workspaceOpen) WorkspacePopup(state, viewModel)
+            state.permissionGuide?.let { guide ->
+                PermissionGuideOverlay(
+                    guide = guide,
+                    onOpenSettings = viewModel::openPermissionGuideSettings,
+                    onDismiss = viewModel::dismissPermissionGuide
+                )
+            }
             if (privateExpand.value > 0.01f) {
                 val p = privateExpand.value
                 val originX = if (state.touchpadRight > state.touchpadLeft) {

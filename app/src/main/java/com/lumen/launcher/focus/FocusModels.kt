@@ -47,8 +47,9 @@ data class FocusPeopleGroup(
     companion object {
         val Family = FocusPeopleGroup("family", "Family")
         val WorkVips = FocusPeopleGroup("work_vips", "Office")
-        val Emergency = FocusPeopleGroup("emergency", "Emergency only")
-        val presets = listOf(Family, WorkVips, Emergency)
+        val Emergency = FocusPeopleGroup("emergency", "Emergency")
+        val Vip = FocusPeopleGroup("vip", "VIP / Clients")
+        val presets = listOf(Family, WorkVips, Emergency, Vip)
     }
 }
 

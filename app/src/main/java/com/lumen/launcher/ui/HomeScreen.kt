@@ -371,19 +371,16 @@ fun HomeScreen(
                     onOpen = viewModel::openPackageInfo
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            ActionBar(
-                hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
-                onClick = viewModel::openModeSearch,
-                onLongClick = { viewModel.openCapture() },
-                modifier = restBlur
-            )
-            if (state.focusing && state.activeSpace != SpaceKind.Focus) {
-                Spacer(Modifier.height(10.dp))
-                com.lumen.launcher.ui.focus.FocusStatusPill(
-                    state = state,
-                    onOpenFocus = { viewModel.selectSpace(SpaceKind.Focus) }
+            if (state.activeSpace != SpaceKind.Focus) {
+                Spacer(Modifier.height(12.dp))
+                ActionBar(
+                    hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
+                    onClick = viewModel::openModeSearch,
+                    onLongClick = { viewModel.openCapture() },
+                    modifier = restBlur
                 )
+            } else {
+                Spacer(Modifier.height(8.dp))
             }
             Spacer(Modifier.height(4.dp))
             Box(
@@ -903,8 +900,8 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                     .then(
                         when {
                             active && selected == SpaceKind.Focus && !white -> Modifier
-                                .background(Brush.verticalGradient(listOf(Color(0xFF353578), Color(0xFF283FA3))))
-                                .border(1.dp, Color(0xFF737DF4), chipShape)
+                                .background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
+                                .border(1.dp, Color(0xFF8B90FF), chipShape)
                             selected == SpaceKind.Focus && !white -> Modifier.background(Color(0xFF0D1824)).border(0.8.dp, Color(0xFF202D40), chipShape)
                             active && selected == SpaceKind.Focus && white -> Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
                             active && white -> Modifier.background(

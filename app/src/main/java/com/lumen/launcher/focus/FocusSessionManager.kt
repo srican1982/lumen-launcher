@@ -64,6 +64,7 @@ class FocusSessionManager(
             )
             peopleRepo.setLastDuration(mins)
             LauncherPreferences(context).setFocus(until, "")
+            FocusSoundPlayer.get(context).startSession()
             publish()
             true
         } catch (_: Exception) {
@@ -71,6 +72,7 @@ class FocusSessionManager(
             ledger.edit().clear().putString("error", if (restored) "Focus could not start. Check alarm access." else "Open Android DND settings to remove Lumen Focus.").commit()
             cancelAlarm(until)
             LauncherPreferences(context).setFocus(0, "")
+            FocusSoundPlayer.get(context).stopSession()
             publish()
             false
         }
@@ -87,6 +89,7 @@ class FocusSessionManager(
         cancelAlarm(until)
         check(ledger.edit().putLong(KEY_PAUSED, remaining).putLong(KEY_UNTIL, 0).commit())
         LauncherPreferences(context).setFocus(0, "")
+        FocusSoundPlayer.get(context).pauseSession()
         publish()
         remaining
     }
@@ -100,6 +103,7 @@ class FocusSessionManager(
             schedule(until)
             check(ledger.edit().putLong(KEY_UNTIL, until).remove(KEY_PAUSED).remove("error").commit())
             LauncherPreferences(context).setFocus(until, "")
+            FocusSoundPlayer.get(context).resumeSession()
             publish()
             until
         } catch (_: Exception) {
@@ -172,7 +176,9 @@ class FocusSessionManager(
         } else {
             try {
                 if (reassertAfterBoot) check(policy.apply(peopleRepo.peopleNow(), peopleRepo.settingsNow()))
-                schedule(until); publish()
+                schedule(until)
+                FocusSoundPlayer.get(context).startSession()
+                publish()
             } catch (_: Exception) {
                 finishLocked(false)
                 reportError("Focus stopped because alarm scheduling is unavailable.")
@@ -202,6 +208,7 @@ class FocusSessionManager(
         val restored = policy.restore()
         ledger.edit().clear().putString("error", if (restored) "" else "Open Android DND settings to remove Lumen Focus. Cleanup will retry when access returns.").commit()
         LauncherPreferences(context).setFocus(0, "")
+        FocusSoundPlayer.get(context).stopSession()
         publish()
         if (announce && hadSession) runCatching { notifyFinished(restored) }
         return restored

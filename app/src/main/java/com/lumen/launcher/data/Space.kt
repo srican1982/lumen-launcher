@@ -4,8 +4,8 @@ enum class SpaceKind(val title: String, val kicker: String) {
     Home("Home", "Home space"),
     Work("Work", "Work space"),
     Personal("Social", "Social space"),
-    Focus("Focus", "Focus space"),
     Travel("Travel", "Travel space"),
+    Focus("Focus", "Focus space"),
     Private("Locked", "Locked space");
 
     companion object {

@@ -106,11 +106,16 @@ class FocusAllowedPeopleRepository(context: Context) {
     }
 
     fun deleteList(id: String) {
+        // Presets are re-seeded on load — only user-created groups can be removed.
+        if (FocusPeopleGroup.presets.any { it.id == id }) return
         val next = _groups.value.filterNot { it.id == id }
         prefs.edit().remove("list_members_$id").putString(KEY_GROUPS, encodeGroups(next)).apply()
         _groups.value = next
+        _listsRevision.value += 1
         selectGroup(id, false)
     }
+
+    fun isPresetGroup(id: String): Boolean = FocusPeopleGroup.presets.any { it.id == id }
 
     fun peopleForGroup(groupId: String): List<FocusPerson> {
         prefs.getString("list_members_$groupId", null)?.let { raw ->
@@ -137,7 +142,15 @@ class FocusAllowedPeopleRepository(context: Context) {
     private fun loadGroups(): List<FocusPeopleGroup> {
         val raw = prefs.getString(KEY_GROUPS, null)
         if (raw.isNullOrBlank()) return FocusPeopleGroup.presets
-        return runCatching { decodeGroups(raw) }.getOrDefault(FocusPeopleGroup.presets)
+        val stored = runCatching { decodeGroups(raw) }.getOrDefault(FocusPeopleGroup.presets)
+        // Keep preset order; append any user-created groups; seed missing presets (e.g. VIP).
+        val byId = stored.associateBy { it.id }
+        val presets = FocusPeopleGroup.presets.map { preset ->
+            val existing = byId[preset.id] ?: return@map preset
+            if (preset.id == "emergency" && existing.title == "Emergency only") existing.copy(title = "Emergency") else existing
+        }
+        val extras = stored.filter { g -> FocusPeopleGroup.presets.none { it.id == g.id } }
+        return presets + extras
     }
 
     private fun samePhone(a: String, b: String): Boolean {

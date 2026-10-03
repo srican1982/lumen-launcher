@@ -184,7 +184,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).snapshot.collect { snap ->
-                _state.update { it.copy(focusUntil = snap.until, focusPausedRemainingMs = snap.pausedRemainingMs, focusTotalMs = snap.totalMs) }
+                val prev = _state.value
+                val wasFocusing = prev.focusUntil > 0L || prev.focusPausedRemainingMs > 0L
+                val nowFocusing = snap.until > System.currentTimeMillis() || snap.pausedRemainingMs > 0L
+                val finishedTaskId = if (wasFocusing && !nowFocusing) prev.focusTaskId else ""
+                _state.update {
+                    it.copy(
+                        focusUntil = snap.until,
+                        focusPausedRemainingMs = snap.pausedRemainingMs,
+                        focusTotalMs = snap.totalMs,
+                        focusTaskId = if (finishedTaskId.isNotBlank()) "" else it.focusTaskId
+                    )
+                }
+                // Timer / alarm end — cross out the task this session was for.
+                if (finishedTaskId.isNotBlank()) completeFocusSessionTask(finishedTaskId)
             }
         }
 
@@ -423,15 +436,32 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun requestInboxAccess() {
-        val component = ComponentName(getApplication(), LumenNotificationListener::class.java)
-        val detail = if (Build.VERSION.SDK_INT >= 30) {
-            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).apply {
-                putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-        } else null
-        val list = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (detail == null || !startIntent(detail)) startIntent(list)
+        showPermissionGuide(
+            PermissionGuide(
+                kind = PermissionGuideKind.NotificationListener,
+                title = "Turn on Lumen",
+                body = "We'll open Lumen's notification access page. Flip the toggle on — no scrolling through a long app list."
+            )
+        )
+    }
+
+    fun dismissPermissionGuide() {
+        _state.update { it.copy(permissionGuide = null) }
+    }
+
+    fun openPermissionGuideSettings() {
+        val guide = _state.value.permissionGuide ?: return
+        val context = getApplication<Application>()
+        dismissPermissionGuide()
+        when (guide.kind) {
+            PermissionGuideKind.DndAccess -> com.lumen.launcher.util.PermissionDeepLinks.openDndAccess(context)
+            PermissionGuideKind.ExactAlarm -> com.lumen.launcher.util.PermissionDeepLinks.openExactAlarm(context)
+            PermissionGuideKind.NotificationListener -> com.lumen.launcher.util.PermissionDeepLinks.openNotificationListener(context)
+        }
+    }
+
+    private fun showPermissionGuide(guide: PermissionGuide) {
+        _state.update { it.copy(permissionGuide = guide) }
     }
 
     fun openMailApp() {
@@ -445,7 +475,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun openConversation(item: InboxItem) {
         if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), Intent().setPackage(item.packageName))) {
-            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus.", android.widget.Toast.LENGTH_SHORT).show()
+            notifyFocusAppBlocked()
             return
         }
         if (!(onOpenConversation?.invoke(item) ?: false)) {
@@ -455,7 +485,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun openInboxItem(item: InboxItem) {
         if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), Intent().setPackage(item.packageName))) {
-            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus.", android.widget.Toast.LENGTH_SHORT).show()
+            notifyFocusAppBlocked()
             return
         }
         val pending = InboxHub.contentIntent(item.key)
@@ -1312,14 +1342,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         fun explain(message: String) = android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
         if (!com.lumen.launcher.focus.FocusSession.hasAccess(context)) {
             focusSetup.edit().putString("step", "dnd").apply()
-            explain("Allow Do Not Disturb access. Your focus duration is saved.")
-            startIntent(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+            showPermissionGuide(
+                PermissionGuide(
+                    kind = PermissionGuideKind.DndAccess,
+                    title = "Turn on Lumen",
+                    body = "Focus needs Do Not Disturb access. We'll open Lumen's toggle directly — flip it on, then come back."
+                )
+            )
             return
         }
         if (!AlarmScheduler.canExact(context)) {
             focusSetup.edit().putString("step", "alarm").apply()
-            explain("Allow alarms and reminders. Setup will continue when you return.")
-            AlarmScheduler.requestExactAccess(context)
+            showPermissionGuide(
+                PermissionGuide(
+                    kind = PermissionGuideKind.ExactAlarm,
+                    title = "Allow exact alarms",
+                    body = "We'll open Lumen's alarm permission so Focus can end on time. Enable the toggle, then return."
+                )
+            )
             return
         }
         if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -1330,14 +1370,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         focusSetup.edit().clear().apply()
         viewModelScope.launch {
+            val resolvedTask = (taskId?.takeIf { it.isNotBlank() }
+                ?: _state.value.focusTaskId.takeIf { id -> _state.value.todos.any { it.id == id && !it.done } }
+                ?: "").orEmpty()
             val manager = com.lumen.launcher.focus.FocusSessionManager.get(context)
             if (manager.start(minutes.coerceIn(1, 24 * 60))) {
                 val snap = manager.snapshotNow()
+                preferences.setFocus(snap.until, resolvedTask)
                 _state.update {
                     it.copy(
                         focusUntil = snap.until,
                         focusPausedRemainingMs = 0L,
-                        focusTotalMs = snap.totalMs
+                        focusTotalMs = snap.totalMs,
+                        focusTaskId = resolvedTask
                     )
                 }
                 // Stay on / open Focus Space — switching away later must not end the session.
@@ -1349,10 +1394,28 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun endFocus() {
         viewModelScope.launch {
+            val taskId = _state.value.focusTaskId
             val restored = com.lumen.launcher.focus.FocusSession.finish(getApplication())
+            if (taskId.isNotBlank()) completeFocusSessionTask(taskId)
             _state.update { it.copy(focusUntil = 0L, focusTaskId = "", focusPausedRemainingMs = 0L, focusTotalMs = 0L) }
-            if (!restored) android.widget.Toast.makeText(getApplication(), "Open Do Not Disturb settings to turn off Lumen Focus.", android.widget.Toast.LENGTH_LONG).show()
+            if (!restored) {
+                showPermissionGuide(
+                    PermissionGuide(
+                        kind = PermissionGuideKind.DndAccess,
+                        title = "Turn off Lumen Focus",
+                        body = "We'll open Lumen's Do Not Disturb page so you can turn the Focus rule off."
+                    )
+                )
+            }
         }
+    }
+
+    /** Mark the Focus task done and park it in the Focus "Task done" list. */
+    private fun completeFocusSessionTask(taskId: String) {
+        val task = _state.value.todos.find { it.id == taskId } ?: return
+        com.lumen.launcher.focus.FocusDoneStore.record(getApplication(), task.id, task.text)
+        if (!task.done) toggleTodo(taskId, done = true)
+        _state.update { it.copy(focusDonePulse = it.focusDonePulse + 1) }
     }
 
     fun pauseFocus() { viewModelScope.launch { com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).pause() } }
@@ -2878,9 +2941,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    @Volatile private var lastFocusBlockToastAt = 0L
+
+    private fun notifyFocusAppBlocked() {
+        // Dock / multi-intent launchers retry several intents — only toast once per tap.
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastFocusBlockToastAt <= 2_500L) return
+        lastFocusBlockToastAt = now
+        android.widget.Toast.makeText(
+            getApplication(),
+            "This app isn't selected for Focus. Pause or end Focus to open it.",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
     private fun startIntent(intent: Intent): Boolean {
         if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), intent)) {
-            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus. Pause or end Focus to open it.", android.widget.Toast.LENGTH_SHORT).show()
+            notifyFocusAppBlocked()
             return false
         }
         val ready = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -3293,6 +3370,14 @@ enum class Sheet { SearchDetail, TravelDocs, TripAlbums, None, Search, Drawer, M
 
 enum class DrawerFilter { Az, MostUsed, Categories }
 
+enum class PermissionGuideKind { DndAccess, ExactAlarm, NotificationListener }
+
+data class PermissionGuide(
+    val kind: PermissionGuideKind,
+    val title: String,
+    val body: String
+)
+
 data class LauncherUiState(
     val apps: List<AppInfo> = emptyList(),
     val dock: List<DockApp> = emptyList(),
@@ -3409,7 +3494,11 @@ data class LauncherUiState(
     val focusTaskId: String = "",
     val focusPausedRemainingMs: Long = 0L,
     val focusTotalMs: Long = 0L,
+    /** Bumps when a Focus session completes a task so the Task done list refreshes. */
+    val focusDonePulse: Int = 0,
     val focusPins: Map<String, List<String>> = emptyMap(),
+    /** Animated coach before opening a deep-linked Settings page (DND toggle, etc.). */
+    val permissionGuide: PermissionGuide? = null,
     val captureKind: CaptureKind = CaptureKind.Task,
     val duePickerTodoId: String = "",
     val spaceWallpapers: Map<String, String> = emptyMap(),

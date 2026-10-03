@@ -41,6 +41,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var showPeople by remember { mutableStateOf(false) }
     var customFocus by remember { mutableStateOf(false) }
+    var pickTask by remember { mutableStateOf(false) }
     // Launcher Home does not destroy this Activity — close Focus overlays on homePulse.
     val homePulse = state.homePulse
     val homePulseBaseline = remember { homePulse }
@@ -48,7 +49,20 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
         if (homePulse != homePulseBaseline) {
             showPeople = false
             customFocus = false
+            pickTask = false
         }
+    }
+    val openTasks = remember(state.todos) {
+        state.todos
+            .filterNot { it.done }
+            .sortedWith(
+                compareByDescending<com.lumen.launcher.data.TodoItem> { it.priority }
+                    .thenBy { it.dueAt ?: Long.MAX_VALUE }
+            )
+    }
+    val focusTaskLabel = state.focusTask?.takeUnless { it.done }?.text
+    val doneEntries = remember(state.focusDonePulse) {
+        com.lumen.launcher.focus.FocusDoneStore.load(context)
     }
 
     LaunchedEffect(state.focusRunning) {
@@ -77,11 +91,14 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 paused = state.focusPaused,
                 people = people,
                 capabilityNote = capability,
+                taskLabel = focusTaskLabel,
+                doneEntries = doneEntries,
                 onPause = vm::pauseFocus,
                 onResume = vm::resumeFocus,
                 onExtend = { vm.extendFocus(15) },
                 onEnd = vm::endFocus,
-                onAddSomeone = { showPeople = true }
+                onAddSomeone = { showPeople = true },
+                onLaunchApp = vm::launch
             )
         } else {
             FocusSetupSheet(
@@ -90,10 +107,13 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 groups = groups,
                 capabilityNote = capability,
                 dismissSignal = homePulse,
+                taskLabel = focusTaskLabel,
+                doneEntries = doneEntries,
+                onPickTask = { pickTask = true },
                 onDuration = { peopleRepo.setLastDuration(it) },
                 onOpenPeople = { showPeople = true },
                 onSettingsChange = { peopleRepo.setSettings(it) },
-                onStart = { minutes -> vm.startFocus(minutes) },
+                onStart = { minutes -> vm.startFocus(minutes, state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id) },
                 onCustomDuration = { customFocus = true }
             )
         }
@@ -102,14 +122,32 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     if (showPeople) {
         com.lumen.launcher.ui.focus.FocusListsDialog(onDismiss = { showPeople = false }, dismissSignal = homePulse)
     }
+    if (pickTask) {
+        FocusTaskPicker(
+            tasks = openTasks,
+            selectedId = state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id,
+            onDismiss = { pickTask = false },
+            onSelect = { id ->
+                vm.selectFocusTask(id)
+                pickTask = false
+            },
+            onAdd = {
+                pickTask = false
+                vm.openTodoList()
+            }
+        )
+    }
     if (customFocus) {
+        val nextEvent = state.upcomingEvents.firstOrNull { it.begin > System.currentTimeMillis() }?.begin
         FocusDurationDialog(
             onDismiss = { customFocus = false },
             onStart = { minutes ->
                 customFocus = false
                 peopleRepo.setLastDuration(minutes)
             },
-            initialMinutes = settings.lastDurationMinutes, confirmLabel = "Set time"
+            initialMinutes = settings.lastDurationMinutes,
+            confirmLabel = "Set time",
+            nextEventAtMs = nextEvent
         )
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.*
 import com.lumen.launcher.media.NowPlayingRepository
+import com.lumen.launcher.ui.focus.FocusTouchpadButton
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
@@ -71,7 +72,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
     }
     val detail = when (state.activeSpace) {
         SpaceKind.Home -> state.upNext?.detail ?: event?.let { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin)) } ?: if (task != null) "Your next task" else "A little breathing room."
-        SpaceKind.Work -> event?.let { "Next meeting · ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin))}" } ?: "Tasks, notes and a clear focus."
+        SpaceKind.Work -> event?.let { "Next meeting  ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin))}" } ?: "Tasks, notes and a clear focus."
         SpaceKind.Personal -> message?.preview ?: "Messages and your creation studio."
         SpaceKind.Focus -> state.focusTask?.text ?: "Choose a task. Take your time."
         SpaceKind.Travel -> if (state.travelAttachments.isNotEmpty()) "${state.travelAttachments.size} saved travel items" else "Destination, tickets and itinerary."
@@ -89,70 +90,81 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         // Equal, independent touch regions. No buttons or media extend under the TouchPad.
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { touchpad() }
         Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Color.White.copy(0.20f)))
-        Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
-            Column(
-                Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                    .clickable(onClickLabel = "Open ${state.activeSpace.title} controls") { vm.setWorkspaceOpen(true) }
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
-            ) {
-                if (state.activeSpace == SpaceKind.Travel && !showPasses) {
-                    TravelMapEmblem(Modifier.align(Alignment.CenterHorizontally).size(36.dp))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(state.activeSpace.title.uppercase(), color = Lumen.Text.copy(alpha = 0.72f), fontFamily = Outfit,
-                        fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Lumen.Text.copy(alpha = 0.65f), modifier = Modifier.size(18.dp))
-                }
-                Text(title, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium,
-                    fontSize = if (state.activeSpace == SpaceKind.Focus && focusing) 28.sp else 16.sp,
-                    lineHeight = if (state.activeSpace == SpaceKind.Focus && focusing) 32.sp else 19.sp,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (!showMedia && !clearDay && state.activeSpace != SpaceKind.Travel) Text(detail, color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp,
-                    lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (clearDay) {
-                    Text("+ Reminder", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                            .clickable { vm.openCapture(CaptureKind.Reminder) }.padding(vertical = 4.dp))
-                }
+        if (state.focusing) {
+            // Active Focus session — replace the right panel with a return-to-Focus control.
+            Box(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
+                FocusTouchpadButton(
+                    state = state,
+                    onOpenFocus = { vm.selectSpace(SpaceKind.Focus) },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
-            if (showPasses) {
-                WorkspaceActions {
-                    savedCategories.forEach { group ->
-                        Column(Modifier.width(52.dp).clip(RoundedCornerShape(12.dp)).clickable {
-                            val items = state.travelAttachments.filter { it.travelCategory == group }
-                            if (items.size == 1 && openTravelItem(context, state, vm, items.single())) {
-                                // A single saved app, link or file opens immediately.
-                            } else { travelCategory = group; boardingPasses = true }
-                        }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            TravelBadge(group)
-                            Text(if (group == TravelCategory.Flights) "Flights" else if (group == TravelCategory.Other) "Other" else group.title,
-                                color = Lumen.Text, fontSize = 9.sp, maxLines = 2,
-                                modifier = Modifier.padding(top = 3.dp))
+        } else {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .clickable(onClickLabel = "Open ${state.activeSpace.title} controls") { vm.setWorkspaceOpen(true) }
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
+                ) {
+                    if (state.activeSpace == SpaceKind.Travel && !showPasses) {
+                        TravelMapEmblem(Modifier.align(Alignment.CenterHorizontally).size(36.dp))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(state.activeSpace.title.uppercase(), color = Lumen.Text.copy(alpha = 0.72f), fontFamily = Outfit,
+                            fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Lumen.Text.copy(alpha = 0.65f), modifier = Modifier.size(18.dp))
+                    }
+                    Text(title, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium,
+                        fontSize = if (state.activeSpace == SpaceKind.Focus && focusing) 28.sp else 16.sp,
+                        lineHeight = if (state.activeSpace == SpaceKind.Focus && focusing) 32.sp else 19.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (!showMedia && !clearDay && state.activeSpace != SpaceKind.Travel) Text(detail, color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp,
+                        lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (clearDay) {
+                        Text("+ Reminder", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                                .clickable { vm.openCapture(CaptureKind.Reminder) }.padding(vertical = 4.dp))
+                    }
+                }
+                if (showPasses) {
+                    WorkspaceActions {
+                        savedCategories.forEach { group ->
+                            Column(Modifier.width(52.dp).clip(RoundedCornerShape(12.dp)).clickable {
+                                val items = state.travelAttachments.filter { it.travelCategory == group }
+                                if (items.size == 1 && openTravelItem(context, state, vm, items.single())) {
+                                    // A single saved app, link or file opens immediately.
+                                } else { travelCategory = group; boardingPasses = true }
+                            }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                TravelBadge(group)
+                                Text(if (group == TravelCategory.Flights) "Flights" else if (group == TravelCategory.Other) "Other" else group.title,
+                                    color = Lumen.Text, fontSize = 9.sp, maxLines = 2,
+                                    modifier = Modifier.padding(top = 3.dp))
+                            }
                         }
                     }
                 }
-            }
-            if (showMedia) {
-                HorizontalDivider(color = Color.White.copy(0.16f))
-                Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (media?.art != null || !media?.artUri.isNullOrBlank()) {
-                        AsyncImage(
-                            model = media?.art ?: media?.artUri,
-                            contentDescription = "Album artwork",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(26.dp).clip(RoundedCornerShape(7.dp))
-                                .clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) }
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Text(media?.title?.ifBlank { "Media controls" } ?: "Media controls",
-                        color = Lumen.Text, fontFamily = Outfit, fontSize = 11.sp, lineHeight = 13.sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) })
-                    IconButton(onClick = { NowPlayingRepository.playPause(context) }, modifier = Modifier.size(40.dp)) {
-                        Icon(if (media?.playing == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            if (media?.playing == true) "Pause" else "Play", tint = Lumen.Text, modifier = Modifier.size(20.dp))
+                if (showMedia) {
+                    HorizontalDivider(color = Color.White.copy(0.16f))
+                    Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (media?.art != null || !media?.artUri.isNullOrBlank()) {
+                            AsyncImage(
+                                model = media?.art ?: media?.artUri,
+                                contentDescription = "Album artwork",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(26.dp).clip(RoundedCornerShape(7.dp))
+                                    .clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) }
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(media?.title?.ifBlank { "Media controls" } ?: "Media controls",
+                            color = Lumen.Text, fontFamily = Outfit, fontSize = 11.sp, lineHeight = 13.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).clickable(onClickLabel = "Open media app") { NowPlayingRepository.openPlayer(context) })
+                        IconButton(onClick = { NowPlayingRepository.playPause(context) }, modifier = Modifier.size(40.dp)) {
+                            Icon(if (media?.playing == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                if (media?.playing == true) "Pause" else "Play", tint = Lumen.Text, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }

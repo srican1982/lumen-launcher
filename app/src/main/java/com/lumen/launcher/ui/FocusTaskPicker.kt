@@ -3,58 +3,133 @@ package com.lumen.launcher.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.TodoItem
+import com.lumen.launcher.ui.focus.FocusAccent
+import com.lumen.launcher.ui.focus.FocusBorder
+import com.lumen.launcher.ui.focus.FocusCard
+import com.lumen.launcher.ui.focus.FocusMuted
+import com.lumen.launcher.ui.focus.FocusPopupSheet
+import com.lumen.launcher.ui.focus.FocusPrimaryAction
+import com.lumen.launcher.ui.focus.FocusSheetSearchHeader
+import com.lumen.launcher.ui.theme.Outfit
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FocusTaskPicker(tasks: List<TodoItem>, selectedId: String?, onDismiss: () -> Unit, onSelect: (String) -> Unit, onAdd: () -> Unit) {
+fun FocusTaskPicker(
+    tasks: List<TodoItem>,
+    selectedId: String?,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit
+) {
     var query by remember { mutableStateOf("") }
-    val mint = Color(0xFF83F5AC)
-    val filtered = tasks.filter { it.text.contains(query.trim(), ignoreCase = true) }
-    ModalBottomSheet(onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF182720), contentColor = Color.White,
-        scrimColor = Color.Black.copy(alpha = .6f)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 24.dp)) {
-            Text("ONE THING AT A TIME", color = mint, fontSize = 11.sp, letterSpacing = 2.sp)
-            Spacer(Modifier.height(8.dp))
-            Text("Choose your focus", fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
-            Text("Pick the task that matters right now.", color = Color.White.copy(.65f), fontSize = 14.sp)
-            Spacer(Modifier.height(18.dp))
-            OutlinedTextField(value = query, onValueChange = { query = it }, singleLine = true,
-                placeholder = { Text("Find a task…") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = mint, unfocusedBorderColor = Color.White.copy(.2f), focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = mint))
-            Spacer(Modifier.height(14.dp))
-            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 340.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (filtered.isEmpty()) item { Text(if (tasks.isEmpty()) "No open tasks yet. Add one to get started." else "No matching tasks.", modifier = Modifier.padding(vertical = 20.dp), color = Color.White.copy(.7f)) }
-                items(filtered, key = { it.id }) { task ->
-                    val selected = task.id == selectedId
-                    val shape = RoundedCornerShape(18.dp)
-                    Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(if (selected) mint.copy(.18f) else Color.White.copy(.07f), Color.White.copy(.03f))), shape)
-                        .border(1.dp, if (selected) mint.copy(.7f) else Color.White.copy(.14f), shape)
-                        .clickable { onSelect(task.id) }.padding(16.dp)) {
-                        Text(if (selected) "✓" else "○", color = mint, modifier = Modifier.padding(end = 12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(task.text, color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium)
-                            Text(task.space.title, color = Color.White.copy(.55f), fontSize = 12.sp, lineHeight = 18.sp)
-                        }
+    var searching by remember { mutableStateOf(false) }
+    val filtered = remember(tasks, query) {
+        val q = query.trim()
+        if (q.isEmpty()) tasks
+        else tasks.filter { it.text.contains(q, ignoreCase = true) }
+    }
+
+    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.72f) {
+        FocusSheetSearchHeader(
+            title = "Focus on a task",
+            query = query,
+            onQueryChange = { query = it },
+            searching = searching,
+            onSearchingChange = { searching = it }
+        )
+        if (!searching) {
+            Text(
+                "Pick one open task. It’ll be crossed off when Focus ends.",
+                color = FocusMuted,
+                fontFamily = Outfit,
+                fontSize = 13.sp
+            )
+        }
+        LazyColumn(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 120.dp, max = 320.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (filtered.isEmpty()) {
+                item {
+                    Text(
+                        if (tasks.isEmpty()) "No open tasks yet. Add one from your list."
+                        else "No matching tasks.",
+                        color = FocusMuted,
+                        fontFamily = Outfit,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                }
+            }
+            items(filtered, key = { it.id }) { task ->
+                val selected = task.id == selectedId
+                val shape = RoundedCornerShape(16.dp)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .background(if (selected) FocusAccent.copy(alpha = 0.18f) else FocusCard.copy(alpha = 0.9f))
+                        .border(1.dp, if (selected) FocusAccent.copy(alpha = 0.7f) else FocusBorder, shape)
+                        .clickable { onSelect(task.id) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (selected) Icons.Filled.Check else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint = if (selected) FocusAccent else FocusMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text(
+                            task.text,
+                            color = Color.White,
+                            fontFamily = Outfit,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            task.space.title,
+                            color = FocusMuted,
+                            fontFamily = Outfit,
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = mint, contentColor = Color(0xFF102018))) { Text("Add or manage tasks") }
         }
+        FocusPrimaryAction(label = "Add or manage tasks", action = onAdd, showCheck = false)
     }
 }

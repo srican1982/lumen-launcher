@@ -197,7 +197,8 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     }
     if (customFocus) FocusDurationDialog(
         onDismiss = { customFocus = false },
-        onStart = { minutes -> customFocus = false; vm.startFocus(minutes, state.focusTask?.id) }
+        onStart = { minutes -> customFocus = false; vm.startFocus(minutes, state.focusTask?.id) },
+        nextEventAtMs = event?.begin
     )
     if (chooseApps) ModeAppPicker(state, vm.icons, onDismiss = { chooseApps = false }, onSave = { vm.saveModeApps(state.activeSpace, it); chooseApps = false })
     if (editTrip) {

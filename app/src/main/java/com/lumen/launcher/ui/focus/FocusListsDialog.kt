@@ -7,50 +7,135 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.lumen.launcher.focus.*
-
+import com.lumen.launcher.ui.theme.Outfit
 
 @Composable
 internal fun FocusGroupCards(dismissSignal: Int = 0) {
     val repo = FocusAllowedPeopleRepository.get(LocalContext.current)
     val groups by repo.groups.collectAsState()
     val selected by repo.selectedGroups.collectAsState()
+    val revision by repo.listsRevision.collectAsState()
     var open by remember { mutableStateOf<String?>(null) }
     var create by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     LaunchedEffect(dismissSignal) { open = null; create = false }
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(
+        Modifier
+            .fillMaxWidth()
+            .focusContainHorizontalScroll(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         items(groups, key = { it.id }) { group ->
-            Column(Modifier.width(132.dp).height(84.dp).background(FocusSurface, RoundedCornerShape(16.dp))
-                .border(1.dp, if(group.id in selected) FocusAccent else FocusBorder, RoundedCornerShape(16.dp))
-                .clickable { open = group.id }.padding(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(group.title, Modifier.weight(1f), color = Color.White, fontSize = 13.sp, maxLines = 1)
-                    Checkbox(group.id in selected, { repo.selectGroup(group.id, it) }, modifier = Modifier.size(32.dp))
+            val isSelected = group.id in selected
+            val members = remember(group.id, revision) { repo.peopleForGroup(group.id) }
+            FocusGlassTile(
+                label = group.title,
+                selected = isSelected,
+                onClick = { open = group.id },
+                topTrailing = {
+                    Box(
+                        Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) FocusAccent else Color.Transparent)
+                            .border(1.dp, if (isSelected) FocusAccent else Color.White.copy(0.35f), CircleShape)
+                            .clickable { repo.selectGroup(group.id, !isSelected) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                    }
                 }
-                Text("${group.personIds.size} people   >", color = FocusMuted, fontSize = 11.sp)
+            ) {
+                FocusGroupAvatar(group, members, 40.dp)
             }
         }
-        item { TextButton(onClick = { create = true }) { Text("+ New group") } }
+        item(key = "new_group") {
+            FocusGlassTile(
+                label = "New group",
+                onClick = { create = true }
+            ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.AddCircleOutline, null, tint = FocusMuted, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
     }
-    if (create) AlertDialog(onDismissRequest = { create = false }, title = { Text("New group") }, text = {
-        OutlinedTextField(name, { name = it.take(40) }, label = { Text("Group name") })
-    }, confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = {
-        val id = java.util.UUID.randomUUID().toString()
-        repo.saveList(name, emptyList(), id); repo.selectGroup(id, true); open = id; create = false; name = ""
-    }) { Text("Create") } })
+    if (create) {
+        FocusPopupSheet(onDismiss = { create = false; name = "" }, heightFraction = 0.42f) {
+            Text(
+                "New group",
+                color = Color.White,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp
+            )
+            Text(
+                "Name a list of people who can still call during Focus.",
+                color = FocusMuted,
+                fontFamily = Outfit,
+                fontSize = 13.sp
+            )
+            val fieldShape = RoundedCornerShape(22.dp)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(40) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = fieldShape,
+                placeholder = { Text("Group name", color = FocusMuted) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = FocusAccent,
+                    focusedBorderColor = FocusAccent,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.22f),
+                    focusedContainerColor = Color.White.copy(alpha = 0.08f),
+                    unfocusedContainerColor = Color.White.copy(alpha = 0.06f)
+                )
+            )
+            FocusPrimaryAction(
+                label = "Create group",
+                action = {
+                    if (name.isBlank()) return@FocusPrimaryAction
+                    val id = java.util.UUID.randomUUID().toString()
+                    repo.saveList(name.trim(), emptyList(), id)
+                    repo.selectGroup(id, true)
+                    open = id
+                    create = false
+                    name = ""
+                }
+            )
+        }
+    }
     open?.let { id -> FocusGroupMembers(id, repo, { open = null }) }
 }
 
@@ -58,49 +143,215 @@ internal fun FocusGroupCards(dismissSignal: Int = 0) {
 private fun FocusGroupMembers(initialId: String, repo: FocusAllowedPeopleRepository, onDismiss: () -> Unit) {
     var id by remember { mutableStateOf(initialId) }
     var picking by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val groups by repo.groups.collectAsState()
     val revision by repo.listsRevision.collectAsState()
-    val group = groups.find { it.id == id } ?: return
+    val group = groups.find { it.id == id }
+    LaunchedEffect(group) { if (group == null) onDismiss() }
+    if (group == null) return
     val members = remember(id, revision) { repo.peopleForGroup(id) }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(FocusInk).systemBarsPadding().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = onDismiss) { Text("< Back", color = FocusMuted) }
-            FocusPageBanner(group.title, "${members.size} people can still call you during Focus.")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(groups, key = { it.id }) { tab -> FilterChip(tab.id == id, { id = tab.id }, label = { Text(tab.title) }) }
+    val canDelete = !repo.isPresetGroup(id)
+    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.88f) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                group.title,
+                color = Color.White,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                modifier = Modifier.weight(1f)
+            )
+            if (canDelete) {
+                Text(
+                    "Delete",
+                    color = FocusDanger,
+                    fontFamily = Outfit,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { confirmDelete = true }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
             }
-            Text("${group.title} members", color = Color.White, fontSize = 18.sp)
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(members, key = { it.id }) { person ->
-                    Row(Modifier.fillMaxWidth().background(FocusSurface, RoundedCornerShape(18.dp)).border(1.dp, FocusBorder, RoundedCornerShape(18.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        FocusContactAvatar(person, 44.dp)
-                        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                            Text(person.name, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(if(person.reach.allowsCalls) "Calls allowed" else "Calls silenced", color = if(person.reach.allowsCalls) Color(0xFF50CBB0) else FocusMuted, fontSize = 11.sp)
-                        }
-                        FocusContactIndicators(person) { reach -> repo.saveList(group.title, members.map {
-                            if(it.id == person.id) it.copy(reach = if(reach.allowsCalls) FocusReach.CallsOnly else FocusReach.Neither) else it
-                        }, id) }
-                        TextButton(onClick = { repo.saveList(group.title, members.filterNot { it.id == person.id }, id) }) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("-", color = Color(0xFFFF809D), fontSize = 24.sp); Text("Remove", color = FocusMuted, fontSize = 10.sp) }
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(Icons.Outlined.People, null, tint = FocusMuted, modifier = Modifier.size(14.dp))
+                Text("${members.size} people", color = FocusMuted, fontSize = 12.sp, fontFamily = Outfit)
+            }
+        }
+        Text("People who can still call you during Focus.", color = FocusMuted, fontSize = 13.sp, fontFamily = Outfit)
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(groups, key = { it.id }) { tab ->
+                val active = tab.id == id
+                val shape = RoundedCornerShape(16.dp)
+                Row(
+                    Modifier
+                        .then(
+                            if (active) Modifier.shadow(10.dp, shape, ambientColor = FocusAccent.copy(0.4f), spotColor = FocusAccent.copy(0.5f))
+                            else Modifier
+                        )
+                        .clip(shape)
+                        .background(if (active) FocusGradient else Brush.linearGradient(listOf(FocusCard, FocusCard)))
+                        .border(1.dp, if (active) Color.Transparent else FocusBorder, shape)
+                        .clickable { id = tab.id }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(focusGroupIcon(tab), null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Text(tab.title, color = Color.White, fontSize = 13.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+
+        Text("${group.title} members", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.SemiBold)
+
+        val listShape = RoundedCornerShape(20.dp)
+        LazyColumn(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 160.dp, max = 340.dp)
+                .clip(listShape)
+                .background(FocusCard.copy(alpha = 0.85f))
+                .border(1.dp, FocusBorder, listShape)
+        ) {
+            items(members, key = { it.id }) { person ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FocusContactAvatar(person, 44.dp)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text(
+                            person.name,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontFamily = Outfit,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(if (person.reach.allowsCalls) FocusOk else FocusMuted))
+                            Text(
+                                if (person.reach.allowsCalls) "Calls allowed" else "Calls silenced",
+                                color = FocusMuted,
+                                fontSize = 12.sp,
+                                fontFamily = Outfit
+                            )
                         }
                     }
+                    FocusContactIndicators(person) { reach ->
+                        repo.saveList(group.title, members.map {
+                            if (it.id == person.id) it.copy(reach = if (reach.allowsCalls) FocusReach.CallsOnly else FocusReach.Neither) else it
+                        }, id)
+                    }
+                    Box(
+                        Modifier
+                            .padding(start = 8.dp)
+                            .width(1.dp)
+                            .height(28.dp)
+                            .background(Color.White.copy(alpha = 0.12f))
+                    )
+                    Column(
+                        Modifier
+                            .clickable {
+                                repo.saveList(group.title, members.filterNot { it.id == person.id }, id)
+                            }
+                            .padding(start = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Outlined.RemoveCircleOutline, null, tint = FocusDanger, modifier = Modifier.size(20.dp))
+                        Text("Remove", color = FocusDanger, fontSize = 10.sp, fontFamily = Outfit)
+                    }
                 }
-                item { FocusGlass(Modifier.clickable { picking = true }) { Text("+   Add contact", color = Color.White, fontSize = 17.sp) } }
+                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
             }
-            FocusPrimaryAction("Done", onDismiss)
-            TextButton(onClick = { repo.deleteList(id); onDismiss() }) { Text("Delete group", color = Color(0xFFFF9EAB)) }
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { picking = true }
+                        .padding(horizontal = 14.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.AddCircleOutline, null, tint = FocusAccent, modifier = Modifier.size(24.dp))
+                    Text("Add contact", Modifier.weight(1f).padding(start = 12.dp), color = Color.White, fontSize = 16.sp, fontFamily = Outfit)
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = FocusMuted)
+                }
+            }
         }
-        if(picking) FocusPeoplePicker(members, { picking = false }, { repo.saveList(group.title, it, id); picking = false })
+
+        FocusPrimaryAction(label = "Done", action = onDismiss)
+    }
+    if (picking) FocusPeoplePicker(members, { picking = false }, { repo.saveList(group.title, it, id); picking = false })
+    if (confirmDelete) {
+        FocusPopupSheet(onDismiss = { confirmDelete = false }, heightFraction = 0.36f) {
+            Text(
+                "Delete “${group.title}”?",
+                color = Color.White,
+                fontFamily = Outfit,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp
+            )
+            Text(
+                "This removes the group. People in other groups stay.",
+                color = FocusMuted,
+                fontFamily = Outfit,
+                fontSize = 13.sp
+            )
+            FocusPrimaryAction(
+                label = "Delete group",
+                action = {
+                    repo.deleteList(id)
+                    confirmDelete = false
+                    onDismiss()
+                },
+                showCheck = false
+            )
+            Text(
+                "Cancel",
+                color = FocusMuted,
+                fontFamily = Outfit,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable { confirmDelete = false }
+                    .padding(8.dp)
+            )
+        }
     }
 }
 
+
 @Composable
 internal fun FocusListsDialog(onDismiss: () -> Unit, dismissSignal: Int = 0) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(FocusInk).systemBarsPadding().padding(20.dp)) {
-            TextButton(onClick = onDismiss) { Text("< Back") }
-            FocusGroupCards(dismissSignal)
-        }
+    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.55f) {
+        Text(
+            "Who can reach you",
+            color = Color.White,
+            fontFamily = Outfit,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp
+        )
+        Text(
+            "Choose groups that can still call during Focus.",
+            color = FocusMuted,
+            fontSize = 13.sp,
+            fontFamily = Outfit
+        )
+        FocusGroupCards(dismissSignal)
+        FocusPrimaryAction(label = "Done", action = onDismiss)
     }
 }

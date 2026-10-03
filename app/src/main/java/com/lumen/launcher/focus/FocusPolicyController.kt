@@ -75,7 +75,8 @@ class FocusPolicyController(private val context: Context) {
 
     fun buildZenPolicy(people: List<FocusPerson>, settings: FocusPolicySettings): ZenPolicy {
         val builder = ZenPolicy.Builder().disallowAllSounds()
-            .allowAlarms(settings.allowAlarms).allowMedia(false)
+            // Keep media unmuted so allowed apps (YouTube, music, etc.) can play audio during Focus.
+            .allowAlarms(settings.allowAlarms).allowMedia(true)
             .allowReminders(settings.allowCalendarReminders).allowEvents(settings.allowCalendarReminders)
             .allowRepeatCallers(settings.allowRepeatedCallers)
             .allowCalls(if (settings.allowCallsFromSelected) ZenPolicy.PEOPLE_TYPE_CONTACTS else ZenPolicy.PEOPLE_TYPE_NONE)
@@ -86,7 +87,7 @@ class FocusPolicyController(private val context: Context) {
     }
 
     private fun legacyPolicy(s: FocusPolicySettings): NotificationManager.Policy {
-        var categories = 0
+        var categories = NotificationManager.Policy.PRIORITY_CATEGORY_MEDIA
         if (s.allowCallsFromSelected) categories = categories or NotificationManager.Policy.PRIORITY_CATEGORY_CALLS
         if (s.allowMessagesFromSelected) categories = categories or NotificationManager.Policy.PRIORITY_CATEGORY_MESSAGES
         if (s.allowRepeatedCallers) categories = categories or NotificationManager.Policy.PRIORITY_CATEGORY_REPEAT_CALLERS
