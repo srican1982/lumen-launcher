@@ -4,12 +4,24 @@ package com.lumen.launcher.focus
 enum class FocusReach {
     CallsOnly,
     MessagesOnly,
-    CallsAndMessages;
+    CallsAndMessages,
+    Neither;
 
     val allowsCalls: Boolean get() = this == CallsOnly || this == CallsAndMessages
     val allowsMessages: Boolean get() = this == MessagesOnly || this == CallsAndMessages
 
+    fun toggleCalls(): FocusReach = from(!allowsCalls, allowsMessages)
+    fun toggleMessages(): FocusReach = from(allowsCalls, !allowsMessages)
+    companion object {
+        fun from(calls: Boolean, messages: Boolean): FocusReach = when {
+            calls && messages -> CallsAndMessages
+            calls -> CallsOnly
+            messages -> MessagesOnly
+            else -> Neither
+        }
+    }
     fun label(): String = when (this) {
+        Neither -> "Off"
         CallsOnly -> "Calls only"
         MessagesOnly -> "Messages only"
         CallsAndMessages -> "Calls + Messages"
@@ -34,7 +46,7 @@ data class FocusPeopleGroup(
 ) {
     companion object {
         val Family = FocusPeopleGroup("family", "Family")
-        val WorkVips = FocusPeopleGroup("work_vips", "Work VIPs")
+        val WorkVips = FocusPeopleGroup("work_vips", "Office")
         val Emergency = FocusPeopleGroup("emergency", "Emergency only")
         val presets = listOf(Family, WorkVips, Emergency)
     }

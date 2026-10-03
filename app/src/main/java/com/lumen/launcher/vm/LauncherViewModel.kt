@@ -444,12 +444,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openConversation(item: InboxItem) {
+        if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), Intent().setPackage(item.packageName))) {
+            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         if (!(onOpenConversation?.invoke(item) ?: false)) {
             android.widget.Toast.makeText(getApplication(), "This conversation link is no longer available. Open a newer message notification.", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
     fun openInboxItem(item: InboxItem) {
+        if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), Intent().setPackage(item.packageName))) {
+            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus.", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val pending = InboxHub.contentIntent(item.key)
         val launched = pending != null && runCatching { pending.send() }.isSuccess
         if (!launched) {
@@ -2871,6 +2879,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun startIntent(intent: Intent): Boolean {
+        if (!com.lumen.launcher.focus.FocusAppAccess.allows(getApplication(), intent)) {
+            android.widget.Toast.makeText(getApplication(), "This app isn't selected for Focus. Pause or end Focus to open it.", android.widget.Toast.LENGTH_SHORT).show()
+            return false
+        }
         val ready = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         if (onStartActivity?.invoke(ready) == true) return true
         return runCatching { getApplication<Application>().startActivity(ready) }.isSuccess

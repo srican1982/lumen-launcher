@@ -25,11 +25,37 @@ class FocusAllowedPeopleRepository(context: Context) {
     private val _groups = MutableStateFlow(loadGroups())
     val groups: StateFlow<List<FocusPeopleGroup>> = _groups.asStateFlow()
 
+    private val _listsRevision = MutableStateFlow(0)
+    val listsRevision: StateFlow<Int> = _listsRevision.asStateFlow()
+
+    private val _selectedGroups = MutableStateFlow(prefs.getStringSet("selected_groups", emptySet()).orEmpty().toSet())
+    val selectedGroups: StateFlow<Set<String>> = _selectedGroups.asStateFlow()
+
+    init {
+        if (!prefs.contains("selected_groups")) {
+            if (_people.value.isNotEmpty()) {
+                saveList("My people", _people.value, "my_people")
+                selectGroup("my_people", true)
+            } else prefs.edit().putStringSet("selected_groups", emptySet()).apply()
+        }
+    }
+
+    fun selectGroup(id: String, selected: Boolean) {
+        _selectedGroups.value = if (selected) _selectedGroups.value + id else _selectedGroups.value - id
+        prefs.edit().putStringSet("selected_groups", _selectedGroups.value).apply()
+        syncSelectedPeople()
+    }
+
+    private fun syncSelectedPeople() {
+        val members = combineCallGroups(_selectedGroups.value.map { peopleForGroup(it) })
+        setPeople(members.map { it.copy(reach = FocusReach.CallsOnly) })
+    }
+
     fun peopleNow(): List<FocusPerson> = _people.value
     fun settingsNow(): FocusPolicySettings = _settings.value
 
     fun setPeople(next: List<FocusPerson>) {
-        _people.value = next.distinctBy { it.id }.take(24)
+        _people.value = next.distinctBy { it.id }
         prefs.edit().putString(KEY_PEOPLE, encodePeople(_people.value)).apply()
     }
 
@@ -75,12 +101,15 @@ class FocusAllowedPeopleRepository(context: Context) {
         if (clean.isBlank()) return
         prefs.edit().putString("list_members_$id", encodePeople(members)).apply()
         setGroup(FocusPeopleGroup(id, clean, members.map { it.id }))
+        _listsRevision.value += 1
+        if (id in _selectedGroups.value) syncSelectedPeople()
     }
 
     fun deleteList(id: String) {
         val next = _groups.value.filterNot { it.id == id }
         prefs.edit().remove("list_members_$id").putString(KEY_GROUPS, encodeGroups(next)).apply()
         _groups.value = next
+        selectGroup(id, false)
     }
 
     fun peopleForGroup(groupId: String): List<FocusPerson> {
@@ -197,3 +226,6 @@ class FocusAllowedPeopleRepository(context: Context) {
         }
     }
 }
+
+internal fun combineCallGroups(groups: List<List<FocusPerson>>): List<FocusPerson> =
+    groups.flatten().filter { it.reach.allowsCalls }.distinctBy { it.id }

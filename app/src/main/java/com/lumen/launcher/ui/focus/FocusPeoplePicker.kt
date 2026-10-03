@@ -30,6 +30,8 @@ import androidx.compose.ui.window.Dialog
 import com.lumen.launcher.focus.FocusPerson
 import com.lumen.launcher.focus.FocusReach
 import com.lumen.launcher.ui.theme.Outfit
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,73 +44,69 @@ fun FocusPeoplePicker(
     dismissSignal: Int = 0
 ) {
     val context = LocalContext.current
-    var access by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { access = it }
-    var query by remember { mutableStateOf("") }
-    var people by remember { mutableStateOf(emptyList<FocusPerson>()) }
-    var draft by remember { mutableStateOf(selected) }
+    val currentSelected by rememberUpdatedState(selected)
+    val save by rememberUpdatedState(onSave)
+    val dismiss by rememberUpdatedState(onDismiss)
     var error by remember { mutableStateOf("") }
-    val dismissBaseline = remember { dismissSignal }
-    LaunchedEffect(dismissSignal) {
-        if (dismissSignal != dismissBaseline) onDismiss()
-    }
-    LaunchedEffect(access) {
-        if (access) {
-            val result = withContext(Dispatchers.IO) { runCatching {
-                context.contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                    arrayOf(ContactsContract.CommonDataKinds.Phone.CONTACT_ID, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER, ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY, ContactsContract.CommonDataKinds.Phone.PHOTO_URI),
-                    null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC")?.use { c -> buildList {
-                        while (c.moveToNext()) add(FocusPerson(id = c.getString(0), name = c.getString(1).orEmpty(),
-                            phone = c.getString(2).orEmpty(), contactLookupKey = c.getString(3).orEmpty(), photoUri = c.getString(4).orEmpty()))
-                    } }.orEmpty().distinctBy { it.id }
-            } }
-            people = result.getOrDefault(emptyList())
-            error = if (result.isFailure) "Contacts could not be loaded. Check Contacts access." else ""
-        }
-    }
-    val filtered = (draft + people).distinctBy { it.id }.filter { it.name.contains(query.trim(), true) || it.phone.contains(query.trim()) }
-    Dialog(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().heightIn(max = 620.dp).clip(RoundedCornerShape(26.dp))
-            .background(FocusInk).border(1.dp, FocusBorder, RoundedCornerShape(26.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Important people", color = Color.White, fontSize = 22.sp)
-            Text("Calls enabled here are allowed during Focus. Message choices are saved preferences only; Android message exceptions use all favorites.", color = FocusMuted, fontSize = 12.sp)
-            OutlinedTextField(query, { query = it }, placeholder = { Text("Search contacts") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (!access) TextButton(onClick = { permission.launch(Manifest.permission.READ_CONTACTS) }) { Text("Allow Contacts access", color = FocusAccent) }
-            if (error.isNotBlank()) Text(error, color = Color(0xFFFDA4AF))
-            LazyColumn(Modifier.weight(1f, fill = false).heightIn(max = 340.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (filtered.isEmpty()) item { Text("No matching contacts", color = Color.White.copy(.6f)) }
-                items(filtered, key = { it.id }) { person ->
-                    val saved = draft.find { it.id == person.id }
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White.copy(.06f)).padding(horizontal = 10.dp, vertical = 3.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (person.photoUri.isNotBlank()) coil.compose.AsyncImage(person.photoUri, person.name, modifier = Modifier.size(32.dp).clip(CircleShape))
-                            else PersonAvatar(person.name, person.avatarColor, 32.dp)
-                            Text(person.name, color = Color.White, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-                            Checkbox(saved != null, onCheckedChange = { checked ->
-                                draft = if (checked) (draft + person).take(24) else draft.filterNot { it.id == person.id }
-                            })
+    var launched by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        if (result.resultCode != android.app.Activity.RESULT_OK || uri == null) dismiss()
+        else scope.launch {
+            val picked = withContext(Dispatchers.IO) { runCatching {
+                context.contentResolver.query(uri, arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
+                    ContactsContract.CommonDataKinds.Phone.PHOTO_URI), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) FocusPerson(c.getString(0), c.getString(1).orEmpty(), c.getString(2).orEmpty(),
+                        c.getString(3).orEmpty(), photoUri = c.getString(4).orEmpty()) else null
+                }?.let { person ->
+                    // Save a private thumbnail while the picker URI grant is still available.
+                    val photo = runCatching {
+                        val bytes = context.contentResolver.query(uri, arrayOf(ContactsContract.CommonDataKinds.Phone.PHOTO_ID), null, null, null)?.use { c ->
+                            if (c.moveToFirst() && !c.isNull(0)) {
+                                val photoId = c.getLong(0)
+                                context.contentResolver.query(ContactsContract.Data.CONTENT_URI,
+                                    arrayOf(ContactsContract.CommonDataKinds.Photo.PHOTO),
+                                    "_id = ?", arrayOf(photoId.toString()), null)?.use { photoCursor ->
+                                    if (photoCursor.moveToFirst()) photoCursor.getBlob(0) else null
+                                }
+                            } else null
+                        } ?: person.photoUri.takeIf { it.isNotBlank() }?.let {
+                            context.contentResolver.openInputStream(Uri.parse(it))?.use { stream -> stream.readBytes() }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (saved != null) {
-                            TextButton(onClick = {
-                                val next = FocusReach.entries[(saved.reach.ordinal + 1) % FocusReach.entries.size]
-                                draft = draft.map { if (it.id == person.id) it.copy(reach = next) else it }
-                            }) { Text(saved.reach.label() + "", color = FocusAccent) }
+                        bytes?.let {
+                            val dir = java.io.File(context.filesDir, "focus_avatars").apply { mkdirs() }
+                            val file = java.io.File(dir, "${person.id.filter(Char::isDigit)}.jpg")
+                            file.writeBytes(it)
+                            Uri.fromFile(file).toString()
                         }
-                        if (person.contactLookupKey.isNotBlank()) TextButton(onClick = {
-                            val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Uri.encode(person.contactLookupKey))
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }.onFailure { error = "Contacts app unavailable." }
-                        }) { Text("Android favorite ↗", color = Color(0xFF93C5FD), fontSize = 10.sp) }
-                        }
-                    }
+                    }.getOrNull()
+                    person.copy(photoUri = photo ?: person.photoUri)
                 }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onDismiss) { Text("Cancel") }
-                TextButton({ onSave(draft) }) { Text("Done", color = FocusAccent) }
+            }.getOrNull() }
+            if (picked == null || picked.phone.isBlank()) error = "Couldn't read that contact. Please try again."
+            else {
+                val previous = currentSelected.find { it.id == picked.id }
+                save(currentSelected.filterNot { it.id == picked.id } + picked.copy(reach = previous?.reach ?: FocusReach.CallsOnly))
             }
         }
     }
+    fun openContacts() {
+        runCatching { picker.launch(Intent(Intent.ACTION_PICK).setType(ContactsContract.CommonDataKinds.Phone.CONTENT_TYPE)) }
+            .onFailure { error = "No contact picker is available on this phone." }
+    }
+    LaunchedEffect(Unit) { if (!launched) { launched = true; openContacts() } }
+    val dismissBaseline = remember { dismissSignal }
+    LaunchedEffect(dismissSignal) { if (dismissSignal != dismissBaseline) dismiss() }
+    if (error.isNotBlank()) AlertDialog(onDismissRequest = onDismiss,
+        title = { Text("Contact unavailable") }, text = { Text(error) },
+        confirmButton = { TextButton(onClick = { error = ""; openContacts() }) { Text("Try again") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+
 }
 
 @Composable

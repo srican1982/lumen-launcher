@@ -27,7 +27,7 @@ internal fun FocusLandscapeHero() {
         )
         Column(Modifier.padding(top = 4.dp)) {
             Text(
-                "Focus without\ngoing unreachable.",
+                "Deep Focus",
                 style = TextStyle(brush = FocusTitleGradient),
                 fontSize = 26.sp,
                 lineHeight = 32.sp,
@@ -35,7 +35,7 @@ internal fun FocusLandscapeHero() {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Silence everything except\nthe people you choose.",
+                "Silence distractions.\nKeep the people who matter.\nOnly the apps you choose.",
                 color = FocusMuted,
                 fontSize = 13.sp,
                 lineHeight = 18.sp
@@ -43,9 +43,9 @@ internal fun FocusLandscapeHero() {
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 listOf(
-                    Icons.Outlined.Timer to "Choose\nduration",
-                    Icons.Outlined.People to "Who can\nreach you",
-                    Icons.Outlined.Tune to "What else\ninterrupts"
+                    Icons.Outlined.NotificationsOff to "Blocks\nnotifications",
+                    Icons.Outlined.People to "Lets important\npeople through",
+                    Icons.Outlined.Apps to "Selected apps\nin Lumen"
                 ).forEach { (icon, label) ->
                     Column {
                         Icon(icon, null, tint = FocusIconTint, modifier = Modifier.size(20.dp))

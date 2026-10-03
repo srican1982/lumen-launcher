@@ -1,6 +1,9 @@
 package com.lumen.launcher.ui.focus
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.lumen.launcher.focus.FocusAllowedPeopleRepository
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -51,31 +56,7 @@ fun FocusSetupSheet(
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FocusLandscapeHero()
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(FocusCard)
-                .border(1.dp, FocusAccent.copy(0.40f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Outlined.NotificationsOff,
-                null,
-                tint = FocusAccent,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                "Everyone else will be silenced",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        Text("1. Choose duration", color = Color.White, fontSize = 15.sp)
+        Text("1. How long do you want to focus?", color = Color.White, fontSize = 15.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             (listOf(15, 30, 60, 120) + 0).forEach { mins ->
                 val selected = duration == mins || (mins == 0 && duration !in listOf(15, 30, 60, 120))
@@ -84,10 +65,10 @@ fun FocusSetupSheet(
                         .weight(1f)
                         .height(48.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (selected) FocusCardSelected else FocusCard)
+                        .background(if (selected && !com.lumen.launcher.ui.theme.LumenPalette.whiteGlass) FocusSelectionGradient else if (selected) Brush.linearGradient(listOf(FocusCardSelected, FocusCardSelected)) else Brush.linearGradient(listOf(FocusCard, FocusInk)))
                         .border(
                             width = if (selected) 1.5.dp else 1.dp,
-                            brush = if (selected) FocusGradient else Brush.linearGradient(listOf(FocusBorder, FocusBorder)),
+                            brush = if (selected) Brush.linearGradient(listOf(FocusBorderGlow, FocusAccentEnd)) else Brush.linearGradient(listOf(FocusBorder, FocusBorder)),
                             shape = RoundedCornerShape(14.dp)
                         )
                         .clickable { if (mins == 0) onCustomDuration() else onDuration(mins) },
@@ -114,51 +95,12 @@ fun FocusSetupSheet(
             }
         }
 
+        Text("2. Who can reach you?", color = Color.White, fontSize = 15.sp)
+        Text("Choose which people can still call during Focus.", color = FocusMuted, fontSize = 12.sp)
+        FocusGroupCards(dismissSignal)
+        FocusAppsSection()
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("2. Choose who can reach you", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
-            TextButton(onClick = { lists = true }) {
-                Text("Saved lists ›", color = FocusAccent, fontSize = 11.sp)
-            }
-        }
-        FocusGlass {
-            people.forEach { person ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onOpenPeople)
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FocusContactAvatar(person, 34.dp)
-                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                        Text(person.name, color = Color.White, fontSize = 13.sp, lineHeight = 17.sp)
-                        Text(person.reach.label(), color = FocusMuted, fontSize = 10.sp, lineHeight = 14.sp)
-                    }
-                    FocusContactIndicators(person)
-                    Text("⋮", Modifier.padding(start = 10.dp), color = FocusMuted, fontSize = 20.sp)
-                }
-            }
-            Text(
-                "＋ Add someone",
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(FocusSurface)
-                    .clickable(onClick = onOpenPeople)
-                    .padding(12.dp),
-                color = Color.White,
-                fontSize = 14.sp
-            )
-        }
-        Text(
-            "These people can still reach you. Everyone else is silenced.",
-            color = FocusMuted,
-            fontSize = 10.sp,
-            lineHeight = 14.sp
-        )
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("3. Choose what else can interrupt", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
+            Text("4. Additional settings", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
             FocusSettingsButton()
         }
         FocusGlass {

@@ -100,15 +100,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     }
 
     if (showPeople) {
-        FocusPeoplePicker(
-            selected = people,
-            dismissSignal = homePulse,
-            onDismiss = { showPeople = false },
-            onSave = {
-                peopleRepo.setPeople(it)
-                showPeople = false
-            }
-        )
+        com.lumen.launcher.ui.focus.FocusListsDialog(onDismiss = { showPeople = false }, dismissSignal = homePulse)
     }
     if (customFocus) {
         FocusDurationDialog(

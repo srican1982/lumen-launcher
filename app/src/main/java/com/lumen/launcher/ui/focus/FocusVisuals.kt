@@ -22,22 +22,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.focus.*
 import com.lumen.launcher.ui.theme.Outfit
+import com.lumen.launcher.ui.theme.LumenPalette
 import kotlinx.coroutines.launch
 
-/** Exact Focus theme from the Deep Focus mock — deep navy + purple/blue glow. */
-internal val FocusAccent = Color(0xFF8B80F8)
-internal val FocusAccentEnd = Color(0xFF4C73F8)
-internal val FocusMuted = Color(0xFFA1A5B1)
-internal val FocusInk = Color(0xFF0B0E14)
-internal val FocusCard = Color(0xFF1A1F2A)
-internal val FocusCardSelected = Color(0xFF252B4A)
-internal val FocusBorder = Color(0xFF2A3140)
-internal val FocusBorderGlow = Color(0xFF6E78F0)
-internal val FocusIconTint = Color(0xFFACB4E0)
-internal val FocusCtaText = Color(0xFF0B0E18)
-internal val FocusGradient = Brush.horizontalGradient(listOf(FocusAccent, FocusAccentEnd))
-internal val FocusTitleGradient = Brush.horizontalGradient(listOf(Color(0xFFB4C8FF), Color(0xFFB49BFF)))
-internal val FocusSurface = Brush.linearGradient(listOf(Color(0xF21A1F2A), Color(0xF0121620)))
+/** Focus-local navy surfaces and violet/blue accents, for the normal theme; white glass retains its existing colors. */
+internal val FocusAccent get() = if (LumenPalette.whiteGlass) Color(0xFF8B80F8) else Color(0xFF9180FF)
+internal val FocusAccentEnd get() = if (LumenPalette.whiteGlass) Color(0xFF4C73F8) else Color(0xFF4877FF)
+internal val FocusMuted get() = if (LumenPalette.whiteGlass) Color(0xFFA1A5B1) else Color(0xFFAFBDDA)
+internal val FocusInk get() = if (LumenPalette.whiteGlass) Color(0xFF0B0E14) else Color(0xFF071017)
+internal val FocusCard get() = if (LumenPalette.whiteGlass) Color(0xFF1A1F2A) else Color(0xFF0F1721)
+internal val FocusCardSelected get() = if (LumenPalette.whiteGlass) Color(0xFF252B4A) else Color(0xFF262F74)
+internal val FocusBorder get() = if (LumenPalette.whiteGlass) Color(0xFF2A3140) else Color(0xFF263347)
+internal val FocusBorderGlow get() = if (LumenPalette.whiteGlass) Color(0xFF6E78F0) else Color(0xFF9C94FF)
+internal val FocusIconTint get() = if (LumenPalette.whiteGlass) Color(0xFFACB4E0) else Color(0xFFACB4E0)
+internal val FocusCtaText get() = if (LumenPalette.whiteGlass) Color(0xFF0B0E18) else Color(0xFF0B0E18)
+internal val FocusSelectionGradient get() = Brush.verticalGradient(listOf(Color(0xFF303171), Color(0xFF243680)))
+internal val FocusGradient get() = if (LumenPalette.whiteGlass) Brush.horizontalGradient(listOf(FocusAccent, FocusAccentEnd)) else Brush.horizontalGradient(listOf(FocusAccent, FocusAccentEnd))
+internal val FocusTitleGradient get() = if (LumenPalette.whiteGlass) Brush.horizontalGradient(listOf(Color(0xFFB4C8FF), Color(0xFFB49BFF))) else Brush.horizontalGradient(listOf(Color(0xFF88B5FF), Color(0xFF967AFF)))
+internal val FocusSurface get() = if (LumenPalette.whiteGlass) Brush.linearGradient(listOf(Color(0xF21A1F2A), Color(0xF0121620))) else Brush.linearGradient(listOf(Color(0xFF101A23), Color(0xFF0B151D)))
 
 @Composable
 internal fun FocusGlass(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -122,5 +124,25 @@ private fun FocusToggle(label: String, checked: Boolean, onChange: (Boolean) -> 
                 uncheckedThumbColor = FocusMuted
             )
         )
+    }
+}
+
+@Composable
+internal fun FocusPrimaryAction(label: String, action: () -> Unit) {
+    Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(28.dp)).background(FocusGradient).clickable(onClick = action), contentAlignment = Alignment.Center) {
+        Text(label, color = FocusCtaText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+internal fun FocusPageBanner(title: String, subtitle: String) {
+    Box(Modifier.fillMaxWidth().height(110.dp)) {
+        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.lumen.launcher.R.drawable.focus_moonlit_lake), null,
+            modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(FocusInk, FocusInk.copy(alpha = 0.3f)))))
+        Column(Modifier.align(Alignment.BottomStart).padding(bottom = 12.dp)) {
+            Text(title, style = androidx.compose.ui.text.TextStyle(brush = FocusTitleGradient), fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = FocusMuted, fontSize = 12.sp)
+        }
     }
 }

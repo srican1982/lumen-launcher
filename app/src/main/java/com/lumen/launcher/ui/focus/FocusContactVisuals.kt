@@ -4,6 +4,9 @@ import android.content.ContentUris
 import android.net.Uri
 import android.provider.ContactsContract
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import com.lumen.launcher.focus.FocusReach
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,7 +31,7 @@ import kotlinx.coroutines.withContext
 internal fun FocusContactAvatar(person: FocusPerson, size: Dp = 34.dp) {
     val context = LocalContext.current
     val photo by produceState(person.photoUri, person.id, person.photoUri, person.contactLookupKey) {
-        value = withContext(Dispatchers.IO) {
+        value = if (person.photoUri.startsWith("file:")) person.photoUri else withContext(Dispatchers.IO) {
             runCatching {
                 val uri = if (person.contactLookupKey.isNotBlank()) Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Uri.encode(person.contactLookupKey))
                     else person.id.toLongOrNull()?.let { ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, it) }
@@ -43,11 +46,13 @@ internal fun FocusContactAvatar(person: FocusPerson, size: Dp = 34.dp) {
 }
 
 @Composable
-internal fun FocusContactIndicators(person: FocusPerson) {
+internal fun FocusContactIndicators(person: FocusPerson, onChange: ((FocusReach) -> Unit)? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(Triple(Icons.Filled.Call, person.reach.allowsCalls, "Calls"), Triple(Icons.Filled.ChatBubble, person.reach.allowsMessages, "Messages")).forEach { (icon, enabled, label) ->
-            Box(Modifier.size(30.dp).clip(CircleShape).background(if (enabled) Color(0xFF252F49) else Color(0xFF27313D)), contentAlignment = Alignment.Center) {
-                Icon(icon, "$label ${if (enabled) "selected" else "not selected"}", tint = if (enabled) Color(0xFF9F90FF) else Color(0xFF657185), modifier = Modifier.size(17.dp))
+        listOf(Triple(Icons.Filled.Call, person.reach.allowsCalls, "Calls")).forEach { (icon, enabled, label) ->
+            Box(Modifier.size(48.dp).then(if (onChange != null) Modifier.toggleable(value = enabled, role = Role.Switch, onValueChange = {
+                onChange(if (label == "Calls") person.reach.toggleCalls() else person.reach.toggleMessages())
+            }) else Modifier).clip(CircleShape).background(if (enabled) Color(0xFF222B45) else Color(0xFF172330)), contentAlignment = Alignment.Center) {
+                Icon(icon, "$label ${if (enabled) "selected" else "not selected"}", tint = if (enabled) Color(0xFF9081FF) else Color(0xFF657185), modifier = Modifier.size(17.dp))
             }
         }
     }
