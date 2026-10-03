@@ -40,7 +40,11 @@ class FocusSessionManager(
     }
 
     suspend fun start(minutes: Int): Boolean = mutex.withLock {
-        val mins = minutes.coerceIn(5, 24 * 60)
+        if (!FocusCallAccess.ready(context)) {
+            reportError("Open Focus setup and enable Contacts access and Lumen caller ID & spam screening before starting.")
+            return@withLock false
+        }
+        val mins = minutes.coerceIn(1, 24 * 60)
         // Release any previous ownership first.
         if (!finishLocked(announce = false)) return@withLock false
         val now = System.currentTimeMillis()
@@ -63,7 +67,8 @@ class FocusSessionManager(
             publish()
             true
         } catch (_: Exception) {
-            policy.restore()
+            val restored = policy.restore()
+            ledger.edit().clear().putString("error", if (restored) "Focus could not start. Check alarm access." else "Open Android DND settings to remove Lumen Focus.").commit()
             cancelAlarm(until)
             LauncherPreferences(context).setFocus(0, "")
             publish()
@@ -78,6 +83,7 @@ class FocusSessionManager(
         if (until <= 0L) return@withLock 0L
         val remaining = (until - System.currentTimeMillis()).coerceAtLeast(0L)
         if (remaining <= 0L) return@withLock 0L
+        if (!policy.restore()) { reportError("Could not pause quiet mode. Check Android DND access."); return@withLock 0L }
         cancelAlarm(until)
         check(ledger.edit().putLong(KEY_PAUSED, remaining).putLong(KEY_UNTIL, 0).commit())
         LauncherPreferences(context).setFocus(0, "")
@@ -89,13 +95,16 @@ class FocusSessionManager(
         val remaining = ledger.getLong(KEY_PAUSED, 0)
         if (remaining <= 0L) return@withLock 0L
         val until = System.currentTimeMillis() + remaining
+        if (!policy.apply(peopleRepo.peopleNow(), peopleRepo.settingsNow())) { reportError("Restore DND, Contacts and caller ID & spam access to resume Focus."); return@withLock 0L }
         return@withLock try {
             schedule(until)
-            check(ledger.edit().putLong(KEY_UNTIL, until).remove(KEY_PAUSED).commit())
+            check(ledger.edit().putLong(KEY_UNTIL, until).remove(KEY_PAUSED).remove("error").commit())
             LauncherPreferences(context).setFocus(until, "")
             publish()
             until
         } catch (_: Exception) {
+            policy.restore()
+            reportError("Could not resume. Check alarms and reminders access.")
             0L
         }
     }
@@ -118,7 +127,6 @@ class FocusSessionManager(
         if (until <= System.currentTimeMillis()) return@withLock 0L
         val next = until + add
         return@withLock try {
-            cancelAlarm(until)
             schedule(next)
             check(
                 ledger.edit()
@@ -130,6 +138,8 @@ class FocusSessionManager(
             publish()
             next
         } catch (_: Exception) {
+            runCatching { schedule(until) }.onFailure { finishLocked(false) }
+            reportError("Could not extend Focus. Check alarm access.")
             0L
         }
     }
@@ -146,31 +156,40 @@ class FocusSessionManager(
         }
     }
 
-    suspend fun recover() {
-        val expired = mutex.withLock {
-            val until = ledger.getLong(KEY_UNTIL, 0)
-            val paused = ledger.getLong(KEY_PAUSED, 0)
-            if (paused > 0L) {
-                publish()
-                return@withLock null
-            }
-            if (until == 0L) {
-                publish()
-                return@withLock null
-            }
-            if (until <= System.currentTimeMillis()) return@withLock until
+    suspend fun recover(reassertAfterBoot: Boolean = false) = mutex.withLock {
+        val until = ledger.getLong(KEY_UNTIL, 0)
+        val paused = ledger.getLong(KEY_PAUSED, 0)
+        if (paused > 0) {
+            if (!policy.restore()) reportError("Open Android DND settings to remove the paused Focus rule.")
+            publish()
+        } else if (until == 0L) {
+            if (policy.hasOwnedRule()) finishLocked(false) else publish()
+        } else if (until <= System.currentTimeMillis()) {
+            finishLocked(true)
+        } else if (!policy.hasAccess() || !policy.ownedRuleExists() || !FocusCallAccess.ready(context)) {
+            finishLocked(false)
+            reportError("Focus stopped because DND, Contacts, or call-screening access was removed.")
+        } else {
             try {
-                schedule(until)
-                publish()
-                null
+                if (reassertAfterBoot) check(policy.apply(peopleRepo.peopleNow(), peopleRepo.settingsNow()))
+                schedule(until); publish()
             } catch (_: Exception) {
-                finishLocked(announce = true)
-                null
+                finishLocked(false)
+                reportError("Focus stopped because alarm scheduling is unavailable.")
             }
         }
-        if (expired != null) {
-            mutex.withLock { finishLocked(announce = true) }
+    }
+
+    suspend fun refreshPolicy() = mutex.withLock {
+        if (_snapshot.value.running && !policy.apply(peopleRepo.peopleNow(), peopleRepo.settingsNow())) {
+            finishLocked(false)
+            reportError("Focus stopped because its DND policy could not be applied.")
         }
+    }
+
+    private fun reportError(message: String) {
+        ledger.edit().putString("error", message).commit()
+        publish()
     }
 
     fun capabilityNote(): String =
@@ -181,10 +200,10 @@ class FocusSessionManager(
         val hadSession = until > 0 || ledger.getLong(KEY_PAUSED, 0) > 0 || ledger.contains(KEY_STARTED)
         cancelAlarm(until)
         val restored = policy.restore()
-        ledger.edit().clear().apply()
+        ledger.edit().clear().putString("error", if (restored) "" else "Open Android DND settings to remove Lumen Focus. Cleanup will retry when access returns.").commit()
         LauncherPreferences(context).setFocus(0, "")
         publish()
-        if (announce && hadSession) notifyFinished(restored)
+        if (announce && hadSession) runCatching { notifyFinished(restored) }
         return restored
     }
 
@@ -202,6 +221,7 @@ class FocusSessionManager(
             startedAt = started,
             totalMs = total,
             pausedRemainingMs = paused,
+            error = ledger.getString("error", "").orEmpty(),
             active = until > System.currentTimeMillis() || paused > 0L
         )
     }
@@ -219,7 +239,7 @@ class FocusSessionManager(
     }
 
     private fun cancelAlarm(until: Long) {
-        context.getSystemService(AlarmManager::class.java).cancel(pending(until))
+        runCatching { context.getSystemService(AlarmManager::class.java).cancel(pending(until)) }
     }
 
     private fun notifyFinished(restored: Boolean) {

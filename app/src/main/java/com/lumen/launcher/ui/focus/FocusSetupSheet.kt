@@ -3,268 +3,94 @@ package com.lumen.launcher.ui.focus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.LocalHospital
-import androidx.compose.material.icons.outlined.WorkOutline
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lumen.launcher.focus.FocusPeopleGroup
-import com.lumen.launcher.focus.FocusPerson
-import com.lumen.launcher.focus.FocusPolicySettings
-import com.lumen.launcher.ui.theme.Outfit
-
-private val FocusGreen = Color(0xFF34D399)
-private val FocusBlue = Color(0xFF60A5FA)
+import com.lumen.launcher.focus.*
 
 @Composable
-fun FocusSetupSheet(
-    people: List<FocusPerson>,
-    settings: FocusPolicySettings,
-    groups: List<FocusPeopleGroup>,
-    capabilityNote: String,
-    onDuration: (Int) -> Unit,
-    onOpenPeople: () -> Unit,
-    onSettingsChange: (FocusPolicySettings) -> Unit,
-    onStart: (Int) -> Unit,
-    onCustomDuration: () -> Unit
-) {
-    var duration by remember(settings.lastDurationMinutes) {
-        mutableIntStateOf(settings.lastDurationMinutes.coerceIn(15, 120).let {
-            when {
-                it <= 15 -> 15
-                it <= 30 -> 30
-                it <= 60 -> 60
-                else -> 120
-            }
-        })
-    }
-    val shape = RoundedCornerShape(26.dp)
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xD9182030), Color(0xD9121824))))
-            .border(1.dp, Color.White.copy(0.12f), shape)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            "Set Focus",
-            color = Color.White,
-            fontFamily = Outfit,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 20.sp
-        )
-        Text(
-            "Quiet, without becoming unreachable.",
-            color = Color.White.copy(0.65f),
-            fontFamily = Outfit,
-            fontSize = 13.sp
-        )
-
-        Text("Duration", color = Color.White.copy(0.55f), fontFamily = Outfit, fontSize = 12.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(15, 30, 60, 120).forEach { mins ->
-                val selected = duration == mins
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (selected) FocusGreen.copy(0.22f) else Color.White.copy(0.07f))
-                        .border(
-                            1.dp,
-                            if (selected) FocusGreen.copy(0.55f) else Color.White.copy(0.12f),
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clickable {
-                            duration = mins
-                            onDuration(mins)
-                        }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "${mins}m",
-                        color = Color.White,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    )
+fun FocusSetupSheet(people: List<FocusPerson>, settings: FocusPolicySettings, groups: List<FocusPeopleGroup>,
+    capabilityNote: String, onDuration: (Int) -> Unit, onOpenPeople: () -> Unit,
+    onSettingsChange: (FocusPolicySettings) -> Unit, onStart: (Int) -> Unit, onCustomDuration: () -> Unit) {
+    var lists by remember { mutableStateOf(false) }
+    val duration = settings.lastDurationMinutes
+    val start = FocusStartButtonAction { onStart(duration) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FocusLandscapeHero()
+        Text("1. How long do you want to focus?", color = Color.White, fontSize = 15.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            (listOf(15, 30, 60, 120) + 0).forEach { mins ->
+                val selected = duration == mins || (mins == 0 && duration !in listOf(15,30,60,120))
+                Column(Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) Color(0xFF343F92) else Color(0xFF101B27))
+                    .border(1.dp, if (selected) FocusAccent else Color(0xFF334251), RoundedCornerShape(12.dp))
+                    .clickable { if (mins == 0) onCustomDuration() else onDuration(mins) },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(if (mins == 0) { if (selected) "$duration" else "✎" } else "$mins", color = Color.White, fontSize = 16.sp, lineHeight = 19.sp)
+                    Text(if (mins == 0) "Custom" else "min", color = FocusMuted, fontSize = 10.sp, lineHeight = 13.sp)
                 }
             }
         }
-        Text(
-            "Custom…",
-            color = FocusBlue,
-            fontFamily = Outfit,
-            fontSize = 13.sp,
-            modifier = Modifier.clickable(onClick = onCustomDuration)
-        )
-
-        Text("Allow these people", color = Color.White.copy(0.55f), fontFamily = Outfit, fontSize = 12.sp)
-        GroupChip(
-            icon = Icons.Outlined.FavoriteBorder,
-            title = "Family",
-            detail = groupDetail(groups, FocusPeopleGroup.Family.id, people),
-            accent = Color(0xFFFBBF24)
-        )
-        GroupChip(
-            icon = Icons.Outlined.WorkOutline,
-            title = "Work VIPs",
-            detail = groupDetail(groups, FocusPeopleGroup.WorkVips.id, people),
-            accent = FocusBlue
-        )
-        GroupChip(
-            icon = Icons.Outlined.LocalHospital,
-            title = "Emergency only",
-            detail = groupDetail(groups, FocusPeopleGroup.Emergency.id, people),
-            accent = Color(0xFFFB7185)
-        )
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(0.06f))
-                .clickable(onClick = onOpenPeople)
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.Add, null, tint = FocusGreen, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (people.isEmpty()) "+ Customize list"
-                else "${people.size} people selected · Edit",
-                color = Color.White,
-                fontFamily = Outfit,
-                fontSize = 14.sp
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("2. Who can call you?", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
+            TextButton(onClick = { lists = true }) { Text("Saved lists ›", color = FocusAccent, fontSize = 11.sp) }
         }
-
-        Text("Exceptions", color = Color.White.copy(0.55f), fontFamily = Outfit, fontSize = 12.sp)
-        PolicyToggle("Allow calls from selected people", settings.allowCallsFromSelected) {
-            onSettingsChange(settings.copy(allowCallsFromSelected = it))
+        FocusGlass {
+        people.forEachIndexed { index, person ->
+            Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPeople).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FocusContactAvatar(person, 34.dp)
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(person.name, color = Color.White, fontSize = 13.sp, lineHeight = 17.sp)
+                    Text(person.reach.label(), color = FocusMuted, fontSize = 10.sp, lineHeight = 14.sp)
+                }
+                FocusContactIndicators(person)
+                Text("⋮", Modifier.padding(start = 10.dp), color = FocusMuted, fontSize = 20.sp)
+            }
         }
-        PolicyToggle("Allow messages from selected people", settings.allowMessagesFromSelected) {
-            onSettingsChange(settings.copy(allowMessagesFromSelected = it))
+        Text("＋ Add someone", Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(FocusSurface).clickable(onClick = onOpenPeople).padding(12.dp), color = Color.White, fontSize = 14.sp)
         }
-        PolicyToggle("Allow repeated caller (within 3 minutes)", settings.allowRepeatedCallers) {
-            onSettingsChange(settings.copy(allowRepeatedCallers = it))
+        Text("Calls enabled in this list can ring. Other ordinary phone calls are silenced. Message exceptions use Android favorites, not this list.", color = FocusMuted, fontSize = 10.sp, lineHeight = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("3. Additional settings", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
+            FocusSettingsButton()
         }
-        PolicyToggle("Allow alarms", settings.allowAlarms) {
-            onSettingsChange(settings.copy(allowAlarms = it))
+        FocusGlass {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    SetupToggle("Repeated callers", settings.allowRepeatedCallers) { onSettingsChange(settings.copy(allowRepeatedCallers = it)) }
+                    SetupToggle("Calendar reminders", settings.allowCalendarReminders) { onSettingsChange(settings.copy(allowCalendarReminders = it)) }
+                }
+                Column(Modifier.weight(1f)) {
+                    SetupToggle("Allow alarms", settings.allowAlarms) { onSettingsChange(settings.copy(allowAlarms = it)) }
+                    SetupToggle("Hide alert visuals", settings.silenceEveryoneElse) { onSettingsChange(settings.copy(silenceEveryoneElse = it)) }
+                }
+            }
         }
-        PolicyToggle("Allow calendar reminders", settings.allowCalendarReminders) {
-            onSettingsChange(settings.copy(allowCalendarReminders = it))
+        Box(Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(28.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF9A7FFF), Color(0xFF567DFF))))
+            .clickable(onClick = start), contentAlignment = Alignment.Center) {
+            Text("▶  Start Focus", color = Color(0xFF080E24), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         }
-        PolicyToggle("Silence everyone else", settings.silenceEveryoneElse) {
-            onSettingsChange(settings.copy(silenceEveryoneElse = it))
-        }
-
-        Text(capabilityNote, color = Color.White.copy(0.4f), fontFamily = Outfit, fontSize = 11.sp)
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Brush.horizontalGradient(listOf(FocusGreenDeep, FocusGreen)))
-                .clickable { onStart(duration) }
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "Start Focus",
-                color = Color.White,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp
-            )
-        }
+        Text("You can switch Spaces anytime. Focus will keep running.", color = FocusMuted, fontSize = 10.sp, lineHeight = 15.sp)
     }
-}
-
-private val FocusGreenDeep = Color(0xFF059669)
-
-@Composable
-private fun GroupChip(icon: ImageVector, title: String, detail: String, accent: Color) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(0.05f))
-            .border(1.dp, accent.copy(0.25f), RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontFamily = Outfit, fontSize = 14.sp)
-            Text(detail, color = Color.White.copy(0.45f), fontFamily = Outfit, fontSize = 11.sp)
-        }
-    }
+    if (lists) FocusListsDialog(onDismiss = { lists = false })
 }
 
 @Composable
-private fun PolicyToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            color = Color.White.copy(0.85f),
-            fontFamily = Outfit,
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f)
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = FocusGreen,
-                uncheckedThumbColor = Color.White.copy(0.8f),
-                uncheckedTrackColor = Color.White.copy(0.2f)
-            )
-        )
+private fun SetupToggle(label: String, checked: Boolean, change: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), color = Color.White, fontSize = 10.sp, lineHeight = 14.sp)
+        Switch(checked, change, colors = SwitchDefaults.colors(checkedTrackColor = FocusAccent, checkedThumbColor = Color.White))
     }
-}
-
-private fun groupDetail(groups: List<FocusPeopleGroup>, id: String, people: List<FocusPerson>): String {
-    val count = groups.find { it.id == id }?.personIds?.size ?: 0
-    return if (count > 0) "$count people" else "Assign people later"
 }

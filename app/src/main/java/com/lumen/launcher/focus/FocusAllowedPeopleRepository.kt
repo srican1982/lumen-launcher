@@ -55,12 +55,12 @@ class FocusAllowedPeopleRepository(context: Context) {
             .putBoolean(KEY_ALARMS, next.allowAlarms)
             .putBoolean(KEY_REMINDERS, next.allowCalendarReminders)
             .putBoolean(KEY_SILENCE, next.silenceEveryoneElse)
-            .putInt(KEY_DURATION, next.lastDurationMinutes.coerceIn(5, 24 * 60))
+            .putInt(KEY_DURATION, next.lastDurationMinutes.coerceIn(1, 24 * 60))
             .apply()
     }
 
     fun setLastDuration(minutes: Int) {
-        setSettings(_settings.value.copy(lastDurationMinutes = minutes.coerceIn(5, 24 * 60)))
+        setSettings(_settings.value.copy(lastDurationMinutes = minutes.coerceIn(1, 24 * 60)))
     }
 
     /** Seed architecture for one-tap groups; ids only until a full group manager exists. */
@@ -70,7 +70,23 @@ class FocusAllowedPeopleRepository(context: Context) {
         prefs.edit().putString(KEY_GROUPS, encodeGroups(next)).apply()
     }
 
+    fun saveList(title: String, members: List<FocusPerson>, id: String = java.util.UUID.randomUUID().toString()) {
+        val clean = title.trim().take(40)
+        if (clean.isBlank()) return
+        prefs.edit().putString("list_members_$id", encodePeople(members)).apply()
+        setGroup(FocusPeopleGroup(id, clean, members.map { it.id }))
+    }
+
+    fun deleteList(id: String) {
+        val next = _groups.value.filterNot { it.id == id }
+        prefs.edit().remove("list_members_$id").putString(KEY_GROUPS, encodeGroups(next)).apply()
+        _groups.value = next
+    }
+
     fun peopleForGroup(groupId: String): List<FocusPerson> {
+        prefs.getString("list_members_$groupId", null)?.let { raw ->
+            return runCatching { decodePeople(raw) }.getOrDefault(emptyList())
+        }
         val ids = _groups.value.find { it.id == groupId }?.personIds.orEmpty().toSet()
         if (ids.isEmpty()) return emptyList()
         return _people.value.filter { it.id in ids }
@@ -128,7 +144,7 @@ class FocusAllowedPeopleRepository(context: Context) {
                     .put("phone", p.phone)
                     .put("lookup", p.contactLookupKey)
                     .put("reach", p.reach.name)
-                    .put("color", p.avatarColor))
+                    .put("color", p.avatarColor).put("photo", p.photoUri))
             }
             return arr.toString()
         }
@@ -147,6 +163,7 @@ class FocusAllowedPeopleRepository(context: Context) {
                             contactLookupKey = o.optString("lookup"),
                             reach = runCatching { FocusReach.valueOf(o.optString("reach")) }
                                 .getOrDefault(FocusReach.CallsAndMessages),
+                            photoUri = o.optString("photo"),
                             avatarColor = o.optLong("color", 0xFF34D399)
                         )
                     )

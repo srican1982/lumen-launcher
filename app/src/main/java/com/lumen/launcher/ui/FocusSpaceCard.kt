@@ -30,6 +30,8 @@ import kotlinx.coroutines.delay
 fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     val context = LocalContext.current
     val peopleRepo = remember { FocusAllowedPeopleRepository.get(context) }
+    val manager = remember { com.lumen.launcher.focus.FocusSessionManager.get(context) }
+    val session by manager.snapshot.collectAsState()
     val policy = remember { FocusPolicyController(context) }
 
     val people by peopleRepo.people.collectAsState()
@@ -55,13 +57,17 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     val totalMs = state.focusTotalMs.takeIf { it > 0 } ?: remainingMs.coerceAtLeast(1L)
     val capability = remember(people, settings) { policy.capabilityNote(people, settings) }
 
+    LaunchedEffect(people, settings) { manager.refreshPolicy() }
+
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (session.error.isNotBlank()) androidx.compose.material3.Text(session.error, color = androidx.compose.ui.graphics.Color(0xFFFDA4AF))
         if (state.focusing) {
             FocusActiveScreen(
                 remainingMs = remainingMs,
                 totalMs = totalMs,
                 paused = state.focusPaused,
                 people = people,
+                capabilityNote = capability,
                 onPause = vm::pauseFocus,
                 onResume = vm::resumeFocus,
                 onExtend = { vm.extendFocus(15) },
@@ -98,8 +104,9 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             onDismiss = { customFocus = false },
             onStart = { minutes ->
                 customFocus = false
-                vm.startFocus(minutes)
-            }
+                peopleRepo.setLastDuration(minutes)
+            },
+            initialMinutes = settings.lastDurationMinutes, confirmLabel = "Set time"
         )
     }
 }

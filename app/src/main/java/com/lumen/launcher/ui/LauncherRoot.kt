@@ -1,4 +1,5 @@
 package com.lumen.launcher.ui
+import com.lumen.launcher.data.SpaceKind
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -219,7 +220,7 @@ fun LauncherRoot(
                             onQuickSettings = viewModel::expandQuickSettings
                         )
                 )
-                Row(
+                if (!(pagerState.currentPage == homePage && state.activeSpace == SpaceKind.Focus)) Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()

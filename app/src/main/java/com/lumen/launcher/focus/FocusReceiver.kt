@@ -17,9 +17,11 @@ class FocusReceiver : BroadcastReceiver() {
                     if (intent.action == "com.lumen.launcher.FOCUS_FINISHED") {
                         manager.onAlarm(intent.getLongExtra("until", -1))
                     } else {
-                        manager.recover()
+                        manager.recover(reassertAfterBoot = intent.action == Intent.ACTION_BOOT_COMPLETED)
                     }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("LumenFocus", "Focus recovery failed", e)
             } finally {
                 pending.finish()
             }

@@ -183,6 +183,12 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
+            com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).snapshot.collect { snap ->
+                _state.update { it.copy(focusUntil = snap.until, focusPausedRemainingMs = snap.pausedRemainingMs, focusTotalMs = snap.totalMs) }
+            }
+        }
+
+        viewModelScope.launch {
             val repository = com.lumen.launcher.travel.data.TripRepository.get(application)
             kotlinx.coroutines.flow.combine(repository.activeTripFlow, repository.pastTripsFlow) { active, past ->
                 (listOfNotNull(active) + past).distinctBy { it.id }
@@ -1317,7 +1323,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         focusSetup.edit().clear().apply()
         viewModelScope.launch {
             val manager = com.lumen.launcher.focus.FocusSessionManager.get(context)
-            if (manager.start(minutes.coerceIn(5, 24 * 60))) {
+            if (manager.start(minutes.coerceIn(1, 24 * 60))) {
                 val snap = manager.snapshotNow()
                 _state.update {
                     it.copy(
@@ -1341,51 +1347,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun pauseFocus() {
-        viewModelScope.launch {
-            val remaining = com.lumen.launcher.focus.FocusSession.pause(getApplication())
-            if (remaining <= 0L) return@launch
-            val taskId = _state.value.focusTaskId
-            preferences.setFocus(0L, taskId)
-            _state.update { it.copy(focusUntil = 0L, focusPausedRemainingMs = remaining) }
-        }
-    }
-
-    fun resumeFocus() {
-        viewModelScope.launch {
-            val taskId = _state.value.focusTaskId
-            val until = com.lumen.launcher.focus.FocusSession.resume(getApplication(), taskId)
-            if (until <= 0L) return@launch
-            _state.update { it.copy(focusUntil = until, focusPausedRemainingMs = 0L) }
-        }
-    }
-
-    fun extendFocus(minutes: Int = 15) {
-        viewModelScope.launch {
-            val add = minutes.coerceIn(1, 120) * 60_000L
-            val taskId = _state.value.focusTaskId
-            val paused = _state.value.focusPausedRemainingMs
-            if (paused > 0L) {
-                com.lumen.launcher.focus.FocusSession.extend(getApplication(), add, taskId)
-                _state.update {
-                    it.copy(
-                        focusPausedRemainingMs = paused + add,
-                        focusTotalMs = (it.focusTotalMs.takeIf { t -> t > 0 } ?: paused) + add
-                    )
-                }
-                return@launch
-            }
-            val until = com.lumen.launcher.focus.FocusSession.extend(getApplication(), add, taskId)
-            if (until <= 0L) return@launch
-            _state.update {
-                it.copy(
-                    focusUntil = until,
-                    focusTotalMs = (it.focusTotalMs.takeIf { t -> t > 0 }
-                        ?: (until - System.currentTimeMillis())) + add
-                )
-            }
-        }
-    }
+    fun pauseFocus() { viewModelScope.launch { com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).pause() } }
+    fun resumeFocus() { viewModelScope.launch { com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).resume() } }
+    fun extendFocus(minutes: Int = 15) { viewModelScope.launch { com.lumen.launcher.focus.FocusSessionManager.get(getApplication()).extend(minutes) } }
 
     private fun persistNotes(next: List<CaptureNote>) {
         viewModelScope.launch { preferences.setNotes(next) }

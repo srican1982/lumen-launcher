@@ -22,6 +22,7 @@ data class FocusPerson(
     val phone: String = "",
     val contactLookupKey: String = "",
     val reach: FocusReach = FocusReach.CallsAndMessages,
+    val photoUri: String = "",
     val avatarColor: Long = 0xFF34D399
 )
 
@@ -54,6 +55,7 @@ data class FocusSessionSnapshot(
     val startedAt: Long = 0L,
     val totalMs: Long = 0L,
     val pausedRemainingMs: Long = 0L,
+    val error: String = "",
     val active: Boolean = false
 ) {
     val paused: Boolean get() = pausedRemainingMs > 0L

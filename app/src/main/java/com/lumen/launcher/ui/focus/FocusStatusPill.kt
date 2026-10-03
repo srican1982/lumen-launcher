@@ -52,12 +52,12 @@ fun FocusStatusPill(
     LaunchedEffect(state.focusRunning) {
         while (state.focusRunning) {
             now = System.currentTimeMillis()
-            delay(30_000)
+            delay(1000)
         }
     }
     val remaining = if (state.focusPaused) state.focusPausedRemainingMs
     else (state.focusUntil - now).coerceAtLeast(0L)
-    val mins = (remaining / 60_000L).coerceAtLeast(0)
+    val mins = ((remaining + 59_999L) / 60_000L).coerceAtLeast(0)
     val label = when {
         state.focusPaused -> "Focus · Paused"
         else -> "Focus · $mins min left"
@@ -92,7 +92,7 @@ fun FocusStatusPill(
             color = Color.White,
             fontFamily = Outfit,
             fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
+            fontSize = 14.sp, lineHeight = 18.sp,
             modifier = Modifier.weight(1f)
         )
         Icon(

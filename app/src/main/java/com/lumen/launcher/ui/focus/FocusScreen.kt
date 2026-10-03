@@ -4,38 +4,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.AllInclusive
-import androidx.compose.material.icons.outlined.Call
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Eco
-import androidx.compose.material.icons.outlined.NotificationsOff
-import androidx.compose.material.icons.outlined.Pause
-import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,308 +27,94 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.focus.FocusPerson
 import com.lumen.launcher.ui.theme.Outfit
-import kotlinx.coroutines.delay
-
-private val FocusGreen = Color(0xFF34D399)
-private val FocusGreenDeep = Color(0xFF059669)
-private val FocusBlue = Color(0xFF60A5FA)
-private val FocusPurple = Color(0xFFA78BFA)
-private val FocusRed = Color(0xFFFB7185)
 
 @Composable
-fun FocusActiveScreen(
-    remainingMs: Long,
-    totalMs: Long,
-    paused: Boolean,
-    people: List<FocusPerson>,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
-    onExtend: () -> Unit,
-    onEnd: () -> Unit,
-    onAddSomeone: () -> Unit
-) {
-    var nowTick by remember { mutableStateOf(0) }
-    LaunchedEffect(paused) {
-        while (!paused) {
-            nowTick++
-            delay(1000)
-        }
-    }
-    val remaining = remainingMs // parent refreshes while running
-    val total = totalMs.takeIf { it > 0 } ?: remaining.coerceAtLeast(1L)
-    val progress = ((total - remaining).toFloat() / total.toFloat()).coerceIn(0f, 1f)
-    val mins = (remaining / 60_000L).coerceAtLeast(0)
-
-    Column(
-        Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            "Quiet, without becoming unreachable.",
-            color = Color.White.copy(0.65f),
-            fontFamily = Outfit,
-            fontSize = 13.sp
-        )
-
-        FocusHeroRing(
-            progress = progress,
-            label = if (paused) "Paused" else "$mins minutes left"
-        )
-
-        FocusOnCard()
-
-        CanReachYouCard(people = people, onAddSomeone = onAddSomeone)
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            FocusControlButton(
-                label = if (paused) "Resume" else "Pause",
-                icon = if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                tint = FocusGreen,
-                onClick = if (paused) onResume else onPause,
-                modifier = Modifier.weight(1f)
-            )
-            FocusControlButton(
-                label = "+15 min",
-                icon = Icons.Outlined.Timer,
-                tint = FocusBlue,
-                onClick = onExtend,
-                modifier = Modifier.weight(1f)
-            )
-            FocusControlButton(
-                label = "End",
-                icon = Icons.Outlined.Stop,
-                tint = FocusRed,
-                filled = true,
-                onClick = onEnd,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(0.05f))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.NotificationsOff, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Silencing distractions · ${people.size} can reach you",
-                color = Color.White.copy(0.6f),
-                fontFamily = Outfit,
-                fontSize = 12.sp
-            )
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(top = 2.dp)
-        ) {
-            Icon(Icons.Outlined.AllInclusive, null, tint = FocusGreen.copy(0.7f), modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "Focus keeps running when you switch Spaces.",
-                color = Color.White.copy(0.45f),
-                fontFamily = Outfit,
-                fontSize = 11.sp
-            )
-        }
-        // keep tick referenced
-        @Suppress("UNUSED_EXPRESSION")
-        nowTick
-    }
-}
-
-@Composable
-private fun FocusHeroRing(progress: Float, label: String) {
-    Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val stroke = 14.dp.toPx()
-            val arc = Size(size.minDimension - stroke, size.minDimension - stroke)
-            val topLeft = Offset((size.width - arc.width) / 2f, (size.height - arc.height) / 2f)
-            drawArc(
-                color = Color.White.copy(0.08f),
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = topLeft,
-                size = arc,
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
-            drawArc(
-                brush = Brush.sweepGradient(listOf(FocusBlue, FocusPurple, FocusGreen, FocusBlue)),
-                startAngle = -90f,
-                sweepAngle = 360f * (1f - progress).coerceIn(0.02f, 1f),
-                useCenter = false,
-                topLeft = topLeft,
-                size = arc,
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
-        }
-        Text(
-            label,
-            color = Color.White,
-            fontFamily = Outfit,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 22.sp
-        )
-    }
-}
-
-@Composable
-private fun FocusOnCard() {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xCC142018))
-            .border(1.dp, FocusGreen.copy(0.3f), RoundedCornerShape(18.dp))
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(FocusGreen.copy(0.2f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Outlined.Eco, null, tint = FocusGreen, modifier = Modifier.size(20.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text("Focus is ON", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Text(
-                "Everything is silenced except your selected people.",
-                color = Color.White.copy(0.6f),
-                fontFamily = Outfit,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun CanReachYouCard(people: List<FocusPerson>, onAddSomeone: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(Color.White.copy(0.06f))
-            .border(0.8.dp, Color.White.copy(0.12f), shape)
-            .padding(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Can reach you",
-                color = Color.White,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f)
-            )
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(FocusGreen.copy(0.18f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text("${people.size}", color = FocusGreen, fontFamily = Outfit, fontSize = 12.sp)
+fun FocusActiveScreen(remainingMs: Long, totalMs: Long, paused: Boolean, people: List<FocusPerson>,
+                      capabilityNote: String, onPause: () -> Unit, onResume: () -> Unit,
+                      onExtend: () -> Unit, onEnd: () -> Unit, onAddSomeone: () -> Unit) {
+    var details by remember { mutableStateOf(false) }
+    val minutes = (remainingMs + 59_999L) / 60_000L
+    val fraction = (remainingMs.toFloat() / totalMs.coerceAtLeast(1)).coerceIn(0f, 1f)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                Text("Quiet,\nwithout becoming\nunreachable.", color = Color(0xFFA9CEFF), fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, lineHeight = 26.sp)
+                Spacer(Modifier.height(10.dp))
+                Text("Silence distractions.\nKeep the people who matter.", color = FocusMuted, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+            Box(Modifier.size(160.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val inset = 10.dp.toPx()
+                    val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                    drawCircle(Brush.radialGradient(listOf(Color(0x303C9FEF), Color.Transparent)), radius = size.width / 2)
+                    drawArc(Color(0xFF253B4B), -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(8.dp.toPx(), cap = StrokeCap.Round))
+                    drawArc(Brush.sweepGradient(listOf(Color(0xFF8EA9FF), Color(0xFFAA8DFF), Color(0xFF44BFEF), Color(0xFF8EA9FF))),
+                        -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(8.dp.toPx(), cap = StrokeCap.Round))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$minutes", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 42.sp, lineHeight = 48.sp)
+                    Text(if (paused) "paused" else "minutes left", color = Color(0xFFD8E4F5), fontFamily = Outfit, fontSize = 14.sp, lineHeight = 20.sp)
+                }
             }
         }
-        Spacer(Modifier.height(10.dp))
-        if (people.isEmpty()) {
-            Text(
-                "No one selected — everyone is silenced.",
-                color = Color.White.copy(0.5f),
-                fontFamily = Outfit,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        } else {
-            people.forEach { person ->
-                PersonReachRow(person)
-                Spacer(Modifier.height(8.dp))
+        FocusGlass(Modifier.clickable { details = true }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Eco, null, tint = Color(0xFF9AF0B2), modifier = Modifier.size(30.dp))
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(if (paused) "Focus is paused" else "Focus is ON", color = Color.White, fontFamily = Outfit, fontSize = 15.sp, lineHeight = 20.sp)
+                    Text(if (paused) "Your previous sound settings are restored." else "Selected callers can reach you.", color = FocusMuted, fontSize = 11.sp, lineHeight = 16.sp)
+                }
+                Text("›", color = FocusMuted, fontSize = 24.sp)
             }
         }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onAddSomeone)
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.Add, null, tint = FocusGreen, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("+ Add someone", color = FocusGreen, fontFamily = Outfit, fontSize = 14.sp)
+        FocusRingCheck()
+        Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Selected people", Modifier.weight(1f), color = Color.White, fontFamily = Outfit, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium)
+            Text("${people.size}", Modifier.clip(CircleShape).background(Color(0xFF24313E)).padding(horizontal = 9.dp, vertical = 3.dp), color = FocusMuted, fontSize = 12.sp)
+        }
+        if (people.isEmpty()) Text("Add people to allow their ordinary phone calls during Focus.", color = FocusMuted, fontSize = 12.sp, lineHeight = 17.sp)
+        people.forEach { person ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(FocusSurface)
+                .border(1.dp, Color(0xFF283540), RoundedCornerShape(13.dp)).padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                FocusContactAvatar(person, 34.dp)
+                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                    Text(person.name, color = Color.White, fontFamily = Outfit, fontSize = 14.sp, lineHeight = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(person.reach.label() + " · saved", color = FocusMuted, fontSize = 10.sp, lineHeight = 14.sp)
+                }
+                FocusContactIndicators(person)
+            }
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(FocusSurface).clickable(onClick = onAddSomeone).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0xFF455D77)), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Add, null, tint = Color.White, modifier = Modifier.size(23.dp)) }
+            Text("Add someone", Modifier.weight(1f).padding(start = 10.dp), color = Color.White, fontFamily = Outfit, fontSize = 14.sp, lineHeight = 19.sp)
+            Text("›", color = FocusMuted, fontSize = 22.sp)
+        }
+        FocusRingCheck()
+        Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FocusControl(if (paused) "Resume" else "Pause", if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (paused) onResume else onPause, Modifier.weight(1f))
+            FocusControl("+15 min", Icons.Outlined.Schedule, onExtend, Modifier.weight(1f))
+            FocusControl("End", Icons.Outlined.Stop, onEnd, Modifier.weight(1f), danger = true)
+        }
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.NotificationsOff, null, tint = FocusMuted, modifier = Modifier.size(13.dp))
+            Text("  Quiet mode · Android manages interruptions", color = FocusMuted, fontSize = 10.sp, lineHeight = 15.sp)
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(1.dp, Color(0xFF36475F), RoundedCornerShape(20.dp)).padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.AllInclusive, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
+            Text("  Focus keeps running when you switch Spaces.", color = FocusAccent, fontSize = 10.sp, lineHeight = 14.sp)
         }
     }
+    if (details) AlertDialog(onDismissRequest = { details = false }, containerColor = Color(0xFF15202C),
+        title = { Text("Your Focus policy", color = Color.White) }, text = { Text(capabilityNote, color = FocusMuted) },
+        confirmButton = { TextButton(onClick = { details = false }) { Text("Got it", color = FocusAccent) } })
 }
 
 @Composable
-private fun PersonReachRow(person: FocusPerson) {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PersonAvatar(person.name, person.avatarColor, 40.dp)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                person.name,
-                color = Color.White,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                person.reach.label(),
-                color = Color.White.copy(0.5f),
-                fontFamily = Outfit,
-                fontSize = 11.sp
-            )
-        }
-        if (person.reach.allowsCalls) {
-            Icon(Icons.Outlined.Call, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-        }
-        if (person.reach.allowsMessages) {
-            Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun FocusControlButton(
-    label: String,
-    icon: ImageVector,
-    tint: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    filled: Boolean = false
-) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (filled) tint.copy(0.18f) else Color.White.copy(0.07f))
-            .border(1.dp, if (filled) tint.copy(0.45f) else Color.White.copy(0.12f), RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(6.dp))
-        Text(label, color = Color.White, fontFamily = Outfit, fontSize = 12.sp)
+private fun FocusControl(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier, danger: Boolean = false) {
+    Column(modifier.clip(RoundedCornerShape(17.dp)).background(if (danger) Brush.verticalGradient(listOf(Color(0xFF381D23), Color(0xFF25181D))) else FocusSurface)
+        .border(1.dp, if (danger) Color(0xFF72343D) else Color(0xFF344454), RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, tint = if (danger) Color(0xFFFF8795) else Color.White, modifier = Modifier.size(23.dp))
+        Spacer(Modifier.height(5.dp))
+        Text(label, color = if (danger) Color(0xFFFF8795) else Color.White, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = Outfit)
     }
 }

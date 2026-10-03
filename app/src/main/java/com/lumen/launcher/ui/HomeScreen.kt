@@ -135,7 +135,7 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Color.Black.copy(alpha = 0.42f) else Color.Transparent)) {
+    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(listOf(Color(0xFF0B2337), Color(0xFF090E14), Color(0xFF101723))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
         val gridGap = 12.dp
         val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
@@ -168,7 +168,7 @@ fun HomeScreen(
         val density = LocalDensity.current
         val iconPx = with(density) { homeIconSize.toPx() }
         val gridState = rememberLazyGridState()
-        LaunchedEffect(isActive, state.activeSpace) {
+        LaunchedEffect(isActive, state.activeSpace, state.focusing) {
             slotOrigins.clear()
             if (isActive) gridState.scrollToItem(0)
         }
@@ -482,7 +482,8 @@ fun HomeScreen(
                 }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (state.activeSpace == SpaceKind.Focus) 0.dp else 16.dp))
+            if (state.activeSpace == SpaceKind.Focus) Spacer(Modifier.navigationBarsPadding())
             DockBar(
                 apps = state.dock,
                 slotCount = state.dockCapacity,
@@ -900,6 +901,7 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                     .clip(chipShape)
                     .then(
                         when {
+                            active && selected == SpaceKind.Focus -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFB6B7FF), Color(0xFF8E94F5))))
                             active && white -> Modifier.background(
                                 Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
                             )
