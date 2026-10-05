@@ -81,7 +81,7 @@ class FocusSoundPlayer private constructor(context: Context) {
         val sound = soundRef.get()
         if (sound == FocusSound.Off) return
         val sampleRate = 22_050
-        val loop = FocusSoundSynth.loop(sound, sampleRate, seconds = 4)
+        val loop = FocusSoundSynth.loop(sound, sampleRate, seconds = 24)
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -96,20 +96,22 @@ class FocusSoundPlayer private constructor(context: Context) {
             .setAudioAttributes(attrs)
             .setAudioFormat(format)
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes((minBuf * 2).coerceAtLeast(loop.size * 2))
+            .setBufferSizeInBytes((minBuf * 2).coerceAtLeast(4096))
             .build()
         track = audio
         playing.set(true)
         if (session) acquireWakeLock()
         audio.play()
         worker = Thread({
-            val scratch = ShortArray(loop.size)
+            val scratch = ShortArray(512)
+            var cursor = 0
             try {
                 while (playing.get() && !Thread.currentThread().isInterrupted) {
                     val g = gain
-                    for (i in loop.indices) {
-                        scratch[i] = (loop[i] * g).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    for (i in scratch.indices) {
+                        scratch[i] = (loop[(cursor + i) % loop.size] * g).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
                     }
+                    cursor = (cursor + scratch.size) % loop.size
                     var offset = 0
                     while (offset < scratch.size && playing.get()) {
                         val written = audio.write(scratch, offset, scratch.size - offset)
@@ -183,16 +185,16 @@ internal object FocusSoundSynth {
                     white * 0.22 + (rnd.nextDouble() * 2 - 1) * 0.08 * sin(t * 18)
                 }
                 FocusSound.Forest -> {
-                    val breeze = (rnd.nextDouble() * 2 - 1) * 0.12
-                    val bird = if (i % (sampleRate * 2) in 0..(sampleRate / 10)) {
-                        sin(2 * PI * (1800 + 200 * sin(t * 3)) * t) * 0.04
+                    val breeze = (rnd.nextDouble() * 2 - 1) * 0.025
+                    val bird = if (i % (sampleRate * 3) in 0..(sampleRate / 3)) {
+                        sin(2 * PI * (2200 + 500 * sin(t * 14)) * t) * 0.16 * sin(PI * ((t % 3.0) * 3.0))
                     } else 0.0
                     breeze + bird
                 }
                 FocusSound.Ocean -> {
                     lfophase += 2 * PI * 0.08 / sampleRate
                     val swell = (sin(lfophase) * 0.5 + 0.5)
-                    (rnd.nextDouble() * 2 - 1) * 0.18 * swell
+                    (rnd.nextDouble() * 2 - 1) * 0.32 * swell * swell
                 }
                 FocusSound.Fireplace -> {
                     val crackle = if (rnd.nextDouble() < 0.02) (rnd.nextDouble() * 2 - 1) * 0.35 else 0.0

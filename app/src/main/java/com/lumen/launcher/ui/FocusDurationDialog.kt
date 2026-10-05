@@ -92,7 +92,7 @@ fun FocusDurationDialog(
         mins.takeIf { it in 1..1440 }
     }
 
-    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.82f) {
+    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.82f, lockDismiss = true) {
         Text(
             "Custom Focus Time",
             color = Color.White,
@@ -262,20 +262,13 @@ private fun GlassTimeColumn(
             }
     }
 
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.clip(RoundedCornerShape(24.dp)).background(Color(0x6614273F)).border(1.dp, Color(0x554D719F), RoundedCornerShape(24.dp)).padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, color = FocusMuted, fontFamily = Outfit, fontSize = 11.sp, letterSpacing = 1.2.sp)
         Spacer(Modifier.height(4.dp))
-        Icon(
-            Icons.Outlined.KeyboardArrowUp,
-            contentDescription = "Higher",
-            tint = if (canUp) FocusAccent.copy(alpha = 0.9f) else FocusMuted.copy(alpha = 0.25f),
-            modifier = Modifier
-                .size(22.dp)
-                .clickable(enabled = canUp) { stepBy(-1) }
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .height(wheelHeight)
                 .shadow(14.dp, wellShape, ambientColor = Color.Black.copy(0.45f), spotColor = FocusAccent.copy(0.35f))
                 .clip(wellShape)
@@ -308,7 +301,7 @@ private fun GlassTimeColumn(
                     .clip(bandShape)
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF9AA6FF), Color(0xFF5175FF), Color(0xFF3A5AE0))
+                            listOf(Color(0xFF4430A9), Color(0xFF3546CF), Color(0xFF2755DA))
                         )
                     )
                     .border(
@@ -336,12 +329,12 @@ private fun GlassTimeColumn(
                     ) {
                         Text(
                             display(item),
-                            color = if (selected) FocusCtaText else FocusMuted.copy(alpha = 0.4f),
+                            color = if (selected) Color.White else FocusMuted.copy(alpha = 0.85f),
                             fontFamily = Outfit,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                             fontSize = if (selected) 28.sp else 20.sp,
                             modifier = Modifier.graphicsLayer {
-                                alpha = if (selected) 1f else 0.5f
+                                alpha = if (selected) 1f else 0.85f
                                 scaleX = if (selected) 1.08f else 0.92f
                                 scaleY = if (selected) 1.08f else 0.92f
                                 translationY = if (selected) 0f else 0f
@@ -361,7 +354,7 @@ private fun GlassTimeColumn(
                     .height(itemHeight)
                     .background(
                         Brush.verticalGradient(
-                            listOf(FocusInk.copy(alpha = 0.72f), Color.Transparent)
+                            listOf(FocusInk.copy(alpha = 0.2f), Color.Transparent)
                         )
                     )
             )
@@ -372,19 +365,30 @@ private fun GlassTimeColumn(
                     .height(itemHeight)
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, FocusInk.copy(alpha = 0.72f))
+                            listOf(Color.Transparent, FocusInk.copy(alpha = 0.2f))
                         )
                     )
             )
         }
+        Column(Modifier.height(wheelHeight), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            Icons.Outlined.KeyboardArrowUp,
+            contentDescription = "Higher",
+            tint = if (canUp) FocusAccent.copy(alpha = 0.9f) else FocusMuted.copy(alpha = 0.25f),
+            modifier = Modifier
+                .size(32.dp)
+                .clickable(enabled = canUp) { stepBy(-1) }
+        )
         Icon(
             Icons.Outlined.KeyboardArrowDown,
             contentDescription = "Lower",
             tint = if (canDown) FocusAccent.copy(alpha = 0.9f) else FocusMuted.copy(alpha = 0.25f),
             modifier = Modifier
-                .size(22.dp)
+                .size(32.dp)
                 .clickable(enabled = canDown) { stepBy(1) }
         )
+        }
+        }
     }
 }
 
@@ -395,7 +399,7 @@ private fun SuggestionChip(
     icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(50)
+    val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier
             .shadow(

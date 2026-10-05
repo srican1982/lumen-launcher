@@ -58,17 +58,11 @@ internal fun FocusPopupSheet(
     onDismiss: () -> Unit,
     /** Fraction of screen height for tall pickers (apps / contacts). */
     heightFraction: Float = 0.78f,
+    lockDismiss: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val maxH = (LocalConfiguration.current.screenHeightDp * heightFraction).dp
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.Transparent,
-        scrimColor = Color(0x6605081D),
-        dragHandle = null,
-        contentWindowInsets = { WindowInsets.safeDrawing }
-    ) {
+    val sheetContent: @Composable () -> Unit = {
         val frame = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
         val card = RoundedCornerShape(24.dp)
         Column(
@@ -83,15 +77,16 @@ internal fun FocusPopupSheet(
                 .border(1.dp, Color.White.copy(alpha = 0.35f), frame)
                 .padding(horizontal = 14.dp)
         ) {
-            BottomSheetDefaults.DragHandle(
+            if (!lockDismiss) BottomSheetDefaults.DragHandle(
                 color = Color.White.copy(alpha = 0.65f),
                 modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+            ) else Spacer(Modifier.height(14.dp))
             BackHandler(onBack = onDismiss)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = maxH)
+                    .heightIn(max = if (lockDismiss) maxH - 76.dp else maxH)
+                    .then(if (lockDismiss) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                     .clip(card)
                     .background(Color(0xF212182A))
                     .border(1.dp, Color.White.copy(alpha = 0.12f), card)
@@ -104,6 +99,21 @@ internal fun FocusPopupSheet(
             Spacer(Modifier.height(10.dp))
         }
     }
+    if (lockDismiss) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
+                dismissOnBackPress = true, dismissOnClickOutside = false)) {
+            Box(Modifier.fillMaxSize().background(Color(0x6605081D)).statusBarsPadding().padding(bottom = maxOf(WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(), 64.dp) + 12.dp), contentAlignment = Alignment.BottomCenter) {
+                sheetContent()
+            }
+        }
+    } else {
+        ModalBottomSheet(onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Color.Transparent, scrimColor = Color(0x6605081D), dragHandle = null,
+            contentWindowInsets = { WindowInsets.safeDrawing }) { sheetContent() }
+    }
+
 }
 
 /** Clears 3-button / gesture nav under Done / Save CTAs. */
@@ -135,14 +145,14 @@ internal val FocusDanger = Color(0xFFFF6B8A)
 internal val FocusOk = Color(0xFF34D399)
 
 @Composable
-internal fun FocusGlass(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+internal fun FocusGlass(modifier: Modifier = Modifier, contentPadding: Dp = 14.dp, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(FocusSurface)
             .border(1.dp, FocusBorder, RoundedCornerShape(20.dp))
-            .padding(14.dp),
+            .padding(contentPadding),
         content = content
     )
 }
@@ -258,7 +268,7 @@ internal fun FocusGlassTile(
                 shape = shape
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 10.dp)
+            .padding(horizontal = 6.dp, vertical = if (height <= 70.dp) 6.dp else 10.dp)
     ) {
         Column(
             Modifier.fillMaxSize(),
@@ -266,7 +276,7 @@ internal fun FocusGlassTile(
             verticalArrangement = Arrangement.Center
         ) {
             icon()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(if (height <= 70.dp) 4.dp else 8.dp))
             Text(
                 label,
                 color = Color.White,

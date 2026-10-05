@@ -56,15 +56,15 @@ internal fun FocusAppsSection(dismissSignal: Int = 0) {
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(preview, key = { it.packageName }) { app ->
-                FocusGlassTile(label = app.label, onClick = { show = true }) {
-                    AppIcon(app.packageName, app.activityName, 40.dp, icons, showNotificationBadge = false)
+                FocusGlassTile(label = app.label, width = 64.dp, height = 64.dp, onClick = { show = true }) {
+                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
                 }
             }
             item(key = "manage_apps") {
-                FocusGlassTile(label = "Manage apps", onClick = { show = true }) {
+                FocusGlassTile(label = "Add apps", width = 64.dp, height = 64.dp, onClick = { show = true }) {
                     Box(
                         Modifier
-                            .size(40.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.10f))
                             .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
@@ -212,7 +212,7 @@ private fun AllowedAppsDialog(
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AppIcon(app.packageName, app.activityName, 40.dp, icons, showNotificationBadge = false)
+                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(app.label, color = Color.White, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
                         Text(appSubtitle(app), color = FocusMuted, fontSize = 12.sp, fontFamily = Outfit)

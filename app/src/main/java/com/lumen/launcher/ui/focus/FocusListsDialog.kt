@@ -41,50 +41,49 @@ internal fun FocusGroupCards(dismissSignal: Int = 0) {
     var create by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     LaunchedEffect(dismissSignal) { open = null; create = false }
+    val groupMembers = remember(groups, revision) { groups.associate { it.id to repo.peopleForGroup(it.id) } }
+    val sortedGroups = remember(groups, groupMembers) { groups.sortedByDescending { groupMembers[it.id].orEmpty().size } }
+
     LazyRow(
         Modifier
             .fillMaxWidth()
             .focusContainHorizontalScroll(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(groups, key = { it.id }) { group ->
+        items(sortedGroups, key = { it.id }) { group ->
             val isSelected = group.id in selected
-            val members = remember(group.id, revision) { repo.peopleForGroup(group.id) }
-            FocusGlassTile(
-                label = group.title,
-                selected = isSelected,
-                onClick = { open = group.id },
-                topTrailing = {
-                    Box(
-                        Modifier
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(if (isSelected) FocusAccent else Color.Transparent)
-                            .border(1.dp, if (isSelected) FocusAccent else Color.White.copy(0.35f), CircleShape)
-                            .clickable { repo.selectGroup(group.id, !isSelected) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSelected) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(11.dp))
+            val members = groupMembers[group.id].orEmpty()
+            Row(Modifier.width(176.dp).height(56.dp).clip(RoundedCornerShape(14.dp))
+                .background(if(isSelected) FocusCardSelected else FocusCard)
+                .border(1.dp, if(isSelected) FocusAccent else FocusBorder, RoundedCornerShape(14.dp))
+                .clickable { open = group.id }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (members.isEmpty()) FocusGroupAvatar(group, members, 30.dp)
+                else Box(Modifier.width((30 + (minOf(members.size, 3) - 1) * 18).dp).height(30.dp)) {
+                    members.take(3).forEachIndexed { index, person ->
+                        Box(Modifier.offset(x = (index * 18).dp).size(30.dp).clip(CircleShape)
+                            .background(FocusCard).border(1.dp, FocusBorder, CircleShape).padding(1.dp)) {
+                            FocusContactAvatar(person, 28.dp)
+                        }
                     }
                 }
-            ) {
-                FocusGroupAvatar(group, members, 40.dp)
+                Column(Modifier.weight(1f).padding(start = 7.dp)) {
+                    Text(group.title, color = Color.White, fontSize = 11.sp, maxLines = 1)
+                    Text(if (members.isEmpty()) "Tap to add" else "${members.size} ${if (members.size == 1) "contact" else "contacts"}", color = FocusMuted, fontSize = 9.sp)
+                }
+                Box(Modifier.size(24.dp).clip(CircleShape).border(1.5.dp, if(isSelected) FocusAccent else FocusMuted, CircleShape)
+                    .background(if(isSelected) FocusAccent else Color.Transparent)
+                    .clickable { repo.selectGroup(group.id, !isSelected) }, contentAlignment = Alignment.Center) {
+                    if(isSelected) Icon(Icons.Filled.Check, "Selected", tint = Color.White, modifier = Modifier.size(15.dp))
+                }
             }
         }
         item(key = "new_group") {
-            FocusGlassTile(
-                label = "New group",
-                onClick = { create = true }
-            ) {
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.AddCircleOutline, null, tint = FocusMuted, modifier = Modifier.size(22.dp))
+            Row(Modifier.width(176.dp).height(56.dp).clip(RoundedCornerShape(14.dp)).background(FocusCard)
+                .border(1.dp, FocusBorder, RoundedCornerShape(14.dp)).clickable { create = true }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.AddCircleOutline, null, tint = FocusMuted, modifier = Modifier.size(30.dp))
+                Column(Modifier.padding(start = 7.dp)) {
+                    Text("New group", color = Color.White, fontSize = 11.sp)
+                    Text("Add people", color = FocusMuted, fontSize = 9.sp)
                 }
             }
         }

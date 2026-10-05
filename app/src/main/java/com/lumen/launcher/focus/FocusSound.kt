@@ -15,9 +15,9 @@ enum class FocusSound(
     BrownNoise("brown", "Brown noise");
 
     companion object {
-        val selectable = entries.filter { it != Off }
+        val selectable = entries.filter { it != Off && it != Fireplace }
         fun fromId(raw: String?): FocusSound =
-            entries.firstOrNull { it.id.equals(raw, ignoreCase = true) } ?: Off
+            entries.firstOrNull { it != Fireplace && it.id.equals(raw, ignoreCase = true) } ?: Off
     }
 }
 

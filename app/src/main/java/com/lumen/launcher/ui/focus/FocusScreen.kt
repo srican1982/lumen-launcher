@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -71,11 +72,16 @@ fun FocusActiveScreen(
 ) {
     val context = LocalContext.current
     val icons = remember { IconCache(context) }
-    val selectedPkgs = remember { FocusAppAccess.selected(context) }
-    val apps by produceState(emptyList()) {
+    var appRevision by remember { mutableStateOf(0) }
+    val selectedPkgs = remember(appRevision) { FocusAppAccess.selected(context) }
+    val apps by produceState(emptyList(), appRevision) {
         val all = AppRepository(context).loadLaunchableApps().distinctBy { it.packageName }
         value = all.filter { it.packageName in selectedPkgs }.sortedBy { it.label.lowercase() }
     }
+    val repo = com.lumen.launcher.focus.FocusAllowedPeopleRepository.get(context)
+    val groups by repo.groups.collectAsState()
+    val selectedGroups by repo.selectedGroups.collectAsState()
+    var manageApps by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(false) }
     val underOneMinute = remainingMs < 60_000L
     val countdownValue = if (underOneMinute) {
@@ -117,7 +123,7 @@ fun FocusActiveScreen(
                         lineHeight = 18.sp
                     )
                 }
-                Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(184.dp), contentAlignment = Alignment.Center) {
                     Canvas(Modifier.fillMaxSize()) {
                         val inset = 10.dp.toPx()
                         val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
@@ -191,59 +197,29 @@ fun FocusActiveScreen(
                 Text("›", color = FocusMuted, fontSize = 24.sp)
             }
         }
-        FocusRingCheck()
-        Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Allowed apps", Modifier.weight(1f), color = Color.White, fontFamily = Outfit, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium)
-            Text("${apps.size}", Modifier.clip(CircleShape).background(Color(0xFF24313E)).padding(horizontal = 9.dp, vertical = 3.dp), color = FocusMuted, fontSize = 12.sp)
-        }
-        if (apps.isEmpty()) {
-            Text("No apps selected. End Focus and choose apps in setup to use them here.", color = FocusMuted, fontSize = 12.sp, lineHeight = 17.sp)
-        } else {
-            LazyRow(
-                Modifier.fillMaxWidth().focusContainHorizontalScroll(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(apps, key = { it.packageName }) { app ->
-                    FocusGlassTile(label = app.label, onClick = { onLaunchApp(app) }) {
-                        AppIcon(app.packageName, app.activityName, 40.dp, icons, showNotificationBadge = false)
-                    }
-                }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FocusGlass(Modifier.weight(1f).fillMaxHeight().clickable(onClick = onAddSomeone)) {
+                Text(groups.filter { it.id in selectedGroups }.joinToString(" + ") { it.title }.ifBlank { "Selected people" }, color = Color.White, fontSize = 14.sp)
+                Text("${people.size} contacts can call you", color = FocusMuted, fontSize = 11.sp)
             }
-            Text("Tap an app to open it. Media sound stays on during Focus.", color = FocusMuted, fontSize = 11.sp, lineHeight = 15.sp)
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Selected people", Modifier.weight(1f), color = Color.White, fontFamily = Outfit, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium)
-            Text("${people.size}", Modifier.clip(CircleShape).background(Color(0xFF24313E)).padding(horizontal = 9.dp, vertical = 3.dp), color = FocusMuted, fontSize = 12.sp)
-        }
-        if (people.isEmpty()) {
-            Text("Add people to allow their ordinary phone calls during Focus.", color = FocusMuted, fontSize = 12.sp, lineHeight = 17.sp)
-        }
-        LazyRow(
-            Modifier.fillMaxWidth().focusContainHorizontalScroll(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(people, key = { it.id }) { person ->
-                FocusGlassTile(label = person.name, onClick = { }) {
-                    FocusContactAvatar(person, 40.dp)
-                }
-            }
-            item(key = "add_someone") {
-                FocusGlassTile(label = "Add", onClick = onAddSomeone) {
-                    Box(
-                        Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.10f))
-                            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Add, null, tint = FocusMuted, modifier = Modifier.size(22.dp))
-                    }
-                }
+            FocusGlass(Modifier.weight(1f).fillMaxHeight()) {
+                Icon(Icons.Outlined.NotificationsOff, null, tint = FocusAccent, modifier = Modifier.size(22.dp))
+                Text("Distractions silenced during Focus.", color = FocusMuted, fontSize = 11.sp)
             }
         }
-        FocusDoneSection(doneEntries)
-        FocusRingCheck()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Allowed apps (${apps.size})", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
+            TextButton(onClick = { manageApps = true }) { Text("Manage apps", color = FocusAccent) }
+        }
+        LazyRow(Modifier.fillMaxWidth().focusContainHorizontalScroll(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(apps, key = { it.packageName }) { app ->
+                FocusGlassTile(label = app.label, width = 64.dp, height = 64.dp, onClick = { onLaunchApp(app) }) {
+                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
+                }
+            }
+            item { FocusGlassTile(label = "Add app", width = 64.dp, height = 64.dp, onClick = { manageApps = true }) { Icon(Icons.Outlined.Add, null, tint = FocusAccent) } }
+        }
+        FocusActiveSoundCard()
         Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FocusControl(if (paused) "Resume" else "Pause", if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (paused) onResume else onPause, Modifier.weight(1f))
             FocusControl("+15 min", Icons.Outlined.Schedule, onExtend, Modifier.weight(1f))
@@ -257,6 +233,10 @@ fun FocusActiveScreen(
             Icon(Icons.Outlined.AllInclusive, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
             Text("  Focus keeps running when you switch Spaces.", color = FocusAccent, fontSize = 10.sp, lineHeight = 14.sp)
         }
+    }
+    if (manageApps) FocusPopupSheet(onDismiss = { manageApps = false; appRevision++ }) {
+        FocusAppsSection()
+        FocusPrimaryAction("Done", action = { manageApps = false; appRevision++ })
     }
     if (details) AlertDialog(onDismissRequest = { details = false }, containerColor = Color(0xFF15202C),
         title = { Text("Your Focus policy", color = Color.White) }, text = { Text(capabilityNote, color = FocusMuted) },

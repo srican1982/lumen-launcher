@@ -53,13 +53,16 @@ fun FocusSetupSheet(
             onSettingsChange(settings.copy(silenceEveryoneElse = true))
         }
     }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val selectedGroups by remember { FocusAllowedPeopleRepository.get(context) }.selectedGroups.collectAsState()
+    val groupLabel = groups.filter { it.id in selectedGroups }.joinToString(", ") { it.title }.ifBlank { "Yourself" }
     val duration = settings.lastDurationMinutes
     val start = FocusStartButtonAction {
         onSettingsChange(settings.copy(silenceEveryoneElse = true))
         onStart(duration)
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        FocusLandscapeHero(taskLabel = taskLabel, onPickTask = onPickTask)
+        FocusTimerHero(minutes = duration, group = groupLabel, taskLabel = taskLabel, onPickTask = onPickTask, onStart = start)
         FocusDoneSection(doneEntries)
 
         Text("1. How long do you want to focus?", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)

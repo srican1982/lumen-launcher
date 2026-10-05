@@ -43,6 +43,24 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
     val context = LocalContext.current
     val media by NowPlayingRepository.state.collectAsState()
     val expanded = state.workspaceOpen
+    val travelPrefs = remember { context.getSharedPreferences("travel_discovery", android.content.Context.MODE_PRIVATE) }
+    var travelDiscovered by remember { mutableStateOf(travelPrefs.getBoolean("opened", false)) }
+    val travelPulse = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(state.activeSpace, travelDiscovered) {
+        if (state.activeSpace == SpaceKind.Travel && !travelDiscovered) {
+            repeat(2) {
+                travelPulse.animateTo(1f, androidx.compose.animation.core.tween(850))
+                travelPulse.animateTo(0f, androidx.compose.animation.core.tween(850))
+            }
+        }
+    }
+    LaunchedEffect(expanded, state.activeSpace) {
+        if (expanded && state.activeSpace == SpaceKind.Travel) {
+            travelPrefs.edit().putBoolean("opened", true).apply()
+            travelDiscovered = true
+        }
+    }
+
     var boardingPasses by remember(state.activeSpace, state.homePulse) { mutableStateOf(false) }
     var travelCategory by remember(state.activeSpace, state.homePulse) { mutableStateOf<TravelCategory?>(null) }
     val savedCategories = TravelCategory.entries.filter { category -> state.travelAttachments.any { it.travelCategory == category } }
@@ -72,7 +90,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
     }
     val detail = when (state.activeSpace) {
         SpaceKind.Home -> state.upNext?.detail ?: event?.let { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin)) } ?: if (task != null) "Your next task" else "A little breathing room."
-        SpaceKind.Work -> event?.let { "Next meeting  ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin))}" } ?: "Tasks, notes and a clear focus."
+        SpaceKind.Work -> event?.let { "Next meeting ï¿½ ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin))}" } ?: "Tasks, notes and a clear focus."
         SpaceKind.Personal -> message?.preview ?: "Messages and your creation studio."
         SpaceKind.Focus -> state.focusTask?.text ?: "Choose a task. Take your time."
         SpaceKind.Travel -> if (state.travelAttachments.isNotEmpty()) "${state.travelAttachments.size} saved travel items" else "Destination, tickets and itinerary."
@@ -91,7 +109,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { touchpad() }
         Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Color.White.copy(0.20f)))
         if (state.focusing) {
-            // Active Focus session — replace the right panel with a return-to-Focus control.
+            // Active Focus session ï¿½ replace the right panel with a return-to-Focus control.
             Box(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
                 FocusTouchpadButton(
                     state = state,
@@ -103,6 +121,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
             Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
                 Column(
                     Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                        .then(if (state.activeSpace == SpaceKind.Travel && !travelDiscovered) Modifier.background(Color(0xFFAA1748).copy(alpha = travelPulse.value * .23f)).border(1.dp, Color(0xFFEB91B1).copy(alpha = travelPulse.value * .8f), RoundedCornerShape(14.dp)) else Modifier)
                         .clickable(onClickLabel = "Open ${state.activeSpace.title} controls") { vm.setWorkspaceOpen(true) }
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
@@ -119,6 +138,7 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                         fontSize = if (state.activeSpace == SpaceKind.Focus && focusing) 28.sp else 16.sp,
                         lineHeight = if (state.activeSpace == SpaceKind.Focus && focusing) 32.sp else 19.sp,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (state.activeSpace == SpaceKind.Travel && !travelDiscovered) Text("Try me >", color = Color(0xFFFFBED2), fontFamily = Outfit, fontSize = 11.sp)
                     if (!showMedia && !clearDay && state.activeSpace != SpaceKind.Travel) Text(detail, color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp,
                         lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (clearDay) {

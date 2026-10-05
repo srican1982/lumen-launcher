@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -101,13 +102,6 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0) {
                 fontFamily = Outfit
             )
         }
-        Text(
-            "Soft background audio while you focus. Off by default.",
-            color = FocusMuted,
-            fontSize = 12.sp,
-            fontFamily = Outfit
-        )
-
         LazyRow(
             Modifier.fillMaxWidth().focusContainHorizontalScroll(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -151,28 +145,9 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0) {
                     .clip(stripShape)
                     .background(Color.White.copy(alpha = 0.06f))
                     .border(1.dp, Color.White.copy(alpha = 0.14f), stripShape)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 10.dp, vertical = 0.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.GraphicEq, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Focus sound",
-                        color = Color.White,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        "${sound.title} · ${(volume * 100).toInt()}%",
-                        color = FocusMuted,
-                        fontFamily = Outfit,
-                        fontSize = 12.sp
-                    )
-                }
-                MiniWaveform(Modifier.fillMaxWidth().height(28.dp), active = previewing || player.isPlaying())
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.VolumeUp, null, tint = FocusMuted, modifier = Modifier.size(18.dp))
                     Slider(
@@ -182,7 +157,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0) {
                             player.setVolume(it)
                         },
                         valueRange = 0.05f..1f,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp).scale(scaleX = 1f, scaleY = 0.65f),
                         colors = SliderDefaults.colors(
                             thumbColor = FocusAccent,
                             activeTrackColor = FocusAccent,
@@ -204,7 +179,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0) {
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(Icons.Filled.PlayArrow, null, tint = FocusAccent, modifier = Modifier.size(16.dp))
-                        Text("Preview", color = FocusAccent, fontFamily = Outfit, fontSize = 12.sp)
+                        Text("Play preview", color = FocusAccent, fontFamily = Outfit, fontSize = 12.sp)
                     }
                 }
             }
@@ -222,7 +197,7 @@ private fun SoundCard(
     val shape = RoundedCornerShape(16.dp)
     Column(
         Modifier
-            .width(92.dp)
+            .width(68.dp)
             .then(
                 if (selected) Modifier.shadow(10.dp, shape, ambientColor = FocusAccent.copy(0.4f), spotColor = FocusAccent.copy(0.5f))
                 else Modifier
@@ -236,7 +211,7 @@ private fun SoundCard(
             )
             .clickable(onClick = onClick)
     ) {
-        Box(Modifier.height(72.dp).fillMaxWidth()) {
+        Box(Modifier.height(46.dp).fillMaxWidth()) {
             art()
             if (selected) {
                 Box(
@@ -267,20 +242,20 @@ private fun SoundCard(
 }
 
 @Composable
-private fun SoundArt(sound: FocusSound) {
+internal fun SoundArt(sound: FocusSound) {
     when (sound) {
         FocusSound.Flute -> {
             Image(
-                painter = painterResource(R.drawable.focus_moonlit_lake),
+                painter = painterResource(R.drawable.focus_sound_flute),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.18f)))
         }
-        FocusSound.Rain -> GradientArt(listOf(Color(0xFF1B3A2F), Color(0xFF0E221C), Color(0xFF244C3A)))
-        FocusSound.Forest -> GradientArt(listOf(Color(0xFF2F5D2E), Color(0xFF17331A), Color(0xFF3E6B2F)))
-        FocusSound.Ocean -> GradientArt(listOf(Color(0xFF1A4B6E), Color(0xFF0D2438), Color(0xFF2A6F9A)))
+        FocusSound.Rain -> Image(painterResource(R.drawable.focus_rain_lake), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        FocusSound.Forest -> Image(painterResource(R.drawable.focus_sound_forest), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        FocusSound.Ocean -> Image(painterResource(R.drawable.focus_sound_ocean), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         FocusSound.Fireplace -> GradientArt(listOf(Color(0xFF6B2E14), Color(0xFF2A1208), Color(0xFFA84A1C)))
         FocusSound.BrownNoise -> GradientArt(listOf(Color(0xFF3A2A4A), Color(0xFF1A1224), Color(0xFF6E4C8A)))
         FocusSound.Off -> OffArt()

@@ -34,26 +34,9 @@ internal fun FocusLandscapeHero(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(188.dp)
+            .height(176.dp)
             .clip(RoundedCornerShape(20.dp))
     ) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(com.lumen.launcher.R.drawable.focus_moonlit_lake),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(
-                        FocusInk.copy(alpha = 0.25f),
-                        FocusInk.copy(alpha = 0.55f),
-                        FocusInk.copy(alpha = 0.9f)
-                    )
-                )
-            )
-        )
         Column(
             Modifier
                 .fillMaxSize()
@@ -64,30 +47,48 @@ internal fun FocusLandscapeHero(
                 Column(Modifier.weight(1f)) {
                     Text(
                         "Focus",
-                        color = Color.White,
+                        style = androidx.compose.ui.text.TextStyle(brush = FocusTitleGradient),
                         fontFamily = Outfit,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
+                        fontSize = 32.sp,
                         lineHeight = 32.sp
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Silence distractions. Stay connected to what truly matters.",
+                        "Silence distractions.\nStay connected to what\ntruly matters.",
                         color = FocusMuted,
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                         fontFamily = Outfit
                     )
                 }
-                Text(
-                    "A quieter you\nA brighter tomorrow.",
-                    color = FocusAccent.copy(alpha = 0.9f),
-                    fontFamily = Outfit,
-                    fontStyle = FontStyle.Italic,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                )
+                Column(Modifier.widthIn(max = 142.dp).padding(start = 8.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "A quieter you\nA brighter tomorrow.",
+                        color = FocusAccent.copy(alpha = 0.9f),
+                        fontFamily = Outfit,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                    Row(
+                        Modifier.heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(FocusCard.copy(alpha = 0.8f))
+                            .border(1.dp, FocusAccent.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
+                            .clickable(onClick = onPickTask)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Outlined.Checklist, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
+                        Text(
+                            taskLabel?.takeIf { it.isNotBlank() } ?: "Pick task",
+                            color = Color.White, fontFamily = Outfit, fontSize = 12.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
                 listOf(
@@ -101,29 +102,7 @@ internal fun FocusLandscapeHero(
                         Text(label, color = FocusMuted, fontSize = 10.sp, lineHeight = 12.sp, fontFamily = Outfit)
                     }
                 }
-                val chipShape = RoundedCornerShape(18.dp)
-                Row(
-                    Modifier
-                        .clip(chipShape)
-                        .background(Color.White.copy(alpha = 0.14f))
-                        .border(1.dp, Color.White.copy(alpha = 0.32f), chipShape)
-                        .clickable(onClick = onPickTask)
-                        .padding(horizontal = 11.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Icon(Icons.Outlined.Checklist, null, tint = FocusAccent, modifier = Modifier.size(15.dp))
-                    Text(
-                        if (taskLabel.isNullOrBlank()) "Pick task" else taskLabel,
-                        color = Color.White,
-                        fontFamily = Outfit,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 96.dp)
-                    )
-                }
+
             }
         }
     }

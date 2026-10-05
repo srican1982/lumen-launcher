@@ -74,7 +74,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -136,6 +138,9 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(if (LumenPalette.whiteGlass) listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14)) else listOf(Color(0xFF081522), Color(0xFF071017), Color(0xFF09101A))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
+        if (state.activeSpace == SpaceKind.Focus) com.lumen.launcher.ui.focus.FocusRainBackdrop(active = state.focusing)
+        if (state.activeSpace == SpaceKind.Personal) SocialBackdrop()
+        if (state.activeSpace == SpaceKind.Travel) TravelBackdrop()
         val gridGap = 12.dp
         val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
@@ -888,6 +893,7 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
             val white = LumenPalette.whiteGlass
             val chipShape = RoundedCornerShape(16.dp)
             val content = when {
+                active && selected == SpaceKind.Travel -> Color.White
                 selected == SpaceKind.Focus && !white -> if (active) Color.White else Color(0xFFB8C7E6)
                 active && white -> Color(0xFF5B21B6)
                 active -> Lumen.OnAccent
@@ -896,9 +902,23 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
             Row(
                 modifier = Modifier
                     .weight(1f)
+                    .drawWithContent {
+                        drawContent()
+                        if (active && space == SpaceKind.Travel) {
+                            val wing = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width * .58f, 2f)
+                                lineTo(size.width * .91f, -18.dp.toPx())
+                                lineTo(size.width * .82f, 4f)
+                                close()
+                            }
+                            drawPath(wing, Brush.linearGradient(listOf(Color(0xFFD77C9B), Color(0xFF8F123E)), start = androidx.compose.ui.geometry.Offset(size.width * .6f, -18.dp.toPx()), end = androidx.compose.ui.geometry.Offset(size.width, 4f)))
+                            drawLine(Color(0xFFEAB1C5), androidx.compose.ui.geometry.Offset(size.width * .71f, -3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width * .84f, -10.dp.toPx()), 1.dp.toPx())
+                        }
+                    }
                     .clip(chipShape)
                     .then(
                         when {
+                            active && selected == SpaceKind.Travel -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFAC1749), Color(0xFF780D32)))).border(1.dp, Color(0xFFC55B7D), chipShape)
                             active && selected == SpaceKind.Focus && !white -> Modifier
                                 .background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
                                 .border(1.dp, Color(0xFF8B90FF), chipShape)
@@ -1306,3 +1326,4 @@ private class CoordBox {
 private class RectBox {
     var value: Rect = Rect.Zero
 }
+
