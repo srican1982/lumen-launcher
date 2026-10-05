@@ -34,6 +34,11 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     val session by manager.snapshot.collectAsState()
     val policy = remember { FocusPolicyController(context) }
 
+    val guideStore = remember { com.lumen.launcher.focus.FocusOnboardingStore(context) }
+    var showGuide by remember { mutableStateOf(guideStore.prepare(peopleRepo)) }
+    var guideStep by remember { mutableStateOf(guideStore.step()) }
+    fun finishGuide() { guideStore.complete(); showGuide = false }
+
     val people by peopleRepo.people.collectAsState()
     val settings by peopleRepo.settings.collectAsState()
     val groups by peopleRepo.groups.collectAsState()
@@ -100,7 +105,24 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 onAddSomeone = { showPeople = true },
                 onLaunchApp = vm::launch
             )
+        } else if (showGuide) {
+            com.lumen.launcher.ui.focus.FocusOnboardingScreen(
+                step = guideStep,
+                minutes = settings.lastDurationMinutes,
+                dismissSignal = homePulse,
+                onStep = { guideStep = it; guideStore.setStep(it) },
+                onDuration = peopleRepo::setLastDuration,
+                onCustom = { customFocus = true },
+                onFinish = { finishGuide() },
+                onStart = {
+                    finishGuide()
+                    vm.startFocus(settings.lastDurationMinutes, state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id)
+                }
+            )
         } else {
+            androidx.compose.material3.TextButton(onClick = { guideStep = 0; showGuide = true }) {
+                androidx.compose.material3.Text("How Focus works", color = androidx.compose.ui.graphics.Color(0xFFB8A6FF))
+            }
             FocusSetupSheet(
                 people = people,
                 settings = settings,

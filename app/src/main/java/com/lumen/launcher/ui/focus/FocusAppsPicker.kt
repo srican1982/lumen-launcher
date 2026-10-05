@@ -38,7 +38,7 @@ import com.lumen.launcher.ui.AppIcon
 import com.lumen.launcher.ui.theme.Outfit
 
 @Composable
-internal fun FocusAppsSection(dismissSignal: Int = 0) {
+internal fun FocusAppsSection(dismissSignal: Int = 0, showHeading: Boolean = true) {
     val context = LocalContext.current
     var selected by remember { mutableStateOf(FocusAppAccess.selected(context)) }
     var show by remember { mutableStateOf(false) }
@@ -48,7 +48,7 @@ internal fun FocusAppsSection(dismissSignal: Int = 0) {
     LaunchedEffect(dismissSignal) { show = false }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("3. Which apps can you use?", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
+        if (showHeading) Text("3. Which apps can you use?", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
         LazyRow(
             Modifier
                 .fillMaxWidth()

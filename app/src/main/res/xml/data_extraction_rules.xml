@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="file" path="datastore/" />
-        <exclude domain="sharedpref" />
-        <exclude domain="database" />
+        <include domain="sharedpref" path="focus_onboarding.xml" />
+        <include domain="sharedpref" path="focus_people.xml" />
+        <include domain="sharedpref" path="focus_apps.xml" />
+        <include domain="sharedpref" path="focus_sound.xml" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="datastore/" />
-        <exclude domain="sharedpref" />
-        <exclude domain="database" />
+        <include domain="sharedpref" path="focus_onboarding.xml" />
+        <include domain="sharedpref" path="focus_people.xml" />
+        <include domain="sharedpref" path="focus_apps.xml" />
+        <include domain="sharedpref" path="focus_sound.xml" />
     </device-transfer>
 </data-extraction-rules>

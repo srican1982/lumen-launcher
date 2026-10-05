@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <exclude domain="file" path="datastore/" />
-    <exclude domain="sharedpref" />
-    <exclude domain="database" />
+        <include domain="sharedpref" path="focus_onboarding.xml" />
+        <include domain="sharedpref" path="focus_people.xml" />
+        <include domain="sharedpref" path="focus_apps.xml" />
+        <include domain="sharedpref" path="focus_sound.xml" />
 </full-backup-content>

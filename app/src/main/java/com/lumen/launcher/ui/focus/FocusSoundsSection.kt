@@ -60,7 +60,7 @@ import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun FocusSoundsSection(dismissSignal: Int = 0) {
+internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Focus sound") {
     val context = LocalContext.current
     val player = remember { FocusSoundPlayer.get(context) }
     var sound by remember { mutableStateOf(FocusSoundPrefs.sound(context)) }
@@ -88,7 +88,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "4. Focus sound",
+                heading,
                 color = Color.White,
                 fontSize = 15.sp,
                 fontFamily = Outfit,
