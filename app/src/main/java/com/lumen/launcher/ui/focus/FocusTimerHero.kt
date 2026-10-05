@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Eco
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,40 +30,27 @@ internal fun FocusTimerHero(minutes: Int, group: String, taskLabel: String?, onP
     Box(Modifier.fillMaxWidth().height(176.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.requiredSize(188.dp).offset(y = (-3).dp), contentAlignment = Alignment.Center) {
             Canvas(Modifier.fillMaxSize()) {
-                val inset = 5.dp.toPx()
-                val diameter = size.minDimension - inset * 2
-                drawCircle(Brush.radialGradient(listOf(Color(0xA0061020), Color.Transparent)), radius = size.minDimension / 2)
-                listOf(16f to .04f, 10f to .07f, 5f to .2f, 2.5f to 1f).forEach { (width, alpha) ->
-                    drawArc(Color(0xFFFFC36C).copy(alpha = alpha), 0f, 360f, false, Offset(inset, inset), Size(diameter, diameter), style = Stroke(width.dp.toPx()))
-                }
-                drawArc(Color(0xFFFFF4D8), 0f, 360f, false, Offset(inset, inset), Size(diameter, diameter), style = Stroke(.4.dp.toPx()))
+                val outer = 5.dp.toPx()
+                val inner = 14.dp.toPx()
+                drawCircle(Brush.radialGradient(listOf(Color(0xDA09121E), Color(0x8909121E))), radius = size.minDimension / 2 - outer)
+                drawArc(Color(0xFFE5BC72), 0f, 360f, false, Offset(outer, outer), Size(size.width - outer * 2, size.height - outer * 2), style = Stroke(1.2.dp.toPx()))
+                drawArc(Color(0xFF252B3C), 0f, 360f, false, Offset(inner, inner), Size(size.width - inner * 2, size.height - inner * 2), style = Stroke(4.dp.toPx()))
+                drawArc(Color(0xFFB394F1), -90f, 295f, false, Offset(inner, inner), Size(size.width - inner * 2, size.height - inner * 2), style = Stroke(4.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(1.5.dp)) {
-                Icon(Icons.Outlined.People, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Text("Focus on", color = Color.White.copy(alpha = .8f), fontSize = 10.sp)
-                Text(group, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 108.dp))
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${minutes / 60}", color = Color.White, fontSize = 25.sp)
-                        Text("hours", color = FocusMuted, fontSize = 9.sp)
-                    }
-                    Text(":", color = Color.White, fontSize = 24.sp)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("%02d".format(java.util.Locale.ROOT, minutes % 60), color = Color.White, fontSize = 25.sp)
-                        Text("minutes", color = FocusMuted, fontSize = 9.sp)
-                    }
-                }
+            Column(Modifier.padding(bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(Icons.Outlined.Eco, null, tint = Color(0xFFB394F1), modifier = Modifier.size(25.dp))
+                Text(if (taskLabel.isNullOrBlank()) "Focus on Yourself" else "Focus on $taskLabel", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 130.dp).clickable(onClick = onPickTask))
+                Text("$minutes min", color = Color.White, fontSize = 28.sp)
             }
-            Box(Modifier.align(Alignment.BottomCenter).offset(y = (-4).dp).size(34.dp)
+            Box(Modifier.align(Alignment.BottomCenter).offset(y = (-23).dp).size(34.dp)
                 .shadow(7.dp, CircleShape, ambientColor = Color(0xFF7962FF), spotColor = Color(0xFF7962FF))
-                .clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFA387FF), Color(0xFF5533FF), Color(0xFF146EFF))))
+                .clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFB394F1), Color(0xFF8A68D0))))
                 .border(0.5.dp, Color(0xFFC9BDFF), CircleShape).clickable(onClick = onStart), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.PlayArrow, "Start Focus", tint = Color.White, modifier = Modifier.size(22.dp))
             }
         }
-        TextButton(onClick = onPickTask, modifier = Modifier.align(Alignment.TopEnd).widthIn(max = 100.dp)) {
-            Text(taskLabel ?: "Pick task", color = FocusMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        OutlinedButton(onClick = onPickTask, modifier = Modifier.align(Alignment.TopEnd).widthIn(max = 116.dp), colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xEE101D30), contentColor = Color.White), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA995E6)), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+            Text("Pick task", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
