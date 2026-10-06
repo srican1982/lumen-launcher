@@ -385,9 +385,9 @@ fun HomeScreen(
                     modifier = restBlur
                 )
             } else {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(if (state.activeSpace == SpaceKind.Focus) 0.dp else 4.dp))
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -402,7 +402,10 @@ fun HomeScreen(
                     columns = GridCells.Fixed(state.gridColumns),
                     state = gridState,
                     modifier = Modifier.fillMaxSize().drawerAtGridEnd(!editing && !recentsOpen, gridState, viewModel::openDrawer),
-                    contentPadding = PaddingValues(top = 12.dp, bottom = 28.dp),
+                    contentPadding = PaddingValues(
+                        top = if (state.activeSpace == SpaceKind.Focus) 4.dp else 12.dp,
+                        bottom = if (state.activeSpace == SpaceKind.Focus) 8.dp else 28.dp
+                    ),
                     userScrollEnabled = !editing,
                     horizontalArrangement = Arrangement.spacedBy(gridGap),
                     verticalArrangement = Arrangement.spacedBy(gridGap)
@@ -920,10 +923,10 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                         when {
                             active && selected == SpaceKind.Travel -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFAC1749), Color(0xFF780D32)))).border(1.dp, Color(0xFFC55B7D), chipShape)
                             active && selected == SpaceKind.Focus && !white -> Modifier
-                                .background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
-                                .border(1.dp, Color(0xFF8B90FF), chipShape)
+                                .background(Brush.horizontalGradient(listOf(Color(0xFF5B8CFF), Color(0xFF2F62F0))))
+                                .border(1.dp, Color(0xFF7AA0FF), chipShape)
                             selected == SpaceKind.Focus && !white -> Modifier.background(Color(0xFF0D1824)).border(0.8.dp, Color(0xFF202D40), chipShape)
-                            active && selected == SpaceKind.Focus && white -> Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF8B80F8), Color(0xFF4C73F8))))
+                            active && selected == SpaceKind.Focus && white -> Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF5B8CFF), Color(0xFF2F62F0))))
                             active && white -> Modifier.background(
                                 Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
                             )

@@ -3,30 +3,47 @@ package com.lumen.launcher.ui.focus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.NightsStay
-import androidx.compose.material.icons.outlined.Phone
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lumen.launcher.focus.*
+import com.lumen.launcher.focus.FocusAllowedPeopleRepository
+import com.lumen.launcher.focus.FocusAppAccess
+import com.lumen.launcher.focus.FocusDoneEntry
+import com.lumen.launcher.focus.FocusPeopleGroup
+import com.lumen.launcher.focus.FocusPerson
+import com.lumen.launcher.focus.FocusPolicySettings
+import com.lumen.launcher.focus.FocusSound
+import com.lumen.launcher.focus.FocusSoundPrefs
 import com.lumen.launcher.ui.theme.Outfit
 
+/**
+ * Daily Focus page after guided setup: one-tap start from last settings.
+ * Tapping duration / people / apps / sound opens that single elegant step.
+ */
 @Composable
 fun FocusSetupSheet(
     people: List<FocusPerson>,
@@ -35,195 +52,142 @@ fun FocusSetupSheet(
     capabilityNote: String,
     dismissSignal: Int = 0,
     taskLabel: String? = null,
-    doneEntries: List<com.lumen.launcher.focus.FocusDoneEntry> = emptyList(),
+    doneEntries: List<FocusDoneEntry> = emptyList(),
     onPickTask: () -> Unit = {},
-    onDuration: (Int) -> Unit,
-    onOpenPeople: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onDuration: (Int) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onOpenPeople: () -> Unit,
     onSettingsChange: (FocusPolicySettings) -> Unit,
     onStart: (Int) -> Unit,
-    onCustomDuration: () -> Unit
+    @Suppress("UNUSED_PARAMETER") onCustomDuration: () -> Unit,
+    onEditStep: (Int) -> Unit = {},
+    onReplayGuide: () -> Unit = {}
 ) {
-    var lists by remember { mutableStateOf(false) }
-    val dismissBaseline = remember { dismissSignal }
-    LaunchedEffect(dismissSignal) {
-        if (dismissSignal != dismissBaseline) lists = false
+    val context = LocalContext.current
+    val repo = remember { FocusAllowedPeopleRepository.get(context) }
+    val selectedGroups by repo.selectedGroups.collectAsState()
+    var revision by remember { mutableIntStateOf(0) }
+    LaunchedEffect(dismissSignal) { revision++ }
+
+    val duration = settings.lastDurationMinutes
+    val groupLabel = groups.filter { it.id in selectedGroups }
+        .joinToString { it.title }
+        .ifBlank { "Yourself" }
+    val appCount = remember(revision) { FocusAppAccess.selected(context).size }
+    val sound = remember(revision) { FocusSoundPrefs.sound(context) }
+    val soundLabel = if (sound == FocusSound.Off) "Off" else sound.title
+    val start = FocusStartButtonAction {
+        onSettingsChange(settings.copy(silenceEveryoneElse = true))
+        onStart(duration)
     }
+
     LaunchedEffect(Unit) {
         if (!settings.silenceEveryoneElse) {
             onSettingsChange(settings.copy(silenceEveryoneElse = true))
         }
     }
-    val duration = settings.lastDurationMinutes
-    val start = FocusStartButtonAction {
-        onSettingsChange(settings.copy(silenceEveryoneElse = true))
-        onStart(duration)
-    }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        FocusLandscapeHero(taskLabel = taskLabel, onPickTask = onPickTask)
-        FocusDoneSection(doneEntries)
 
-        Text("1. How long do you want to focus?", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (listOf(15, 30, 60, 120) + 0).forEach { mins ->
-                val selected = duration == mins || (mins == 0 && duration !in listOf(15, 30, 60, 120))
-                val shape = RoundedCornerShape(16.dp)
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .then(
-                            if (selected) Modifier.shadow(10.dp, shape, ambientColor = FocusAccent.copy(0.45f), spotColor = FocusAccent.copy(0.55f))
-                            else Modifier
-                        )
-                        .clip(shape)
-                        .background(if (selected) FocusSelectionGradient else Brush.linearGradient(listOf(FocusCard, FocusCard)))
-                        .border(
-                            width = if (selected) 2.dp else 1.dp,
-                            brush = if (selected) Brush.linearGradient(listOf(FocusBorderGlow, FocusAccentEnd))
-                            else Brush.linearGradient(listOf(FocusBorder, FocusBorder)),
-                            shape = shape
-                        )
-                        .clickable { if (mins == 0) onCustomDuration() else onDuration(mins) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        if (mins == 0) {
-                            if (selected) "$duration" else "✎"
-                        } else {
-                            "$mins"
-                        },
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = Outfit,
-                        lineHeight = 20.sp
-                    )
-                    Text(
-                        if (mins == 0) "Custom" else "min",
-                        color = FocusMuted,
-                        fontSize = 11.sp,
-                        fontFamily = Outfit,
-                        lineHeight = 13.sp
-                    )
-                }
-            }
-        }
-
-        Text("2. Who can reach you?", color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
-        Text("Choose which people can still call during Focus.", color = FocusMuted, fontSize = 12.sp, fontFamily = Outfit)
-        FocusGroupCards(dismissSignal)
-        FocusAppsSection(dismissSignal = dismissSignal)
-        FocusSoundsSection(dismissSignal = dismissSignal)
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("5. Additional settings", Modifier.weight(1f), color = Color.White, fontSize = 15.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
-            FocusSettingsButton(dismissSignal = dismissSignal)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SetupSettingCard(
-                    Modifier.weight(1f),
-                    Icons.Outlined.Phone,
-                    "Repeated callers",
-                    "Same number again",
-                    settings.allowRepeatedCallers
-                ) { onSettingsChange(settings.copy(allowRepeatedCallers = it, silenceEveryoneElse = true)) }
-                SetupSettingCard(
-                    Modifier.weight(1f),
-                    Icons.Outlined.Alarm,
-                    "Allow alarms",
-                    "Timers & clocks",
-                    settings.allowAlarms
-                ) { onSettingsChange(settings.copy(allowAlarms = it, silenceEveryoneElse = true)) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SetupSettingCard(
-                    Modifier.weight(1f),
-                    Icons.Outlined.CalendarMonth,
-                    "Calendar reminders",
-                    "Events & alerts",
-                    settings.allowCalendarReminders
-                ) { onSettingsChange(settings.copy(allowCalendarReminders = it, silenceEveryoneElse = true)) }
-                SetupSettingCard(
-                    Modifier.weight(1f),
-                    Icons.Outlined.NightsStay,
-                    "Quiet visuals",
-                    "Hide banners",
-                    settings.silenceEveryoneElse
-                ) { onSettingsChange(settings.copy(silenceEveryoneElse = it)) }
-            }
-        }
-
-        Box(
+    val stage = RoundedCornerShape(26.dp)
+    Column(
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(
             Modifier
                 .fillMaxWidth()
-                .height(54.dp)
-                .shadow(18.dp, RoundedCornerShape(28.dp), ambientColor = FocusAccent.copy(0.4f), spotColor = FocusAccent.copy(0.5f))
-                .clip(RoundedCornerShape(28.dp))
-                .background(FocusGradient)
-                .clickable(onClick = start),
-            contentAlignment = Alignment.Center
+                .clip(stage)
+                .background(Brush.verticalGradient(listOf(Color(0xCC121C30), Color(0xB80A121F))))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), stage)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.PlayArrow, null, tint = FocusCtaText, modifier = Modifier.size(22.dp))
-                Text(
-                    "Start Focus ($duration min)",
-                    color = FocusCtaText,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = Outfit
-                )
+            FocusGuideRing(
+                primary = "%d:%02d".format(duration, 0),
+                secondary = if (taskLabel.isNullOrBlank()) "Tap time to change · or ▶ to start"
+                else "Focus on $taskLabel",
+                showPlay = true,
+                onPlay = start,
+                onPrimaryClick = { onEditStep(0) }
+            )
+
+            // One summary line — each chip opens only that step.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FocusSummaryChip(groupLabel, Modifier.weight(1f)) { onEditStep(1) }
+                FocusSummaryChip(
+                    if (appCount == 1) "1 app" else "$appCount apps",
+                    Modifier.weight(1f)
+                ) { onEditStep(2) }
+                FocusSummaryChip(soundLabel, Modifier.weight(1f)) { onEditStep(3) }
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(Icons.Outlined.Info, null, tint = FocusMuted, modifier = Modifier.size(14.dp))
-            Text(
-                "You can switch Spaces anytime. Focus will keep running.",
-                color = FocusMuted,
-                fontSize = 11.sp,
-                lineHeight = 15.sp,
-                fontFamily = Outfit
-            )
+
+        FocusPrimaryAction(
+            label = "Start Focus · $duration min",
+            action = start,
+            showCheck = false
+        )
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onPickTask) {
+                Text(
+                    if (taskLabel.isNullOrBlank()) "Pick task" else "Task: $taskLabel",
+                    color = FocusAccent,
+                    fontFamily = Outfit,
+                    maxLines = 1
+                )
+            }
+            TextButton(onClick = onReplayGuide) {
+                Text("How Focus works", color = FocusMuted, fontFamily = Outfit)
+            }
+            FocusSettingsButton(dismissSignal = dismissSignal)
         }
+
+        if (doneEntries.isNotEmpty()) {
+            FocusDoneSection(doneEntries)
+        }
+
+        Text(
+            capabilityNote.takeIf { it.isNotBlank() } ?: "Quiet mode with your saved exceptions.",
+            color = FocusMuted,
+            fontFamily = Outfit,
+            fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
-    if (lists) FocusListsDialog(dismissSignal = dismissSignal, onDismiss = { lists = false })
 }
 
 @Composable
-private fun SetupSettingCard(
-    modifier: Modifier,
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onChange: (Boolean) -> Unit
-) {
-    val shape = RoundedCornerShape(18.dp)
-    Row(
+private fun FocusSummaryChip(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
         modifier
-            .height(72.dp)
+            .height(36.dp)
             .clip(shape)
-            .background(FocusCard)
-            .border(1.dp, FocusBorder, shape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = FocusIconTint, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 2, lineHeight = 14.sp)
-            Text(subtitle, color = FocusMuted, fontSize = 10.sp, fontFamily = Outfit, maxLines = 1)
-        }
-        Switch(
-            checked,
-            onChange,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = FocusAccent,
-                checkedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFF1A1F35),
-                uncheckedThumbColor = FocusMuted
-            )
+        Text(
+            label,
+            color = Color.White,
+            fontFamily = Outfit,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

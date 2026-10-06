@@ -1,12 +1,13 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -16,15 +17,13 @@ import androidx.compose.ui.unit.dp
 import com.lumen.launcher.focus.FocusAllowedPeopleRepository
 import com.lumen.launcher.focus.FocusPolicyController
 import com.lumen.launcher.ui.focus.FocusActiveScreen
-import com.lumen.launcher.ui.focus.FocusPeoplePicker
 import com.lumen.launcher.ui.focus.FocusSetupSheet
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 import kotlinx.coroutines.delay
 
 /**
- * Focus Space entry — people-first quiet mode.
- * Session keeps running when the user leaves this Space.
+ * Focus Space entry — guided first run, one-tap daily start after that.
  */
 @Composable
 fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
@@ -36,8 +35,13 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
 
     val guideStore = remember { com.lumen.launcher.focus.FocusOnboardingStore(context) }
     var showGuide by remember { mutableStateOf(guideStore.prepare(peopleRepo)) }
-    var guideStep by remember { mutableStateOf(guideStore.step()) }
-    fun finishGuide() { guideStore.complete(); showGuide = false }
+    var guideStep by remember { mutableIntStateOf(guideStore.step()) }
+    var editStep by remember { mutableStateOf<Int?>(null) }
+    fun finishGuide() {
+        guideStore.complete()
+        showGuide = false
+        editStep = null
+    }
 
     val people by peopleRepo.people.collectAsState()
     val settings by peopleRepo.settings.collectAsState()
@@ -47,7 +51,6 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     var showPeople by remember { mutableStateOf(false) }
     var customFocus by remember { mutableStateOf(false) }
     var pickTask by remember { mutableStateOf(false) }
-    // Launcher Home does not destroy this Activity — close Focus overlays on homePulse.
     val homePulse = state.homePulse
     val homePulseBaseline = remember { homePulse }
     LaunchedEffect(homePulse) {
@@ -55,6 +58,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             showPeople = false
             customFocus = false
             pickTask = false
+            editStep = null
         }
     }
     val openTasks = remember(state.todos) {
@@ -87,10 +91,19 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
 
     LaunchedEffect(people, settings) { manager.refreshPolicy() }
 
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (session.error.isNotBlank()) androidx.compose.material3.Text(session.error, color = androidx.compose.ui.graphics.Color(0xFFFDA4AF))
-        if (state.focusing) {
-            FocusActiveScreen(
+    fun startFocus() {
+        vm.startFocus(
+            settings.lastDurationMinutes,
+            state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id
+        )
+    }
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (session.error.isNotBlank()) {
+            androidx.compose.material3.Text(session.error, color = androidx.compose.ui.graphics.Color(0xFFFDA4AF))
+        }
+        when {
+            state.focusing -> FocusActiveScreen(
                 remainingMs = remainingMs,
                 totalMs = totalMs,
                 paused = state.focusPaused,
@@ -105,8 +118,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 onAddSomeone = { showPeople = true },
                 onLaunchApp = vm::launch
             )
-        } else if (showGuide) {
-            com.lumen.launcher.ui.focus.FocusOnboardingScreen(
+            showGuide -> com.lumen.launcher.ui.focus.FocusOnboardingScreen(
                 step = guideStep,
                 minutes = settings.lastDurationMinutes,
                 dismissSignal = homePulse,
@@ -116,14 +128,24 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 onFinish = { finishGuide() },
                 onStart = {
                     finishGuide()
-                    vm.startFocus(settings.lastDurationMinutes, state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id)
+                    startFocus()
                 }
             )
-        } else {
-            androidx.compose.material3.TextButton(onClick = { guideStep = 0; showGuide = true }) {
-                androidx.compose.material3.Text("How Focus works", color = androidx.compose.ui.graphics.Color(0xFFB8A6FF))
-            }
-            FocusSetupSheet(
+            editStep != null -> com.lumen.launcher.ui.focus.FocusOnboardingScreen(
+                step = editStep!!,
+                minutes = settings.lastDurationMinutes,
+                dismissSignal = homePulse,
+                onStep = { editStep = it },
+                onDuration = peopleRepo::setLastDuration,
+                onCustom = { customFocus = true },
+                onFinish = { editStep = null },
+                onStart = {
+                    editStep = null
+                    startFocus()
+                },
+                singleStep = true
+            )
+            else -> FocusSetupSheet(
                 people = people,
                 settings = settings,
                 groups = groups,
@@ -135,8 +157,16 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 onDuration = { peopleRepo.setLastDuration(it) },
                 onOpenPeople = { showPeople = true },
                 onSettingsChange = { peopleRepo.setSettings(it) },
-                onStart = { minutes -> vm.startFocus(minutes, state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id) },
-                onCustomDuration = { customFocus = true }
+                onStart = { minutes ->
+                    vm.startFocus(minutes, state.focusTaskId.takeIf { it.isNotBlank() } ?: state.focusTask?.id)
+                },
+                onCustomDuration = { customFocus = true },
+                onEditStep = { editStep = it },
+                onReplayGuide = {
+                    guideStep = 0
+                    guideStore.setStep(0)
+                    showGuide = true
+                }
             )
         }
     }
