@@ -1,7 +1,6 @@
 package com.lumen.launcher.data
 
 import android.Manifest
-import android.accounts.AccountManager
 import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
@@ -16,7 +15,8 @@ data class CalendarEvent(
     val location: String,
     val calendarName: String = "",
     val teams: Boolean = false,
-    val noticeKey: String = ""
+    val noticeKey: String = "",
+    val calendarId: Long? = null
 )
 
 data class DeviceCalendar(
@@ -105,26 +105,7 @@ class CalendarRepository(private val context: Context) {
 
     fun listPhoneAccounts(): List<PhoneAccount> {
         val fromCalendars = listCalendars().map { PhoneAccount(it.account, it.accountType) }
-        val manager = AccountManager.get(context)
-        val fromDevice = runCatching { manager.accounts.toList() }.getOrDefault(emptyList())
-            .filter { account ->
-                val hay = "${account.type} ${account.name}".lowercase()
-                if (hay.contains("com.microsoft.teams") || hay.contains("skype.teams")) return@filter false
-                hay.contains("google") || hay.contains("microsoft") || hay.contains("outlook") ||
-                    hay.contains("exchange") || hay.contains("office") || hay.contains("workaccount")
-            }
-            .map { PhoneAccount(it.name, it.type) }
-        val fromApps = listOf(
-            "com.microsoft.office.outlook" to "Outlook",
-            "com.google.android.gm" to "Gmail"
-        ).mapNotNull { (pkg, label) ->
-            val installed = runCatching {
-                context.packageManager.getPackageInfo(pkg, 0)
-                true
-            }.getOrDefault(false)
-            if (installed) PhoneAccount(label, pkg) else null
-        }
-        return (fromCalendars + fromDevice + fromApps)
+        return fromCalendars
             .filter { it.name.isNotBlank() }
             .distinctBy { it.name.lowercase() }
     }
@@ -208,6 +189,9 @@ class CalendarRepository(private val context: Context) {
                     teams && (locationRaw.isBlank() || locationRaw.contains("http", true) ||
                         locationRaw.contains("msteams:", true)) -> "Microsoft Teams"
                     teams && looksLikeTeams(locationRaw) -> locationRaw
+                    "$locationRaw $description".contains("zoom.us", true) -> "Zoom"
+                    "$locationRaw $description".contains("meet.google.com", true) -> "Google Meet"
+                    locationRaw.length > 120 || locationRaw.contains("Dear ", true) -> ""
                     else -> locationRaw
                 }
                 found += CalendarEvent(
@@ -217,6 +201,7 @@ class CalendarRepository(private val context: Context) {
                     end = rows.getLong(3),
                     location = location,
                     calendarName = calendarName,
+                    calendarId = rows.getLong(calendarIdIndex),
                     teams = teams
                 )
                 if (found.size >= 12) break

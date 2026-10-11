@@ -33,6 +33,39 @@ class FocusSessionManager(
     private val _snapshot = MutableStateFlow(readSnapshot())
     val snapshot: StateFlow<FocusSessionSnapshot> = _snapshot.asStateFlow()
 
+    private val completionPrefs = context.getSharedPreferences("focus_completion", Context.MODE_PRIVATE)
+    private val _completion = MutableStateFlow(readCompletion())
+    val completion: StateFlow<FocusCompletion?> = _completion.asStateFlow()
+
+    fun dismissCompletion() {
+        completionPrefs.edit().putBoolean("pending", false).apply()
+        _completion.value = null
+    }
+
+    private fun readCompletion(): FocusCompletion? = if (!completionPrefs.getBoolean("pending", false)) null else FocusCompletion(
+        completionPrefs.getLong("start", 0), completionPrefs.getLong("end", 0),
+        completionPrefs.getLong("elapsed", 0), completionPrefs.getInt("count", 0), completionPrefs.getInt("streak", 0), completionPrefs.getString("sound", "").orEmpty(), completionPrefs.getInt("people", -1)
+    )
+
+    private fun recordCompletion() {
+        val started = ledger.getLong(KEY_STARTED, 0)
+        if (started == 0L || completionPrefs.getLong("start", 0) == started) return
+        val ended = System.currentTimeMillis()
+        val elapsed = FocusCompletion.elapsed(ledger.getLong(KEY_TOTAL, 0), ledger.getLong(KEY_UNTIL, 0), ledger.getLong(KEY_PAUSED, 0), ended)
+        val today = java.time.LocalDate.now()
+        val previous = completionPrefs.getString("day", "")
+        val streak = when (previous) {
+            today.toString() -> completionPrefs.getInt("streak", 1)
+            today.minusDays(1).toString() -> completionPrefs.getInt("streak", 0) + 1
+            else -> 1
+        }
+        completionPrefs.edit().putLong("start", started).putLong("end", ended).putLong("elapsed", elapsed)
+            .putInt("count", completionPrefs.getInt("count", 0) + 1).putInt("streak", streak)
+            .putString("sound", FocusSoundPrefs.sound(context).title).putInt("people", peopleRepo.peopleNow().size)
+            .putString("day", today.toString()).putBoolean("pending", true).commit()
+        _completion.value = readCompletion()
+    }
+
     fun hasPolicyAccess(): Boolean = policy.hasAccess()
     fun snapshotNow(): FocusSessionSnapshot = _snapshot.value
     fun refreshFromDisk() {
@@ -62,6 +95,7 @@ class FocusSessionManager(
                     .remove(KEY_PAUSED)
                     .commit()
             )
+            dismissCompletion()
             peopleRepo.setLastDuration(mins)
             LauncherPreferences(context).setFocus(until, "")
             FocusSoundPlayer.get(context).startSession()
@@ -149,7 +183,7 @@ class FocusSessionManager(
     }
 
     suspend fun end(announce: Boolean = false): Boolean = mutex.withLock {
-        finishLocked(announce)
+        finishLocked(announce, record = true)
     }
 
     suspend fun onAlarm(expectedUntil: Long) {
@@ -201,9 +235,10 @@ class FocusSessionManager(
     fun capabilityNote(): String =
         policy.capabilityNote(peopleRepo.peopleNow(), peopleRepo.settingsNow())
 
-    private suspend fun finishLocked(announce: Boolean): Boolean {
+    private suspend fun finishLocked(announce: Boolean, record: Boolean = announce): Boolean {
         val until = ledger.getLong(KEY_UNTIL, 0)
         val hadSession = until > 0 || ledger.getLong(KEY_PAUSED, 0) > 0 || ledger.contains(KEY_STARTED)
+        if (hadSession && record) recordCompletion()
         cancelAlarm(until)
         val restored = policy.restore()
         ledger.edit().clear().putString("error", if (restored) "" else "Open Android DND settings to remove Lumen Focus. Cleanup will retry when access returns.").commit()

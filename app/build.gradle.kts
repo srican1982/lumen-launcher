@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,20 +17,33 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
-        val localProperties = Properties()
-        val localFile = rootProject.file("local.properties")
-        if (localFile.exists()) {
-            localFile.inputStream().use { localProperties.load(it) }
+        buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+    }
+
+    // Supply upload-key credentials in the build environment; never commit them.
+    val uploadKeyPath = providers.environmentVariable("LUMEN_UPLOAD_KEYSTORE").orNull
+    val uploadKeyAlias = providers.environmentVariable("LUMEN_UPLOAD_KEY_ALIAS").orNull
+    val uploadStorePassword = providers.environmentVariable("LUMEN_UPLOAD_STORE_PASSWORD").orNull
+    val uploadKeyPassword = providers.environmentVariable("LUMEN_UPLOAD_KEY_PASSWORD").orNull
+    val uploadValues = listOf(uploadKeyPath, uploadKeyAlias, uploadStorePassword, uploadKeyPassword)
+    require(uploadValues.all { it.isNullOrBlank() } || uploadValues.all { !it.isNullOrBlank() }) {
+        "Provide all four LUMEN_UPLOAD_* signing variables, or leave all unset for an unsigned release."
+    }
+    if (!uploadKeyPath.isNullOrBlank()) {
+        signingConfigs.create("upload") {
+            storeFile = file(uploadKeyPath)
+            storePassword = uploadStorePassword
+            keyAlias = uploadKeyAlias
+            keyPassword = uploadKeyPassword
         }
-        val geminiKey = (localProperties.getProperty("GEMINI_API_KEY") ?: "")
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            signingConfigs.findByName("upload")?.let { signingConfig = it }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -95,6 +106,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$room")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -102,4 +114,13 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.google.truth:truth:1.4.4")
     testImplementation("org.json:json:20240303")
+}
+
+// Run the phrase pack and existing unit tests before producing either APK variant.
+tasks.matching { it.name in setOf("assembleDebug", "assembleRelease", "bundleDebug", "bundleRelease") }.configureEach {
+    dependsOn("testDebugUnitTest")
+}
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging.showStandardStreams = true
 }

@@ -12,7 +12,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,10 +27,18 @@ import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Suppress("DEPRECATION")
 fun PrivatePage(
     state: LauncherUiState,
     viewModel: LauncherViewModel
 ) {
+    val gridState = rememberLazyGridState()
+    val needsScroll = rememberGridNeedsScroll(gridState, blankEdge = 4.dp)
+    LaunchedEffect(needsScroll) {
+        if (!needsScroll) gridState.scrollToItem(0)
+    }
+    CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollConfiguration provides null) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -54,10 +65,12 @@ fun PrivatePage(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(state.gridColumns),
+                state = gridState,
+                userScrollEnabled = needsScroll,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 10.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = if (needsScroll) 10.dp else 0.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(state.privateAppList, key = { it.key }) { app ->
@@ -92,5 +105,6 @@ fun PrivatePage(
             fontSize = 12.sp,
             modifier = Modifier.padding(bottom = 18.dp)
         )
+    }
     }
 }

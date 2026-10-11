@@ -22,6 +22,15 @@ private val Context.launcherStore by preferencesDataStore("lumen_launcher")
 class LauncherPreferences(private val context: Context) {
 
     val state: Flow<LauncherState> = context.launcherStore.data.map { prefs ->
+        val legacyKey = prefs[GEMINI_API_KEY].orEmpty()
+        if (legacyKey.isNotBlank()) context.launcherStore.edit {
+            it[ENCRYPTED_API_KEY] = SecretStore.encrypt(legacyKey)
+            it.remove(GEMINI_API_KEY)
+        }
+        if (!com.lumen.launcher.alarm.AlarmStore.initialized(context)) {
+            com.lumen.launcher.alarm.AlarmStore.write(context, decodeAlarms(prefs[ALARMS].orEmpty()))
+            com.lumen.launcher.alarm.AlarmStore.setTone(context, prefs[ALARM_TONE] ?: AlarmTones.AURA)
+        }
         LauncherState(
             favorites = decodeList(prefs[FAVORITES].orEmpty()),
             recents = decodeList(prefs[RECENTS].orEmpty()),
@@ -59,14 +68,17 @@ class LauncherPreferences(private val context: Context) {
             },
             heyLumen = prefs[HEY_LUMEN] ?: false,
             smartVoice = prefs[SMART_VOICE] ?: true,
-            geminiApiKey = prefs[GEMINI_API_KEY].orEmpty(),
+            voiceLanguage = prefs[VOICE_LANGUAGE].orEmpty(),
+            geminiApiKey = if (legacyKey.isNotBlank()) legacyKey else SecretStore.decrypt(prefs[ENCRYPTED_API_KEY].orEmpty()),
+            aiInboxSummary = prefs[AI_INBOX_SUMMARY] ?: false,
+            aiContactNames = prefs[AI_CONTACT_NAMES] ?: false,
             flowEnabled = if (prefs.contains(FLOW_ENABLED)) prefs[FLOW_ENABLED].orEmpty() else defaultFlowEnabled(),
             flowOrder = if (prefs.contains(FLOW_ORDER)) decodeList(prefs[FLOW_ORDER].orEmpty()) else defaultFlowNames(),
             folders = decodeFolders(prefs[FOLDERS].orEmpty()),
             workCalendars = prefs[WORK_CALENDARS].orEmpty(),
             personalCalendars = prefs[PERSONAL_CALENDARS].orEmpty(),
-            alarms = decodeAlarms(prefs[ALARMS].orEmpty()),
-            alarmTone = prefs[ALARM_TONE] ?: AlarmTones.AURA,
+            alarms = com.lumen.launcher.alarm.AlarmStore.read(context),
+            alarmTone = com.lumen.launcher.alarm.AlarmStore.tone(context),
             whatsAppMissed = decodeWhatsAppMissed(prefs[WHATSAPP_MISSED].orEmpty()),
             launchHours = decodeList(prefs[LAUNCH_HOURS].orEmpty())
                 .mapNotNull { SpaceSense.parseLaunchHour(it) },
@@ -261,6 +273,16 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit { it[TODOS] = encodeTodos(items.take(80)) }
     }
 
+    /** Read and change in one DataStore transaction, including taps from a widget. */
+    suspend fun updateTodos(change: (List<TodoItem>) -> List<TodoItem>) {
+        context.launcherStore.edit { prefs ->
+            val current = decodeTodos(prefs[TODOS].orEmpty()).ifEmpty {
+                decodeList(prefs[TASKS].orEmpty()).map { TodoItem(it, it) }
+            }
+            prefs[TODOS] = encodeTodos(change(current).take(80))
+        }
+    }
+
     suspend fun setNotes(items: List<CaptureNote>) {
         context.launcherStore.edit { it[NOTES] = encodeNotes(items.take(40)) }
     }
@@ -290,12 +312,19 @@ class LauncherPreferences(private val context: Context) {
         context.launcherStore.edit { it[HEY_LUMEN] = enabled }
     }
 
+    suspend fun setVoiceLanguage(language: String) {
+        context.launcherStore.edit { it[VOICE_LANGUAGE] = language }
+    }
+
     suspend fun setSmartVoice(enabled: Boolean) {
         context.launcherStore.edit { it[SMART_VOICE] = enabled }
     }
 
+    suspend fun setAiInboxSummary(enabled: Boolean) { context.launcherStore.edit { it[AI_INBOX_SUMMARY] = enabled } }
+    suspend fun setAiContactNames(enabled: Boolean) { context.launcherStore.edit { it[AI_CONTACT_NAMES] = enabled } }
+
     suspend fun setGeminiApiKey(key: String) {
-        context.launcherStore.edit { it[GEMINI_API_KEY] = key.trim() }
+        context.launcherStore.edit { it[ENCRYPTED_API_KEY] = SecretStore.encrypt(key.trim()); it.remove(GEMINI_API_KEY) }
     }
 
     suspend fun setFlowEnabled(names: Set<String>) {
@@ -314,10 +343,12 @@ class LauncherPreferences(private val context: Context) {
     }
 
     suspend fun setAlarms(items: List<LumenAlarm>) {
-        context.launcherStore.edit { it[ALARMS] = encodeAlarms(items.take(8)) }
+        com.lumen.launcher.alarm.AlarmStore.write(context, items)
+        context.launcherStore.edit { it[ALARMS] = encodeAlarms(items) }
     }
 
     suspend fun setAlarmTone(tone: String) {
+        com.lumen.launcher.alarm.AlarmStore.setTone(context, tone)
         context.launcherStore.edit { it[ALARM_TONE] = tone }
     }
 
@@ -332,6 +363,39 @@ class LauncherPreferences(private val context: Context) {
             prefs[MODE_APPS] = encodeSpaceDocks(modes)
             prefs[DOCK] = encodeList(dock.distinct())
             prefs[SPACE_DOCKS] = encodeSpaceDocks(docks)
+        }
+    }
+
+    suspend fun applyAndroidHomeRanking(keys: List<String>) {
+        if (keys.isEmpty()) return
+        context.launcherStore.edit { prefs ->
+            val marker = booleanPreferencesKey("home_android_usage_order_v1")
+            if (prefs[marker] == true) return@edit
+            val modes = decodeSpaceDocks(prefs[MODE_APPS].orEmpty())
+            prefs[MODE_APPS] = encodeSpaceDocks(modes + (SpaceKind.Home.name to keys))
+            prefs[marker] = true
+        }
+    }
+
+    suspend fun rankHomeOnce(rankedKeys: List<String>) {
+        context.launcherStore.edit { prefs ->
+            val marker = booleanPreferencesKey("home_frequency_order_v2")
+            if (prefs[marker] == true) return@edit
+            val modes = decodeSpaceDocks(prefs[MODE_APPS].orEmpty())
+            val home = modes[SpaceKind.Home.name] ?: return@edit
+            val reordered = (rankedKeys.filter { it in home } + home).distinct()
+            prefs[MODE_APPS] = encodeSpaceDocks(modes + (SpaceKind.Home.name to reordered))
+            prefs[marker] = true
+        }
+    }
+
+    suspend fun initializeHomeApps(keys: List<String>) {
+        if (keys.isEmpty()) return
+        context.launcherStore.edit { prefs ->
+            val modes = decodeSpaceDocks(prefs[MODE_APPS].orEmpty())
+            if (SpaceKind.Home.name !in modes) {
+                prefs[MODE_APPS] = encodeSpaceDocks(modes + (SpaceKind.Home.name to keys))
+            }
         }
     }
 
@@ -462,7 +526,8 @@ class LauncherPreferences(private val context: Context) {
                 item.createdAt.toString(),
                 item.dueAt?.toString().orEmpty(),
                 if (item.priority) "1" else "0",
-                item.repeat
+                item.repeat,
+                item.completedAt?.toString().orEmpty()
             ).joinToString("\u001f")
         }
 
@@ -484,7 +549,8 @@ class LauncherPreferences(private val context: Context) {
                 createdAt = parts.getOrNull(4)?.toLongOrNull() ?: 0L,
                 dueAt = parts.getOrNull(5)?.toLongOrNull(),
                 priority = parts.getOrNull(6) == "1",
-                repeat = parts.getOrNull(7).orEmpty()
+                repeat = parts.getOrNull(7).orEmpty(),
+                completedAt = parts.getOrNull(8)?.toLongOrNull()
             )
         }
     }
@@ -554,7 +620,8 @@ class LauncherPreferences(private val context: Context) {
                 alarm.minute.toString(),
                 if (alarm.enabled) "1" else "0",
                 if (alarm.daily) "1" else "0",
-                alarm.label.replace('\u001f', ' ').replace('\u001e', ' ')
+                alarm.label.replace('\u001f', ' ').replace('\u001e', ' '),
+                alarm.triggerAtMs?.toString().orEmpty()
             ).joinToString("\u001f")
         }
 
@@ -571,7 +638,8 @@ class LauncherPreferences(private val context: Context) {
                 minute = minute,
                 enabled = parts[3] == "1",
                 daily = parts[4] == "1",
-                label = parts.getOrElse(5) { "" }
+                label = parts.getOrElse(5) { "" },
+                triggerAtMs = parts.getOrNull(6)?.toLongOrNull()?.takeIf { it > 0L }
             )
         }
     }
@@ -635,7 +703,11 @@ class LauncherPreferences(private val context: Context) {
         val TASKS = stringPreferencesKey("lumen_tasks")
         val TODOS = stringPreferencesKey("lumen_todos")
         val HEY_LUMEN = booleanPreferencesKey("hey_lumen")
+        val VOICE_LANGUAGE = stringPreferencesKey("voice_language")
         val SMART_VOICE = booleanPreferencesKey("smart_voice")
+        private val ENCRYPTED_API_KEY = stringPreferencesKey("encrypted_api_key_v1")
+        private val AI_INBOX_SUMMARY = booleanPreferencesKey("ai_inbox_summary")
+        private val AI_CONTACT_NAMES = booleanPreferencesKey("ai_contact_names")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val FLOW_ENABLED = stringSetPreferencesKey("flow_enabled")
         val FLOW_ORDER = stringPreferencesKey("flow_order")
@@ -696,7 +768,10 @@ data class LauncherState(
     val todos: List<TodoItem> = emptyList(),
     val heyLumen: Boolean = false,
     val smartVoice: Boolean = true,
+    val voiceLanguage: String = "",
     val geminiApiKey: String = "",
+    val aiInboxSummary: Boolean = false,
+    val aiContactNames: Boolean = false,
     val flowEnabled: Set<String> = defaultFlowEnabled(),
     val flowOrder: List<String> = defaultFlowNames(),
     val folders: List<HomeFolder> = emptyList(),
@@ -721,7 +796,9 @@ data class LauncherState(
     val focusPins: Map<String, List<String>> = emptyMap(),
     val spaceWallpapers: Map<String, String> = emptyMap(),
     val notificationBadges: NotificationBadgeMode = NotificationBadgeMode.Number
-)
+) {
+    override fun toString(): String = "LauncherState(appearance=$theme, alarms=${alarms.size}, apiKey=[redacted])"
+}
 
 object TouchpadHaptics {
     const val OFF = "off"

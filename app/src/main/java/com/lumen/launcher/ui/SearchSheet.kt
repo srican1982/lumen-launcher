@@ -112,7 +112,7 @@ fun SearchSheet(
                 focusRequester = focusRequester,
                 onSearch = { keyboard?.hide(); viewModel.submitSearch() },
                 hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
-                onVoice = { keyboard?.hide(); viewModel.openVoice() }
+                onVoice = { keyboard?.hide(); viewModel.voice.openVoice() }
             )
             Spacer(Modifier.height(14.dp))
             if (state.query.isBlank()) {

@@ -22,6 +22,10 @@ class FocusCallScreeningService : CallScreeningService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
     override fun onScreenCall(details: Call.Details) {
+        if (Build.VERSION.SDK_INT < 29) {
+            respondToCall(details, CallResponse.Builder().setDisallowCall(false).setRejectCall(false).build())
+            return
+        }
         if (details.callDirection != Call.Details.DIRECTION_INCOMING) return
         scope.launch {
         val ledger = getSharedPreferences("focus_session", MODE_PRIVATE)

@@ -13,7 +13,7 @@ object VoiceQuery {
         var q = WakePhrase.strip(raw)
             .lowercase()
             .replace("'", "")
-            .replace(Regex("[^a-z0-9%+*/(),.\\-\\s]"), " ")
+            .replace(Regex("[^\\p{L}\\p{N}%+*/(),.\\-\\s]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
             .trimEnd('.', '!', '?', ',')

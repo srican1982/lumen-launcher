@@ -56,12 +56,12 @@ internal fun FocusAppsSection(dismissSignal: Int = 0, showHeading: Boolean = tru
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(preview, key = { it.packageName }) { app ->
-                FocusGlassTile(label = app.label, width = 64.dp, height = 64.dp, onClick = { show = true }) {
-                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
+                FocusGlassTile(label = app.label, width = 84.dp, height = 104.dp, labelLines = 2, onClick = { show = true }) {
+                    AppIcon(app.packageName, app.activityName, 40.dp, icons, showNotificationBadge = false)
                 }
             }
             item(key = "manage_apps") {
-                FocusGlassTile(label = "Add apps", width = 64.dp, height = 64.dp, onClick = { show = true }) {
+                FocusGlassTile(label = "Add apps", width = 84.dp, height = 104.dp, onClick = { show = true }) {
                     Box(
                         Modifier
                             .size(30.dp)
@@ -93,7 +93,7 @@ internal fun FocusAppsSection(dismissSignal: Int = 0, showHeading: Boolean = tru
 }
 
 @Composable
-private fun AllowedAppsDialog(
+internal fun AllowedAppsDialog(
     apps: List<AppInfo>,
     icons: IconCache,
     initial: Set<String>,
@@ -212,7 +212,7 @@ private fun AllowedAppsDialog(
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
+                    AppIcon(app.packageName, app.activityName, 40.dp, icons, showNotificationBadge = false)
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(app.label, color = Color.White, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium)
                         Text(appSubtitle(app), color = FocusMuted, fontSize = 12.sp, fontFamily = Outfit)

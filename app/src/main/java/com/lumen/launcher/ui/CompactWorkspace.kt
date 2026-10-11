@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +43,7 @@ import java.util.Date
 @Composable
 fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @Composable () -> Unit) {
     val context = LocalContext.current
-    val media by NowPlayingRepository.state.collectAsState()
+    val media by NowPlayingRepository.state.collectAsStateWithLifecycle()
     val expanded = state.workspaceOpen
     val travelPrefs = remember { context.getSharedPreferences("travel_discovery", android.content.Context.MODE_PRIVATE) }
     var travelDiscovered by remember { mutableStateOf(travelPrefs.getBoolean("opened", false)) }
@@ -68,37 +70,45 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { NowPlayingRepository.start(context) }
     LaunchedEffect(state.focusUntil) {
-        while (state.focusUntil > System.currentTimeMillis()) { now = System.currentTimeMillis(); delay(1000) }
-        now = System.currentTimeMillis()
+        while (true) { now = System.currentTimeMillis(); delay(1000) }
     }
     LaunchedEffect(state.activeSpace, state.homePulse, state.sheet, state.pagerPage, state.socialCreateTool, state.recentsOpen) { vm.setWorkspaceOpen(false) }
-    val task = state.spaceTodos.firstOrNull { !it.done }
-    val event = state.upcomingEvents.firstOrNull { it.end > now }
+    val task = state.spaceTodos.firstOrNull { !it.done && (state.activeSpace != SpaceKind.Home || it.dueAt == null || TodoTime.startOfDay(it.dueAt) <= TodoTime.startOfDay(now)) }
+    val event = EventPresentation.next(state.upcomingEvents, now, state.activeSpace, state.workCalendars, state.personalCalendars)
+    val upcomingTasks = state.todos.filter { !it.done && it.space != SpaceKind.Private && it.dueAt != null && TodoTime.startOfDay(it.dueAt!!) > TodoTime.startOfDay(now) }
     val message = state.inbox.firstOrNull { !it.isDigest && it.source in setOf(
         com.lumen.launcher.inbox.InboxSource.Messages, com.lumen.launcher.inbox.InboxSource.WhatsApp,
         com.lumen.launcher.inbox.InboxSource.Telegram, com.lumen.launcher.inbox.InboxSource.Messenger
     ) }
     val focusing = state.focusUntil > now
     val seconds = ((state.focusUntil - now) / 1000).coerceAtLeast(0)
+    val workEvening = EventPresentation.evening(now)
+    val night = TodoTime.hourOf(now) >= 21 || TodoTime.hourOf(now) < 5
+    fun taskDetail(item: TodoItem): String {
+        val day = if (TaskAgenda.overdue(item, now)) "Overdue" else item.dueAt?.let { TodoTime.dayLabel(it, now) } ?: "Today"
+        val time = item.dueAt?.let { if (TodoTime.hasClock(it)) TodoTime.timeLabel(it) else "Anytime" } ?: "Anytime"
+        return "$day \u00B7 $time"
+    }
     val title = when (state.activeSpace) {
-        SpaceKind.Home -> state.upNext?.title ?: event?.title ?: task?.text ?: "Your day is clear"
-        SpaceKind.Work -> task?.text ?: event?.title ?: "Make room for your next idea"
+        SpaceKind.Home -> event?.title ?: task?.text ?: if (upcomingTasks.isNotEmpty()) "${upcomingTasks.size} ${if (upcomingTasks.size == 1) "task" else "tasks"} in Upcoming" else if (night) "Plan tomorrow" else "Your day is clear"
+        SpaceKind.Work -> task?.text ?: event?.title ?: if (workEvening) "Work's done" else "Your work day"
         SpaceKind.Personal -> message?.title ?: "Make something worth sharing"
         SpaceKind.Focus -> if (focusing) "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}" else "One thing at a time"
         SpaceKind.Travel -> "Where to next?"
         SpaceKind.Private -> "Your private space"
     }
     val detail = when (state.activeSpace) {
-        SpaceKind.Home -> state.upNext?.detail ?: event?.let { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin)) } ?: if (task != null) "Your next task" else "A little breathing room."
-        SpaceKind.Work -> event?.let { "Next meeting � ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.begin))}" } ?: "Tasks, notes and a clear focus."
+        SpaceKind.Home -> event?.let { EventPresentation.whenText(it, now) } ?: if (task != null) taskDetail(task) else upcomingTasks.minByOrNull { it.dueAt!! }?.text ?: if (night) "A calmer morning" else "Capture what\u2019s next."
+        SpaceKind.Work -> if (task != null) taskDetail(task) else event?.let { EventPresentation.whenText(it, now) } ?: if (workEvening) "Plan tomorrow" else "Add a task or note"
         SpaceKind.Personal -> message?.preview ?: "Messages and your creation studio."
         SpaceKind.Focus -> state.focusTask?.text ?: "Choose a task. Take your time."
         SpaceKind.Travel -> if (state.travelAttachments.isNotEmpty()) "${state.travelAttachments.size} saved travel items" else "Destination, tickets and itinerary."
         SpaceKind.Private -> "Only for you."
     }
     val shape = RoundedCornerShape(26.dp)
-    val showMedia = media != null && state.activeSpace != SpaceKind.Focus && state.activeSpace != SpaceKind.Travel
-    val clearDay = state.activeSpace == SpaceKind.Home && state.upNext == null && event == null && task == null
+    val showMedia = media?.playing == true && state.activeSpace != SpaceKind.Focus && state.activeSpace != SpaceKind.Travel
+    val showCapture = state.activeSpace !in setOf(SpaceKind.Focus, SpaceKind.Travel)
+    Column(Modifier.fillMaxWidth(), verticalArrangement=Arrangement.spacedBy(10.dp)) {
     Row(
         Modifier.fillMaxWidth().height(152.dp).clip(shape)
             .background(Brush.verticalGradient(listOf(Color.White.copy(0.16f), Color.White.copy(0.07f))))
@@ -117,6 +127,8 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                     modifier = Modifier.fillMaxSize()
                 )
             }
+        } else if (state.activeSpace == SpaceKind.Travel) {
+            TravelPadPanel(state, vm, Modifier.weight(1f).fillMaxHeight())
         } else {
             Column(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
                 Column(
@@ -137,15 +149,11 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                     Text(title, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium,
                         fontSize = if (state.activeSpace == SpaceKind.Focus && focusing) 28.sp else 16.sp,
                         lineHeight = if (state.activeSpace == SpaceKind.Focus && focusing) 32.sp else 19.sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (state.activeSpace == SpaceKind.Travel && !travelDiscovered) Text("Try me >", color = Color(0xFFFFBED2), fontFamily = Outfit, fontSize = 11.sp)
-                    if (!showMedia && !clearDay && state.activeSpace != SpaceKind.Travel) Text(detail, color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp,
-                        lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (clearDay) {
-                        Text("+ Reminder", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                                .clickable { vm.openCapture(CaptureKind.Reminder) }.padding(vertical = 4.dp))
-                    }
+                    if (state.activeSpace != SpaceKind.Travel) Text(detail, color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp,
+                        lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+
                 }
                 if (showPasses) {
                     WorkspaceActions {
@@ -164,6 +172,20 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                         }
                     }
                 }
+                if (showCapture && !showMedia) {
+                    HorizontalDivider(color = Color.White.copy(.16f))
+                    Row(Modifier.fillMaxWidth().height(40.dp).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("+ Task" to CaptureKind.Task, "+ Note" to CaptureKind.Note).forEach { (label, kind) ->
+                            Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = .09f))
+                                .border(.8.dp, Color.White.copy(alpha = .19f), RoundedCornerShape(12.dp))
+                                .clickable(onClickLabel = "Add ${kind.name.lowercase()}") { vm.openCapture(kind) }, contentAlignment = Alignment.Center) {
+                                Text(label, color = Lumen.Text, fontFamily = Outfit, fontSize = 11.sp, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+
                 if (showMedia) {
                     HorizontalDivider(color = Color.White.copy(0.16f))
                     Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -189,6 +211,8 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                 }
             }
         }
+    }
+    if (state.activeSpace == SpaceKind.Travel) TravelShortcutRow(state,vm)
     }
     if (boardingPasses) TravelCollection(state, vm, travelCategory) { boardingPasses = false }
 }

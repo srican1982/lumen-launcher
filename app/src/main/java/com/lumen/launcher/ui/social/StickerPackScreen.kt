@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui.social
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.content.ActivityNotFoundException
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,7 +76,7 @@ import java.io.File
 fun StickerPackScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val packs by StickerLibrary.packs.collectAsState()
+    val packs by StickerLibrary.packs.collectAsStateWithLifecycle()
     var refreshTick by remember { mutableIntStateOf(0) }
     var pendingRemove by remember { mutableStateOf<Pair<LumenStickerPack, LumenSticker>?>(null) }
 
@@ -100,6 +101,8 @@ fun StickerPackScreen(onClose: () -> Unit) {
     }
 
     // packId -> (target -> added?) ; null means WhatsApp couldn't tell us.
+    // This producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
     val added by produceState(emptyMap<String, Map<WhatsAppTarget, Boolean?>>(), packs, refreshTick) {
         value = withContext(Dispatchers.IO) {
             packs.associate { p ->

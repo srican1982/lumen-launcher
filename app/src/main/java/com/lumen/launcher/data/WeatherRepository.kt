@@ -2,6 +2,7 @@ package com.lumen.launcher.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -9,15 +10,28 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-class WeatherRepository {
+class WeatherRepository(private val context: android.content.Context) {
 
     suspend fun load(): WeatherSnapshot? = withContext(Dispatchers.IO) {
-        val geo = get("https://ipwho.is/") ?: return@withContext null
-        val root = JSONObject(geo)
-        if (!root.optBoolean("success", true)) return@withContext null
-        val lat = root.optDouble("latitude", Double.NaN)
-        val lon = root.optDouble("longitude", Double.NaN)
-        val city = root.optString("city").ifBlank { root.optString("region") }
+        val permitted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+            androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val position = if (permitted) {
+            val cancellation = com.google.android.gms.tasks.CancellationTokenSource()
+            try {
+                kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                    com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+                        .getCurrentLocation(com.google.android.gms.location.CurrentLocationRequest.Builder()
+                            .setPriority(com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY)
+                            .setGranularity(com.google.android.gms.location.Granularity.GRANULARITY_COARSE)
+                            .setDurationMillis(5_000L).build(), cancellation.token).await()
+                }
+            } finally { cancellation.cancel() }
+        } else null
+        // Permission granted: never silently fall back to an IP-location service.
+        val geo = if (!permitted) get("https://ipwho.is/")?.let { JSONObject(it) } else null
+        val lat = position?.latitude ?: geo?.optDouble("latitude", Double.NaN) ?: Double.NaN
+        val lon = position?.longitude ?: geo?.optDouble("longitude", Double.NaN) ?: Double.NaN
+        val city = if (position != null) "Local" else geo?.optString("city").orEmpty()
         if (lat.isNaN() || lon.isNaN()) return@withContext null
         val forecast = get(
             "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +

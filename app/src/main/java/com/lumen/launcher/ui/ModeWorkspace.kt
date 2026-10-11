@@ -61,64 +61,67 @@ fun ModeWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     var customFocus by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    // Only tick while Focus is active ? avoids recomposing Travel / Trip Mode every second (flicker).
-    LaunchedEffect(state.activeSpace, state.focusUntil) {
-        if (state.activeSpace != SpaceKind.Focus && state.focusUntil <= System.currentTimeMillis()) return@LaunchedEffect
-        while (true) {
-            now = System.currentTimeMillis()
-            if (state.focusUntil <= now && state.activeSpace != SpaceKind.Focus) break
-            delay(1000)
-        }
+    LaunchedEffect(Unit) {
+        while (true) { now = System.currentTimeMillis(); delay(1000) }
     }
     val activeFocus = state.focusUntil > now
     val task = state.spaceTodos.firstOrNull { !it.done }
-    val event = state.upcomingEvents.firstOrNull { it.end > now }
+    val event = EventPresentation.next(state.upcomingEvents, now, state.activeSpace, state.workCalendars, state.personalCalendars)
+    val workEvening = EventPresentation.evening(now)
+    val meetingToday = event?.takeIf { EventPresentation.isToday(it, now) }
+    val workWrapped = workEvening && task == null && meetingToday == null
     val message = state.inbox.firstOrNull {
         !it.isDigest && it.source in setOf(InboxSource.Messages, InboxSource.WhatsApp, InboxSource.Telegram, InboxSource.Messenger)
     }
     var travelCollection by remember { mutableStateOf<Boolean?>(null) }
     var albumTrip by remember { mutableStateOf<Trip?>(null) }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xF21B1C22)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(24.dp)).padding(16.dp),
+        Modifier.fillMaxWidth().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(when (state.activeSpace) {
                 SpaceKind.Home -> "What's next"
-                SpaceKind.Work -> "Task + next meeting"
+                SpaceKind.Work -> if (workWrapped) "Work's done" else "Your work day"
                 SpaceKind.Personal -> "Connect + create"
                 SpaceKind.Focus -> "One thing at a time"
                 SpaceKind.Travel -> "Your journey"
                 SpaceKind.Private -> "Private"
             }, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 17.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = { chooseApps = true }) { Text("Apps") }
         }
         when (state.activeSpace) {
             SpaceKind.Home -> {
-                val next = state.upNext
-                if (next != null) WorkspaceLine(next.title, next.detail) { vm.openUpNext(next) }
-                else if (event != null) WorkspaceLine(event.title, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(event.begin))) { vm.openCalendarEvent(event) }
+                if (event != null) WorkspaceLine(event.title, EventPresentation.whenText(event, now)) { vm.openCalendarEvent(event) }
                 else Text("A little space for your day.", color = Lumen.Muted)
-                task?.let { WorkspaceLine(it.text, "Next task ? tap to view") { vm.openTodoList() } }
+                task?.let { WorkspaceLine(it.text, "Next task \u00B7 tap to view") { vm.openTodoList() } }
                 WorkspaceActions {
                     WorkspacePill(onClick = { vm.openCapture(CaptureKind.Reminder) }) { Text("Reminder") }
                     WorkspacePill(onClick = { if (state.calendarAccess) vm.openCalendarApp() else vm.requestCalendarAccess() }) { Text(if (state.calendarAccess) "Calendar" else "Connect calendar") }
                 }
             }
             SpaceKind.Work -> {
-                WorkspaceLine(task?.text ?: "Choose your next task", "Tap to manage work tasks") { vm.openTodoList() }
-                if (event != null) WorkspaceLine(event.title, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(event.begin)) + " ? Open meeting") { vm.openCalendarEvent(event) }
-                else Text(if (state.calendarAccess) "No upcoming meeting." else "Connect your calendar to see your next meeting.", color = Lumen.Muted, fontSize = 12.sp)
-                WorkspaceActions {
-                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Task) }) { Text("Add task") }
-                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Note) }) { Text("Meeting note") }
-                    WorkspacePill(onClick = { vm.startFocus(25, task?.id) }) { Text("Focus 25m") }
-                    if (event != null && event.begin <= now + 15 * 60_000L && event.location.trim().startsWith("https://")) {
-                        WorkspacePill(onClick = { vm.joinWorkspaceMeeting(event) }) { Text("Join meeting") }
-                    }
-                    if (!state.calendarAccess) WorkspacePill(onClick = vm::requestCalendarAccess) { Text("Calendar access") }
+                if (task != null) {
+                    WorkspaceLine(task.text, "Tap to manage work tasks") { vm.openTodoList() }
+                } else {
+                    WorkspaceLine(if (workEvening) "Plan tomorrow" else "Choose your next task", "Tap to manage work tasks") { vm.openTodoList() }
                 }
+                if (meetingToday == null) Text(
+                    if (state.calendarAccess) "No more meetings today" else "Connect your calendar to see your next meeting.",
+                    color = Lumen.Muted, fontSize = 12.sp)
+                event?.let { next ->
+                    WorkspaceLine(next.title, EventPresentation.whenText(next, now)) { vm.openCalendarEvent(next) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Task) }, modifier = Modifier.weight(1f)) { Text("Task", maxLines = 1) }
+                    WorkspacePill(onClick = { vm.openCapture(CaptureKind.Note) }, modifier = Modifier.weight(1f)) { Text("Note", maxLines = 1) }
+                    WorkspacePill(onClick = { vm.startFocus(25, task?.id) }, modifier = Modifier.weight(1f)) { Text("Focus", maxLines = 1) }
+                }
+                if (event != null && event.begin <= now + 15 * 60_000L && event.location.trim().startsWith("https://")) {
+                    TextButton(onClick = { vm.joinWorkspaceMeeting(event) }) { Text("Join meeting") }
+                }
+                if (!state.calendarAccess) TextButton(onClick = vm::requestCalendarAccess) { Text("Calendar access") }
             }
+
             SpaceKind.Personal -> {
                 if (!state.inboxAccess) WorkspaceLine("Connect your messages", "Allow notification access for recent message previews") { vm.requestInboxAccess() }
                 else if (message != null) WorkspaceLine(message.title, message.preview) { vm.openInboxItem(message) }

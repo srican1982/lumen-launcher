@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,13 +34,14 @@ import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 
 @Composable
-fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
-    var selected by remember(state.activeSpace) { mutableStateOf(state.homeApps.map { it.key }.toSet()) }
+fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Unit, onSave: (List<String>) -> Unit, welcome: Boolean = false, initialKeys: List<String>? = null, onUsage: (() -> Unit)? = null) {
+    var selected by remember(state.activeSpace, initialKeys) { mutableStateOf((initialKeys ?: state.homeApps.map { it.key }).toSet()) }
+    val gridState = rememberLazyGridState()
     var query by remember { mutableStateOf("") }
-    val apps = remember(state.visibleApps, query) {
-        state.visibleApps.filter { it.label.contains(query.trim(), true) }.sortedBy { it.label.lowercase() }
+    val apps = remember(state.visibleApps, query, selected) {
+        state.visibleApps.filter { it.label.contains(query.trim(), true) }.sortedWith(compareByDescending<com.lumen.launcher.data.AppInfo> { it.key in selected }.thenBy { it.label.lowercase() })
     }
-    val accent = Color(0xFFE1C4FF)
+    val accent = Color(0xFFF5CB7E)
     val shape = RoundedCornerShape(28.dp)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
@@ -53,11 +55,11 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("MAKE IT YOURS", color = accent, fontFamily = Outfit, fontSize = 10.sp, letterSpacing = 1.6.sp)
-                    Text("Apps for ${state.activeSpace.title}", color = Color.White, fontFamily = Outfit, fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                    Text(if (welcome) "Pick your ${state.activeSpace.title} apps" else "Apps for ${state.activeSpace.title}", color = Color.White, fontFamily = Outfit, fontSize = 24.sp, fontWeight = FontWeight.Medium)
                 }
                 IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Cancel", tint = Color.White.copy(alpha = 0.7f)) }
             }
-            Text("Choose the apps you want in this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+            Text(if (welcome) "We picked ${(initialKeys ?: state.homeApps.map { it.key }).size} to start \u00b7 Add more anytime" else "Choose the apps you want in this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
             TextField(
                 value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -81,21 +83,22 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                     Text("No apps match your search", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit)
                 }
             } else LazyVerticalGrid(
-                columns = GridCells.Adaptive(86.dp), modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 12.dp)
+                columns = GridCells.Fixed(4), state = gridState,
+                modifier = Modifier.weight(1f).fillMaxWidth().softGridEdges({ false }, { gridState.canScrollForward }),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 20.dp)
             ) {
                 items(apps, key = { it.key }) { app ->
                     val chosen = app.key in selected
                     val tileShape = RoundedCornerShape(18.dp)
-                    Box(Modifier.fillMaxWidth().height(108.dp).clip(tileShape)
-                        .background(if (chosen) Color(0xFF493951) else Color.White.copy(alpha = 0.035f))
-                        .border(1.dp, if (chosen) accent.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.06f), tileShape)
+                    Box(Modifier.fillMaxWidth().height(80.dp).clip(tileShape)
+                        .background(if (chosen) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.035f))
+                        .border(if (chosen) 1.5.dp else 1.dp, if (chosen) accent else Color.White.copy(alpha = 0.06f), tileShape)
                         .toggleable(value = chosen, role = Role.Checkbox) { selected = if (it) selected + app.key else selected - app.key }
                     ) {
-                        Column(Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            AppIcon(app.packageName, app.activityName, 44.dp, icons, showNotificationBadge = false)
-                            Spacer(Modifier.height(8.dp))
+                        Column(Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            AppIcon(app.packageName, app.activityName, 38.dp, icons, showNotificationBadge = false)
+                            Spacer(Modifier.height(5.dp))
                             Text(app.label, color = Color.White, fontFamily = Outfit, fontSize = 11.sp, lineHeight = 14.sp,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                         }
@@ -106,11 +109,22 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 }
             }
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.7f)) }
+            if (welcome || onUsage != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                if (welcome) TextButton(onClick = {
+                    selected = com.lumen.launcher.data.SpaceStarterApps.picks(state.activeSpace, state.visibleApps, state.dock.map { it.packageName }.toSet()).map { it.key }.toSet()
+                    query = ""
+                }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                    Text("Reset to suggestions", color = accent, fontSize = 11.sp, maxLines = 1)
+                }
+                if (onUsage != null) TextButton(onClick = onUsage, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 2.dp)) {
+                    Text("Use your recent apps", color = accent, fontSize = 11.sp, maxLines = 1)
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!welcome) TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.7f)) }
                 Button(onClick = { onSave(selected.toList()) }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF30213A))) {
-                    Text("Save ${selected.size} apps", fontFamily = Outfit, fontWeight = FontWeight.Medium)
+                    Text(if (welcome) "Continue (${selected.size})" else "Save (${selected.size})", fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 1)
                 }
             }
         }

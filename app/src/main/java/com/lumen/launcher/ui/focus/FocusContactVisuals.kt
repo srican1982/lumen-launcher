@@ -43,6 +43,8 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun FocusContactAvatar(person: FocusPerson, size: Dp = 34.dp) {
     val context = LocalContext.current
+    // The producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
     val photo by produceState(person.photoUri, person.id, person.photoUri, person.contactLookupKey) {
         value = if (person.photoUri.startsWith("file:")) person.photoUri else withContext(Dispatchers.IO) {
             runCatching {

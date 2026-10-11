@@ -17,7 +17,7 @@ object NotificationBadgeFilter {
         selfPackage: String,
         ranking: NotificationListenerService.RankingMap? = null
     ): Map<String, Int> {
-        val eligible = notifications.filter { shouldCount(it, selfPackage, ranking) }
+        val eligible = notifications.distinctBy { it.key }.filter { shouldCount(it, selfPackage, ranking) }
         return eligible
             .groupBy { it.packageName }
             .mapValues { (_, pkgNotes) -> countForPackage(pkgNotes) }
@@ -69,7 +69,7 @@ object NotificationBadgeFilter {
             val rank = NotificationListenerService.Ranking()
             if (ranking.getRanking(sbn.key, rank)) {
                 if (rank.importance < NotificationManager.IMPORTANCE_LOW) return false
-                if (rank.isSuspended) return false
+                if (android.os.Build.VERSION.SDK_INT >= 28 && rank.isSuspended) return false
                 // Respect the app's own per-channel badge flag. We deliberately do NOT use
                 // rank.canShowBadge(): it also folds in the phone-wide launcher badge switch
                 // (e.g. Samsung "App icon badges"), which belongs to the stock launcher and

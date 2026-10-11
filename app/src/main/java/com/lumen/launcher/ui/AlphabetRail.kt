@@ -149,8 +149,8 @@ fun AlphabetRail(
                                 .background(
                                     Brush.radialGradient(
                                         listOf(
-                                            Lumen.Accent.copy(alpha = 0.95f),
-                                            Lumen.Accent.copy(alpha = 0.40f),
+                                            Color(0xFFF5CB7E).copy(alpha = 0.95f),
+                                            Color(0xFFF5CB7E).copy(alpha = 0.40f),
                                             Color.Transparent
                                         )
                                     )
@@ -160,13 +160,13 @@ fun AlphabetRail(
                             Modifier
                                 .size(17.dp)
                                 .clip(CircleShape)
-                                .background(Lumen.Accent.copy(alpha = 0.70f))
+                                .background(Color(0xFFF5CB7E).copy(alpha = 0.70f))
                         )
                     }
                     Text(
                         text = letter.toString(),
                         color = when {
-                            selected -> Color.White
+                            selected -> Color(0xFF241B10)
                             present -> Color.White.copy(alpha = 0.98f)
                             else -> Color.White.copy(alpha = 0.36f)
                         },
@@ -186,7 +186,7 @@ fun AlphabetRail(
         }
 
         if (scrubbing && activeLetter != null) {
-            val offsetX = with(density) { -(164.dp).roundToPx() }
+            val offsetX = with(density) { -(192.dp).roundToPx() }
             Popup(
                 alignment = Alignment.CenterStart,
                 offset = IntOffset(offsetX, 0),
@@ -201,6 +201,7 @@ fun AlphabetRail(
                     visible = true,
                     letter = activeLetter,
                     apps = index.previews[activeLetter].orEmpty(),
+                    total = index.totals[activeLetter] ?: 0,
                     icons = icons
                 )
             }
@@ -213,6 +214,7 @@ private fun AlphabetPreviewBubble(
     visible: Boolean,
     letter: Char?,
     apps: List<AppInfo>,
+    total: Int,
     icons: IconCache,
     modifier: Modifier = Modifier
 ) {
@@ -224,7 +226,7 @@ private fun AlphabetPreviewBubble(
     ) {
         Column(
             modifier = Modifier
-                .width(156.dp)
+                .width(184.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(
                     Brush.verticalGradient(
@@ -238,7 +240,7 @@ private fun AlphabetPreviewBubble(
                     1.dp,
                     Brush.verticalGradient(
                         listOf(
-                            Lumen.Accent.copy(alpha = 0.55f),
+                            Color(0xFFF5CB7E).copy(alpha = 0.55f),
                             Color.White.copy(alpha = 0.14f)
                         )
                     ),
@@ -261,8 +263,8 @@ private fun AlphabetPreviewBubble(
                         .background(
                             Brush.radialGradient(
                                 listOf(
-                                    Lumen.Accent.copy(alpha = 0.95f),
-                                    Lumen.Accent.copy(alpha = 0.40f),
+                                    Color(0xFFF5CB7E).copy(alpha = 0.95f),
+                                    Color(0xFFF5CB7E).copy(alpha = 0.40f),
                                     Color.Transparent
                                 )
                             )
@@ -272,12 +274,12 @@ private fun AlphabetPreviewBubble(
                     Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(Lumen.Accent.copy(alpha = 0.90f)),
+                        .background(Color(0xFFF5CB7E).copy(alpha = 0.90f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = letter?.toString().orEmpty(),
-                        color = Color.White,
+                        color = Color(0xFF241B10),
                         fontFamily = Outfit,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 26.sp
@@ -307,13 +309,14 @@ private fun AlphabetPreviewBubble(
                             fontFamily = Outfit,
                             fontWeight = FontWeight.Light,
                             fontSize = 14.sp,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
+            if(total > apps.size) Text("+${total-apps.size} more", color=Lumen.Faint,fontFamily=Outfit,fontSize=12.sp,modifier=Modifier.padding(top=6.dp))
         }
     }
 }

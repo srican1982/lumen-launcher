@@ -11,7 +11,8 @@ data class InboxItem(
     val sender: String? = null,
     val isCall: Boolean = false,
     val avatarPath: String? = null,
-    val conversationId: String? = null
+    val conversationId: String? = null,
+    val secret: Boolean = false
 ) {
     val isDigest: Boolean
         get() {

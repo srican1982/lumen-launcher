@@ -39,6 +39,7 @@ class SocialCreateCoordinator(
         kind: CreationKind,
         transparentBitmap: Bitmap,
         accessibilityText: String,
+        onPackSaved: (LumenStickerPack) -> Unit = {},
         onDone: (Boolean) -> Unit = {}
     ) {
         scope.launch {
@@ -59,6 +60,7 @@ class SocialCreateCoordinator(
                 is AddStickerResult.Added -> {
                     val p = result.pack
                     toast("Added to ${p.name} (${p.stickers.size}/${StickerLibrary.MAX_STICKERS})")
+                    onPackSaved(p)
                     onDone(true)
                 }
                 is AddStickerResult.Failed -> {
@@ -71,12 +73,20 @@ class SocialCreateCoordinator(
 
     fun saveBitmap(kind: CreationKind, bitmap: Bitmap, onSaved: (CreationItem) -> Unit = {}) {
         scope.launch {
-            val bytes = ByteArrayOutputStream().use { stream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                stream.toByteArray()
+            try {
+                val item = withContext(Dispatchers.IO) {
+                    val bytes = ByteArrayOutputStream().use { stream ->
+                        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                        stream.toByteArray()
+                    }
+                    repository.savePng(kind, bytes)
+                }
+                onSaved(item)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                toast("Couldn't save this creation. Please try again.")
             }
-            val item = repository.savePng(kind, bytes)
-            onSaved(item)
         }
     }
 
@@ -89,9 +99,11 @@ class SocialCreateCoordinator(
             val file = withContext(Dispatchers.Default) {
                 val sticker = StickerMaker.make(transparentBitmap)
                 val bytes = StickerMaker.encodeWebp(sticker)
-                val dir = File(application.cacheDir, "stickers").apply { mkdirs() }
-                dir.listFiles()?.forEach { it.delete() }
-                File(dir, "lumen_sticker_${System.currentTimeMillis()}.webp").apply { writeBytes(bytes) }
+                val dir = File(application.cacheDir, "share/stickers").apply { mkdirs() }
+                // Keep recent exports available while another app reads the shared URI.
+                val cutoff = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                dir.listFiles()?.filter { it.isFile && it.lastModified() < cutoff }?.forEach { it.delete() }
+                File(dir, "lumen_sticker_${java.util.UUID.randomUUID()}.webp").apply { writeBytes(bytes) }
             }
             saveBitmap(kind, transparentBitmap)
             share.shareSticker(file)

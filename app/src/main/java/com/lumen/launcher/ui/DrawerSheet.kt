@@ -86,8 +86,8 @@ import android.view.HapticFeedbackConstants
 
 private enum class DrawerTab(val label: String) {
     AZ("A-Z"),
-    MOST_USED("Most used"),
-    CATEGORIES("Categories"),
+    MOST_USED("Top"),
+    CATEGORIES("Groups"),
     RECENT("Recent")
 }
 
@@ -97,6 +97,10 @@ fun DrawerSheet(
     viewModel: LauncherViewModel,
     onDismiss: () -> Unit
 ) {
+    // The drawer owns Back while visible, ahead of the underlying Focus guide.
+    androidx.activity.compose.BackHandler(enabled = state.sheet == com.lumen.launcher.vm.Sheet.Drawer) {
+        if (state.activeApp != null) viewModel.dismissAppActions() else onDismiss()
+    }
     var selectedDrawerTab by remember { mutableStateOf(DrawerTab.AZ) }
     var dragApp by remember { mutableStateOf<AppInfo?>(null) }
     var dragPhase by remember { mutableStateOf(IconPhase.Rest) }
@@ -348,7 +352,7 @@ fun DrawerSheet(
                         tint = Color.White.copy(alpha = 0.78f),
                         modifier = Modifier
                             .size(22.dp)
-                            .clickable { viewModel.openVoice() }
+                            .clickable { viewModel.voice.openVoice() }
                     )
                 }
             }
@@ -390,8 +394,8 @@ fun DrawerSheet(
                                     fontWeight = if (letterHeader) FontWeight.Light else FontWeight.Medium,
                                     letterSpacing = if (letterHeader) 0.sp else 0.3.sp,
                                     modifier = Modifier.padding(
-                                        top = if (letterHeader) 20.dp else 18.dp,
-                                        bottom = if (letterHeader) 12.dp else 10.dp
+                                        top = if (letterHeader) 12.dp else 18.dp,
+                                        bottom = if (letterHeader) 6.dp else 10.dp
                                     )
                                 )
                             }
@@ -565,17 +569,17 @@ private fun DrawerTabRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+            ,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         DrawerTab.entries.forEach { tab ->
             val isSelected = tab == selected
             val shape = RoundedCornerShape(22.dp)
             Box(
-                modifier = Modifier
+                modifier = Modifier.weight(1f)
                     .then(
                         if (isSelected) {
-                            Modifier.shadow(12.dp, shape, spotColor = Lumen.AccentDeep.copy(alpha = 0.65f))
+                            Modifier.shadow(12.dp, shape, spotColor = Color(0xFFF5CB7E).copy(alpha = 0.65f))
                         } else {
                             Modifier
                         }
@@ -584,7 +588,7 @@ private fun DrawerTabRow(
                     .background(
                         if (isSelected) {
                             Brush.horizontalGradient(
-                                listOf(Color(0xFF9B5DE5), Color(0xFF7C3AED))
+                                listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E))
                             )
                         } else {
                             Brush.verticalGradient(
@@ -594,15 +598,16 @@ private fun DrawerTabRow(
                     )
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) Color(0xFFB794F6).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
+                        color = if (isSelected) Color(0xFFF5CB7E).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
                         shape = shape
                     )
                     .clickable { onSelect(tab) }
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
+                    .padding(horizontal = 4.dp, vertical = 10.dp)
+                , contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = tab.label,
-                    color = if (isSelected) Color(0xFFF8F4FF) else Color.White.copy(alpha = 0.68f),
+                    color = if (isSelected) Color(0xFF241B10) else Color.White.copy(alpha = 0.68f),
                     fontFamily = Outfit,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     fontSize = 14.sp
@@ -672,13 +677,13 @@ private fun DrawerAppRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 2.dp)
+                .padding(vertical = 2.dp, horizontal = 2.dp)
         ) {
-        Box(iconTouch.padding(6.dp)) {
+        Box(iconTouch.padding(2.dp)) {
         AppIcon(
             packageName = app.packageName,
             activityName = app.activityName,
-            size = 46.dp,
+            size = 44.dp,
             icons = icons,
             corner = 14.dp,
             phase = if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {

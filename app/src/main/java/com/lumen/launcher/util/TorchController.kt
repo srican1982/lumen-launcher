@@ -14,11 +14,13 @@ class TorchController(context: Context) {
     var on: Boolean = false
         private set
 
-    fun toggle(): Boolean {
+    fun toggle(): Boolean = set(!on)
+
+    fun set(enabled: Boolean): Boolean {
         val id = cameraId ?: return false
         return try {
-            on = !on
-            manager?.setTorchMode(id, on)
+            manager?.setTorchMode(id, enabled)
+            on = enabled
             on
         } catch (_: Exception) {
             on = false

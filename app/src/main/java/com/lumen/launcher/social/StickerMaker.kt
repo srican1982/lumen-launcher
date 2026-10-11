@@ -59,21 +59,23 @@ object StickerMaker {
             if (lossless.size <= MAX_BYTES) return lossless
             var q = 90
             var bytes = compress(sticker, Bitmap.CompressFormat.WEBP_LOSSY, q)
-            while (bytes.size > MAX_BYTES && q > 40) {
+            while (bytes.size > MAX_BYTES && q > 0) {
                 q -= 10
                 bytes = compress(sticker, Bitmap.CompressFormat.WEBP_LOSSY, q)
             }
+            check(bytes.size <= MAX_BYTES) { "This photo is too detailed for a sticker. Try cropping it closer." }
             return bytes
         }
         // Android 8–10: the legacy WEBP format; lower quality until it fits WhatsApp's 100KB limit.
         var q = 95
         @Suppress("DEPRECATION")
         var bytes = compress(sticker, Bitmap.CompressFormat.WEBP, q)
-        while (bytes.size > MAX_BYTES && q > 40) {
-            q -= 10
+        while (bytes.size > MAX_BYTES && q > 0) {
+            q = (q - 10).coerceAtLeast(0)
             @Suppress("DEPRECATION")
             bytes = compress(sticker, Bitmap.CompressFormat.WEBP, q)
         }
+        check(bytes.size <= MAX_BYTES) { "This photo is too detailed for a sticker. Try cropping it closer." }
         return bytes
     }
 

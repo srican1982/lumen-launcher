@@ -1,5 +1,11 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+
+
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -137,14 +143,28 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val completedFocus by com.lumen.launcher.focus.FocusSessionManager.get(androidx.compose.ui.platform.LocalContext.current).completion.collectAsStateWithLifecycle()
+    val focusCompleted = state.activeSpace == SpaceKind.Focus && !state.focusing && completedFocus != null
     BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(if (LumenPalette.whiteGlass) listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14)) else listOf(Color(0xFF081522), Color(0xFF071017), Color(0xFF09101A))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
         if (state.activeSpace == SpaceKind.Focus) com.lumen.launcher.ui.focus.FocusRainBackdrop(active = state.focusing)
         if (state.activeSpace == SpaceKind.Personal) SocialBackdrop()
         if (state.activeSpace == SpaceKind.Travel) TravelBackdrop()
+        // Shared wallpaper scrim keeps the greeting and glass mode tabs readable.
+        Box(
+            Modifier.fillMaxWidth().height(300.dp).background(
+                Brush.verticalGradient(
+                    0f to Color(0xFF030A16).copy(alpha = 0.30f),
+                    0.42f to Color(0xFF030A16).copy(alpha = 0.38f),
+                    0.70f to Color(0xFF030A16).copy(alpha = 0.22f),
+                    1f to Color.Transparent
+                )
+            )
+        )
         val gridGap = 12.dp
         val gridWidth = (maxWidth - 48.dp).coerceAtLeast(0.dp)
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
-        val dockWidth = ((gridWidth - 24.dp - 6.dp * (state.dockCapacity - 1)) / state.dockCapacity).coerceAtLeast(1.dp)
+        // Dock chrome uses 8.dp horizontal padding (Apple-like tight inset).
+        val dockWidth = ((gridWidth - 16.dp - 6.dp * (state.dockCapacity - 1)) / state.dockCapacity).coerceAtLeast(1.dp)
         val homeIconSize = minOf(state.iconSizeDp.dp, cellWidth - 8.dp, dockWidth - 8.dp).coerceAtLeast(1.dp)
         val homeGridApps = state.homeApps.filter { it.key !in state.folderAppKeys }
         val recentsOpen = state.recentsOpen
@@ -173,6 +193,10 @@ fun HomeScreen(
         val density = LocalDensity.current
         val iconPx = with(density) { homeIconSize.toPx() }
         val gridState = rememberLazyGridState()
+        val gridNeedsScroll = rememberGridNeedsScroll(gridState, blankEdge = 4.dp)
+        LaunchedEffect(gridNeedsScroll) {
+            if (!gridNeedsScroll) gridState.scrollToItem(0)
+        }
         LaunchedEffect(isActive, state.activeSpace, state.focusing) {
             slotOrigins.clear()
             if (isActive) gridState.scrollToItem(0)
@@ -349,6 +373,7 @@ fun HomeScreen(
                     )
             ) {
             Spacer(Modifier.height(6.dp))
+            if (!focusCompleted) {
             HomeGreeting(
                 greeting = copy.greeting,
                 recentsOpen = recentsOpen,
@@ -365,6 +390,7 @@ fun HomeScreen(
                     }
                 )
             }
+            }
             if (!state.isDefaultHome) {
                 Spacer(Modifier.height(10.dp))
                 HomeSetupCard(onSetDefault = onRequestDefaultHome)
@@ -376,7 +402,7 @@ fun HomeScreen(
                     onOpen = viewModel::openPackageInfo
                 )
             }
-            if (state.activeSpace != SpaceKind.Focus) {
+            if (!focusCompleted && (state.activeSpace != SpaceKind.Focus || !state.focusing)) {
                 Spacer(Modifier.height(12.dp))
                 ActionBar(
                     hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
@@ -394,7 +420,7 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .clipToBounds()
                     .onGloballyPositioned { gridRef.value = it }
-                    .softGridEdges({ gridState.canScrollBackward }, { gridState.canScrollForward })
+                    .softGridEdges({ gridState.canScrollBackward }, { gridNeedsScroll && gridState.canScrollForward }, bottomFade = 8.dp)
             ) {
                 @Suppress("DEPRECATION")
                 CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
@@ -404,11 +430,11 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize().drawerAtGridEnd(!editing && !recentsOpen, gridState, viewModel::openDrawer),
                     contentPadding = PaddingValues(
                         top = if (state.activeSpace == SpaceKind.Focus) 4.dp else 12.dp,
-                        bottom = if (state.activeSpace == SpaceKind.Focus) 8.dp else 28.dp
+                        bottom = if (gridNeedsScroll) 28.dp else 0.dp
                     ),
-                    userScrollEnabled = !editing,
+                    userScrollEnabled = !editing && gridNeedsScroll,
                     horizontalArrangement = Arrangement.spacedBy(gridGap),
-                    verticalArrangement = Arrangement.spacedBy(gridGap)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     item(key = "touchpad-row", span = { GridItemSpan(state.gridColumns) }) {
                         when (state.activeSpace) {
@@ -434,7 +460,7 @@ fun HomeScreen(
                         }
                     }
                     if (state.activeSpace == SpaceKind.Travel) {
-                        // Pinned first Travel icon — not in slotOrigins, not draggable, not removable.
+                        // Pinned first Travel icon â€” not in slotOrigins, not draggable, not removable.
                         item(key = "trip-albums-shortcut") {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -478,7 +504,7 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // Social / Focus canvases own their apps — avoid a duplicate grid.
+                    // Social / Focus canvases own their apps â€” avoid a duplicate grid.
                     if (state.activeSpace != SpaceKind.Personal && state.activeSpace != SpaceKind.Focus) {
                         items(homeGridApps, key = { it.key }) { app ->
                             HomeGridIcon(app)
@@ -487,8 +513,7 @@ fun HomeScreen(
                 }
                 }
             }
-            Spacer(Modifier.height(if (state.activeSpace == SpaceKind.Focus) 0.dp else 16.dp))
-            if (state.activeSpace == SpaceKind.Focus) Spacer(Modifier.navigationBarsPadding())
+            DockScrollHint(gridState, state.activeSpace, enabled = gridNeedsScroll && !editing && !recentsOpen && !state.focusing)
             DockBar(
                 apps = state.dock,
                 slotCount = state.dockCapacity,
@@ -646,14 +671,7 @@ private fun HomeGreeting(
     }
 }
 
-private fun weatherIcon(summary: String) = when {
-    summary.contains("Storm", true) -> Icons.Outlined.Thunderstorm
-    summary.contains("Snow", true) -> Icons.Outlined.AcUnit
-    summary.contains("Rain", true) || summary.contains("Drizzle", true) -> Icons.Outlined.Grain
-    summary.contains("Overcast", true) || summary.contains("Fog", true) -> Icons.Outlined.Cloud
-    summary.contains("Mostly", true) -> Icons.Outlined.WbCloudy
-    else -> Icons.Outlined.WbSunny
-}
+private fun weatherIcon(summary: String) = weatherGlyph(summary)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -675,10 +693,10 @@ private fun ActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(34.dp).clip(CircleShape).background(Lumen.AccentFill),
+                Modifier.size(34.dp).clip(CircleShape).background(Lumen.BrandGold),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.AutoAwesome, null, tint = Lumen.OnAccent, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.AutoAwesome, null, tint = Lumen.OnBrandGold, modifier = Modifier.size(16.dp))
             }
             Text(
                 hint,
@@ -713,7 +731,7 @@ private fun FocusBanner(state: LauncherUiState, viewModel: LauncherViewModel) {
             Text("FOCUS", color = Color(0xFF34D399), fontFamily = Outfit, fontSize = 11.sp, fontWeight = FontWeight.Medium)
             Text(task, color = Lumen.Text, fontFamily = Outfit, fontSize = 15.sp, maxLines = 1)
             Text(
-                if (state.focusPaused) "Paused · $left min left" else "$left min left",
+                if (state.focusPaused) "Paused Â· $left min left" else "$left min left",
                 color = Lumen.Faint,
                 fontFamily = Outfit,
                 fontSize = 12.sp
@@ -851,7 +869,7 @@ fun PrivateLockCard(onUnlock: () -> Unit, modifier: Modifier = Modifier) {
             modifier = Modifier.padding(top = 14.dp)
         )
         Text(
-            "Hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications. Long-press the TouchPad, then confirm it’s you.",
+            "Hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications. Long-press the TouchPad, then confirm itâ€™s you.",
             color = Lumen.Muted,
             fontFamily = Outfit,
             fontSize = 14.sp,
@@ -908,14 +926,29 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                     .drawWithContent {
                         drawContent()
                         if (active && space == SpaceKind.Travel) {
-                            val wing = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(size.width * .58f, 2f)
-                                lineTo(size.width * .91f, -18.dp.toPx())
-                                lineTo(size.width * .82f, 4f)
+                            val unit = 1.dp.toPx()
+                            val x = size.width * .77f
+                            val y = -10 * unit
+                            val plane = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(x, y - 11*unit)
+                                lineTo(x + 2*unit, y - 3*unit)
+                                lineTo(x + 10*unit, y + 3*unit)
+                                lineTo(x + 10*unit, y + 5*unit)
+                                lineTo(x + 2*unit, y + 2*unit)
+                                lineTo(x + 1.5f*unit, y + 8*unit)
+                                lineTo(x + 4*unit, y + 10*unit)
+                                lineTo(x + 4*unit, y + 11*unit)
+                                lineTo(x, y + 9*unit)
+                                lineTo(x - 4*unit, y + 11*unit)
+                                lineTo(x - 4*unit, y + 10*unit)
+                                lineTo(x - 1.5f*unit, y + 8*unit)
+                                lineTo(x - 2*unit, y + 2*unit)
+                                lineTo(x - 10*unit, y + 5*unit)
+                                lineTo(x - 10*unit, y + 3*unit)
+                                lineTo(x - 2*unit, y - 3*unit)
                                 close()
                             }
-                            drawPath(wing, Brush.linearGradient(listOf(Color(0xFFD77C9B), Color(0xFF8F123E)), start = androidx.compose.ui.geometry.Offset(size.width * .6f, -18.dp.toPx()), end = androidx.compose.ui.geometry.Offset(size.width, 4f)))
-                            drawLine(Color(0xFFEAB1C5), androidx.compose.ui.geometry.Offset(size.width * .71f, -3.dp.toPx()), androidx.compose.ui.geometry.Offset(size.width * .84f, -10.dp.toPx()), 1.dp.toPx())
+                            drawPath(plane, Color(0xFFFFCDDE))
                         }
                     }
                     .clip(chipShape)
@@ -923,10 +956,10 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                         when {
                             active && selected == SpaceKind.Travel -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFAC1749), Color(0xFF780D32)))).border(1.dp, Color(0xFFC55B7D), chipShape)
                             active && selected == SpaceKind.Focus && !white -> Modifier
-                                .background(Brush.horizontalGradient(listOf(Color(0xFF5B8CFF), Color(0xFF2F62F0))))
+                                .background(com.lumen.launcher.ui.focus.FocusGradient)
                                 .border(1.dp, Color(0xFF7AA0FF), chipShape)
-                            selected == SpaceKind.Focus && !white -> Modifier.background(Color(0xFF0D1824)).border(0.8.dp, Color(0xFF202D40), chipShape)
-                            active && selected == SpaceKind.Focus && white -> Modifier.background(Brush.horizontalGradient(listOf(Color(0xFF5B8CFF), Color(0xFF2F62F0))))
+                            selected == SpaceKind.Focus && !white -> Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color(0xFF7384AD).copy(alpha = 0.10f)))).border(0.8.dp, Color.White.copy(alpha = 0.32f), chipShape)
+                            active && selected == SpaceKind.Focus && white -> Modifier.background(com.lumen.launcher.ui.focus.FocusGradient)
                             active && white -> Modifier.background(
                                 Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
                             )
@@ -1043,15 +1076,31 @@ private fun DockBar(
     val moving = dockPhase == IconPhase.Lifted || dockPhase == IconPhase.Dragging
     val density = LocalDensity.current
     val half = with(density) { iconSize.toPx() / 2f }
-    Glass(
-        modifier = modifier.fillMaxWidth().height(iconSize + 22.dp),
-        shape = RoundedCornerShape(Lumen.DockRadius),
-        airy = true
+    val glass = LocalGlass.current
+    val dockShape = RoundedCornerShape(Lumen.DockRadius)
+    // Soft translucent glass — Apple-like: rounded, borderless, tight chrome padding.
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height((iconSize + 16.dp).coerceAtLeast(56.dp))
+            .shadow(
+                elevation = 10.dp,
+                shape = dockShape,
+                spotColor = Color(0x28000000),
+                ambientColor = Color(0x14000000)
+            )
+            .clip(dockShape)
+            .background(
+                Brush.verticalGradient(
+                    0f to glass.airyTop,
+                    1f to glass.airyBottom
+                )
+            )
     ) {
         Box(Modifier.fillMaxSize().onGloballyPositioned { dockLayout = it }) {
             Row(
                 Modifier
-                    .fillMaxSize().padding(horizontal = 12.dp),
+                    .fillMaxSize().padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1330,3 +1379,48 @@ private class RectBox {
     var value: Rect = Rect.Zero
 }
 
+
+
+@Composable
+private fun DockScrollHint(
+    grid: androidx.compose.foundation.lazy.grid.LazyGridState,
+    space: SpaceKind,
+    enabled: Boolean
+) {
+    var dismissed by remember(space) { mutableStateOf(false) }
+    val visible = enabled && grid.canScrollForward && !dismissed
+    val movement = remember(space) { androidx.compose.animation.core.Animatable(0f) }
+    val opacity by androidx.compose.animation.core.animateFloatAsState(
+        if (visible) .7f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(350), label = "More content hint"
+    )
+    LaunchedEffect(space, grid.firstVisibleItemIndex, grid.firstVisibleItemScrollOffset) {
+        if (grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 4) dismissed = true
+    }
+    LaunchedEffect(space, visible) {
+        if (visible) {
+            delay(600)
+            while (true) {
+                movement.animateTo(2f, androidx.compose.animation.core.tween(450))
+                movement.animateTo(0f, androidx.compose.animation.core.tween(450))
+                delay(2100)
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(16.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.foundation.Canvas(
+            Modifier.size(18.dp, 14.dp).graphicsLayer { alpha = opacity; translationY = movement.value.dp.toPx() }
+                .semantics { contentDescription = "More content below. Swipe up to see more." }
+        ) {
+            repeat(2) { index ->
+                val top = index * 5.dp.toPx()
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width * .2f, top + 2.dp.toPx())
+                    lineTo(size.width * .5f, top + 5.dp.toPx())
+                    lineTo(size.width * .8f, top + 2.dp.toPx())
+                }
+                drawPath(path, Color.White.copy(alpha = if (index == 0) .7f else 1f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+    }
+}

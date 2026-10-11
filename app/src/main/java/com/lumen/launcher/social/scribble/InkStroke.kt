@@ -8,10 +8,11 @@ data class InkStroke(
     val points: List<Offset>,
     val color: Color,
     val width: Float,
-    val erase: Boolean
+    val erase: Boolean,
+    val brush: ScribbleBrushStyle? = null
 )
 
-enum class ScribbleBrushStyle { Sketch, Marker, Glow }
+enum class ScribbleBrushStyle { Sketch, Pen, Marker, Glow }
 
 enum class ScribbleExportBackground { Transparent, Light, Dark, LumenGradient }
 

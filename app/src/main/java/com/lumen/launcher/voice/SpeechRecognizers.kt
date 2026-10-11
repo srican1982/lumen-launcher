@@ -72,31 +72,38 @@ object SpeechRecognizers {
         return runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull()
     }
 
-    fun createForWake(context: Context): SpeechRecognizer? = createForCommands(context)
+    fun createForWake(context: Context): SpeechRecognizer? {
+        if (Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            runCatching { SpeechRecognizer.createOnDeviceSpeechRecognizer(context) }.getOrNull()?.let { return it }
+        }
+        return createForCommands(context)
+    }
 
-    fun commandIntent(context: Context): Intent {
-        val lang = Locale.getDefault().toLanguageTag()
+    fun commandIntent(context: Context, language: String = "", hints: List<String> = emptyList()): Intent {
+        val lang = language.ifBlank { Locale.getDefault().toLanguageTag() }
         return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             if (Build.VERSION.SDK_INT >= 33) {
                 putStringArrayListExtra(
                     RecognizerIntent.EXTRA_BIASING_STRINGS,
-                    ArrayList(VoiceHearing.biasWords())
+                    ArrayList(SpeechContext.hints(hints))
                 )
             }
         }
     }
 
-    fun wakeIntent(context: Context): Intent = commandIntent(context)
+    fun wakeIntent(context: Context, language: String = ""): Intent = commandIntent(context, language, listOf("Hey Lumen", "Lumen")).apply {
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+    }
 
-    fun promptIntent(context: Context): Intent? {
-        val intent = commandIntent(context).apply {
+    fun promptIntent(context: Context, language: String = "", hints: List<String> = emptyList()): Intent? {
+        val intent = commandIntent(context, language, hints).apply {
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Lumen")
         }
         val hit = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
@@ -110,13 +117,8 @@ object SpeechRecognizers {
 
     fun rankedTexts(results: Bundle?): List<String> {
         val texts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-        val scores = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
-        val ranked = if (scores != null && scores.size == texts.size) {
-            texts.zip(scores.toList()).sortedByDescending { it.second }.map { it.first }
-        } else {
-            texts
-        }
-        return ranked.map { it.trim() }.filter { it.isNotBlank() }
+        // Android supplies best-first hypotheses. Confidence may be absent or incomparable.
+        return texts.map { it.trim() }.filter { it.isNotBlank() }.distinct().take(5)
     }
 
     private fun score(component: ComponentName): Int {

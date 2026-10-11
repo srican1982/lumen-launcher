@@ -14,7 +14,9 @@ internal object DeterministicIntentParser {
         "social space", "focus space", "home space", "work mode", "focus mode", "the work space",
         "the personal space", "the social space", "the focus space", "the home space",
         "the work", "the personal", "the social", "the focus", "up settings", "up search",
-        "up home", "up flow", "up drawer"
+        "up home", "up flow", "up drawer", "personalize",
+        "work layout", "home layout", "social layout", "personal layout", "focus layout",
+        "social mode", "personal mode", "home mode"
     )
 
     fun parse(text: String): List<VoiceIntent> {
@@ -23,6 +25,7 @@ internal object DeterministicIntentParser {
         val hits = mutableListOf<VoiceIntent>()
         fun add(intent: VoiceIntent?) { if (intent != null) hits += intent }
 
+        add(LocalVoiceBasics.parse(text))
         add(math(q, text))
         add(help(q, text))
         add(farewell(q, text))
@@ -115,7 +118,7 @@ internal object DeterministicIntentParser {
             ) -> VoiceIntent(VoiceAction.OPEN_DRAWER, 0.99f, original)
             q in setOf("search", "open search", "show search", "open up search") ->
                 VoiceIntent(VoiceAction.OPEN_SEARCH, 1.00f, original)
-            q in setOf("personalize flow", "customise flow", "customize flow", "flow settings") ->
+            q in setOf("open personalize", "personalize flow", "customise flow", "customize flow", "flow settings") ->
                 VoiceIntent(VoiceAction.OPEN_PERSONALIZE, 0.99f, original)
             q in setOf(
                 "lumen settings", "launcher settings", "open settings",
@@ -146,7 +149,7 @@ internal object DeterministicIntentParser {
             .replaceFirst(Regex("""^(?:launch|switch to)\s+"""), "open ")
         when (normalized) {
             "private", "private space", "locked space", "open private", "open locked",
-            "open private space", "go to private", "go to private space" ->
+            "open private space", "open locked space", "go to private", "go to private space" ->
                 return VoiceIntent(VoiceAction.OPEN_PRIVATE, 0.99f, original)
             "work", "open work", "open work space", "open work mode", "open work layout",
             "go to work", "go to work space", "work space", "work layout", "work mode",
@@ -190,6 +193,7 @@ internal object DeterministicIntentParser {
     private fun grid(q: String, original: String): VoiceIntent? {
         val match = Regex("""(?:use|make|set|change to|fit)?\s*([3-6])\s*(?:column|columns|per row|on each row)""").find(q)
             ?: Regex("""^([3-6])\s+columns$""").find(q)
+            ?: Regex("""^grid(?: to)? ([3-6])$""").find(q)
             ?: return null
         return VoiceIntent(VoiceAction.SET_GRID, 0.97f, original, intValue = match.groupValues[1].toInt())
     }
@@ -447,6 +451,7 @@ internal object DeterministicIntentParser {
     }
 
     private fun alarm(q: String, original: String): VoiceIntent? {
+        if (q.startsWith("remind me to ") || q.startsWith("remember to ")) return null
         return when (val command = VoiceCommands.alarmCommand(q)) {
             is VoiceCommands.AlarmCommand.Set -> VoiceIntent(
                 VoiceAction.SET_ALARM, 0.98f, original,
@@ -467,7 +472,7 @@ internal object DeterministicIntentParser {
             return VoiceIntent(VoiceAction.COMPLETE_TASK, 0.96f, original, textValue = it)
         }
         VoiceCommands.deleteTask(q)?.let {
-            return VoiceIntent(VoiceAction.DELETE_TASK, 0.96f, original, textValue = it)
+            return VoiceIntent(VoiceAction.DELETE_TASK, 0.96f, original, textValue = it, destructive = true)
         }
         VoiceCommands.task(q)?.let {
             return VoiceIntent(VoiceAction.SET_REMINDER, 0.97f, original, textValue = it)

@@ -1,5 +1,7 @@
 package com.lumen.launcher.travel
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,14 +28,16 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,8 +66,9 @@ private val TripPurple = Color(0xFFB794F6)
 
 @Composable
 fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), initialTripId: Long? = null) {
-    val state by tripVm.uiState.collectAsState()
+    val state by tripVm.uiState.collectAsStateWithLifecycle()
     var selected by remember { mutableStateOf<Trip?>(null) }
+    var deleting by remember { mutableStateOf<Trip?>(null) }
     LaunchedEffect(Unit) { tripVm.onForeground() }
     val navBottom = rememberNavBottomPadding(56.dp)
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -82,13 +87,12 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), 
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-        Surface(Modifier.fillMaxSize(), color = Color(0xFF12101A)) {
+        TripGlassFrame {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(top = statusTop)
                     .padding(horizontal = 18.dp)
-                    .padding(bottom = navBottom)
+                    .padding(bottom = 12.dp)
             ) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
@@ -145,7 +149,7 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), 
                         contentPadding = PaddingValues(bottom = 20.dp)
                     ) {
                         items(trips, key = { it.id }) { trip ->
-                            TripFolderCard(trip = trip, onOpen = { selected = trip })
+                            TripFolderCard(trip = trip, onOpen = { selected = trip }, onDelete = { deleting = trip })
                         }
                     }
                 }
@@ -154,11 +158,27 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), 
         selected?.let { trip ->
             TripAlbumScreen(trip = trip, onClose = { selected = null }, tripVm = tripVm)
         }
+        deleting?.let { trip ->
+            AlertDialog(onDismissRequest = { if (!state.isLoading) deleting = null },
+                title = { Text("Delete album?") },
+                text = { Text("Remove ${trip.displayTitle} from Lumen? Your original photos stay on your phone.") },
+                confirmButton = { TextButton(enabled = !state.isLoading, onClick = {
+                    tripVm.deleteAlbum(trip.id) {
+                        deleting = null
+                        if (selected?.id == trip.id) selected = null
+                    }
+                }) { Text(if (state.isLoading) "Deleting..." else "Delete", color = Gold) } },
+                dismissButton = { TextButton(enabled = !state.isLoading, onClick = { deleting = null }) { Text("Cancel") } })
+        }
+        state.errorMessage?.let { message ->
+            AlertDialog(onDismissRequest = tripVm::clearError, text = { Text(message) },
+                confirmButton = { TextButton(onClick = tripVm::clearError) { Text("OK") } })
+        }
     }
 }
 
 @Composable
-private fun TripFolderCard(trip: Trip, onOpen: () -> Unit) {
+private fun TripFolderCard(trip: Trip, onOpen: () -> Unit, onDelete: () -> Unit) {
     val shape = RoundedCornerShape(20.dp)
     Column(
         Modifier
@@ -221,6 +241,10 @@ private fun TripFolderCard(trip: Trip, onOpen: () -> Unit) {
                         .background(TripPurple.copy(alpha = 0.85f))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
+            }
+            if (!trip.isActive) IconButton(onClick = onDelete, modifier = Modifier.align(Alignment.TopEnd)
+                .padding(6.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = .55f))) {
+                Icon(Icons.Outlined.DeleteOutline, "Delete album", tint = Color.White)
             }
             Row(
                 Modifier

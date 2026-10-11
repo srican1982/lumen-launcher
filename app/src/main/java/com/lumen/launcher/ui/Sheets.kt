@@ -145,6 +145,7 @@ fun BottomMenu(
 fun MenuSheet(state: LauncherUiState, viewModel: LauncherViewModel, onRequestDefaultHome: () -> Unit) {
     BottomMenu("Home", "Wallpaper, settings, default app", onDismiss = viewModel::closeSheet) {
         MenuRow("Capture") { viewModel.openCapture() }
+        MenuRow("Lumen widgets") { viewModel.openWidgets() }
         MenuRow("Search") { viewModel.openSearch() }
         MenuRow("Wallpaper for ${state.activeSpace.title}") { viewModel.openWallpaperPicker() }
         if (!state.spaceWallpaper.isNullOrBlank()) {
@@ -288,11 +289,14 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         MenuRow("Hey Lumen  ·  ${if (state.heyLumen) "On" else "Off"}") {
             viewModel.setHeyLumen(!state.heyLumen)
         }
+        MenuRow("Voice language \u00B7 ${if (state.voiceLanguage == "en-US") "English (US)" else "Phone language"}") {
+            viewModel.setVoiceLanguage(if (state.voiceLanguage == "en-US") "" else "en-US")
+        }
         MenuRow("Smart voice  ·  ${if (state.smartVoice) "On" else "Off"}") {
             viewModel.setSmartVoice(!state.smartVoice)
         }
         Text(
-            "Exact commands stay on-device. Everything else — questions, fuzzy phrasing, call, timer — goes to Gemini or OpenRouter with the time, last few turns, app names, and contacts. It can speak an answer, not only pick a launcher action.",
+            "App opening, calls, messages, timers and other supported commands are matched locally. Your phone's speech provider may process audio online. Smart voice uses AI for unresolved requests and questions; contact names and inbox summaries require separate opt-in.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -326,6 +330,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             letterSpacing = 1.4.sp
         )
         BasicTextField(
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
             value = geminiDraft,
             onValueChange = {
                 geminiDraft = it
@@ -391,9 +396,10 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
                 .clickable(enabled = armed && dirty, onClick = { saveApiKey() })
                 .padding(vertical = 12.dp)
         )
+        AiPrivacyControls(state, viewModel)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Off by default. When on, Lumen listens for “Hey Lumen” while Home is visible, preferring on-device recognition when this phone has it. That still uses the microphone and battery. Voice from the TouchPad, mic, and digital assistant works with this off.",
+            "Off by default. When on, Lumen listens for “Hey Lumen” while Home is visible, preferring on-device recognition when this phone has it. If on-device recognition is unavailable, Android's speech provider may process audio online despite the offline preference. That still uses the microphone and battery. Voice from the TouchPad, mic, and digital assistant works with this off.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,
@@ -401,6 +407,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             lineHeight = 18.sp,
             modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
         )
+        MenuRow("Legacy screen lock setup (PIN/password)") { viewModel.setupLegacyScreenLock() }
         MenuRow("Digital assistant  ·  ${if (AssistantRole.isHeld(LocalContext.current)) "Lumen" else "Set Lumen"}") {
             viewModel.requestDigitalAssistant()
         }
@@ -413,6 +420,9 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             fontWeight = FontWeight.Medium,
             letterSpacing = 1.4.sp
         )
+        MenuRow("Full-screen alarm access") {
+            com.lumen.launcher.alarm.AlarmScheduler.requestFullScreenAccess(viewModel.getApplication())
+        }
         MenuRow("Alarm tone  ·  ${AlarmTones.label(state.alarmTone)}") {
             viewModel.cycleAlarmTone()
         }
@@ -520,7 +530,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
             modifier = Modifier.padding(top = 0.dp, bottom = 8.dp, start = 4.dp, end = 4.dp)
         )
         Text(
-            "Hey Lumen is opt-in and only listens while Home is on screen. It is not a hardware wake word like Bixby. Set Lumen as your digital assistant to open Voice from the side key, including the lock screen.",
+            "Hey Lumen is opt-in and only listens while Home is on screen. It is not a hardware wake word like Bixby. Set Lumen as your digital assistant to open Voice from the side key after unlocking your phone.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,

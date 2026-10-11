@@ -27,7 +27,7 @@ internal fun FocusActiveSoundCard() {
     var playing by remember { mutableStateOf(player.isPlaying()) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Focus sound: ${sound.title}", Modifier.weight(1f), color = Color.White, fontSize = 14.sp)
-        TextButton(onClick = { changing = true }) { Text("Change sounds", color = FocusAccent) }
+        TextButton(onClick = { changing = true }) { Text("Change sounds", color = androidx.compose.ui.graphics.Color.White) }
     }
     FocusGlass {
         Box(Modifier.fillMaxWidth().height(64.dp)) {
@@ -48,7 +48,7 @@ internal fun FocusActiveSoundCard() {
             TextButton(enabled = sound != FocusSound.Off, onClick = {
                 if (player.isPlaying()) player.pauseSession() else player.resumeSession()
                 playing = player.isPlaying()
-            }) { Text(if (playing) "Pause sound" else "Play sound", color = FocusAccent, fontSize = 11.sp) }
+            }) { Text(if (playing) "Pause sound" else "Play sound", color = androidx.compose.ui.graphics.Color.White, fontSize = 11.sp) }
             Slider(volume, { volume = it; player.setVolume(it) }, Modifier.weight(1f), valueRange = .05f..1f,
                 colors = SliderDefaults.colors(thumbColor = FocusAccent, activeTrackColor = FocusAccent))
             Text("${(volume * 100).toInt()}%", color = FocusMuted, fontSize = 11.sp)

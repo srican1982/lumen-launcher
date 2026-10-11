@@ -2,13 +2,14 @@ package com.lumen.launcher.voice.intent
 
 /** Session-only context. Explicit commands still work without a network. */
 class VoiceConversation {
-    private val turns = ArrayDeque<String>()
+    private data class Turn(val text: String, val shareable: Boolean)
+    private val turns = ArrayDeque<Turn>()
     private var awaitingDetail = false
     fun clear() { turns.clear(); awaitingDetail = false }
-    fun history(): List<String> = turns.toList()
-    fun record(user: String, reply: String, asksForDetail: Boolean) {
-        if (user.isNotBlank()) turns.addLast("User: ${user.take(2000)}")
-        turns.addLast("Lumen: ${reply.take(2000)}")
+    fun history(): List<String> = turns.filter { it.shareable }.map { it.text }
+    fun record(user: String, reply: String, asksForDetail: Boolean, shareable: Boolean = true) {
+        if (user.isNotBlank()) turns.addLast(Turn("User: ${user.take(2000)}", shareable))
+        turns.addLast(Turn("Lumen: ${reply.take(2000)}", shareable))
         while (turns.size > 16) turns.removeFirst()
         awaitingDetail = asksForDetail
     }

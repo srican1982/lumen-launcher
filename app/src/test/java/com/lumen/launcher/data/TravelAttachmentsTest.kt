@@ -11,7 +11,7 @@ class TravelAttachmentsTest {
     @Test fun categoriesAndAppShortcutsSurviveReload() {
         val items = TravelCategory.entries.map { TravelAttachment("rail.app/MainActivity", "Rail tickets", "application/x-lumen-app", category = it) }
         assertEquals(items, TravelAttachments.decode(TravelAttachments.encode(items)))
-        assertEquals(5, TravelAttachments.merge(items, items).size)
+        assertEquals(TravelCategory.entries.size, TravelAttachments.merge(items, items).size)
     }
     @Test fun legacyAndNewItineraryItemsDeduplicateTogether() {
         val old = TravelAttachment("content://plan", "Plan", "application/pdf", true)

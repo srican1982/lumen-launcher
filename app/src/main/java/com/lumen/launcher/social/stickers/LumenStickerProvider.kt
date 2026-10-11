@@ -53,6 +53,35 @@ class LumenStickerProvider : ContentProvider() {
         private val SAFE_NAME = Regex("^[A-Za-z0-9._-]{1,128}$")
     }
 
+    private fun checkCaller() {
+        val ctx = context ?: throw SecurityException("Provider unavailable")
+        val uid = android.os.Binder.getCallingUid()
+        if (uid == android.os.Process.myUid()) return
+        val pm = ctx.packageManager
+        val allowedPackages = setOf("com.whatsapp", "com.whatsapp.w4b")
+        // Official certificate fingerprints: https://www.whatsapp.com/.well-known/assetlinks.json
+        val fingerprints = setOf(
+            "3987d043d10aefaf5a8710b3671418fe57e0e19b653c9df82558feb5ffce5d44",
+            "fb920d381bee1b2093f27dc8f13d994da629dc91887d0529b35c9a2dc4f4a6c2")
+        val trusted = pm.getPackagesForUid(uid).orEmpty().any { pkg ->
+            if (pkg !in allowedPackages) false else runCatching {
+                val signatures = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                    val info = pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
+                    if (info?.hasMultipleSigners() == true) info.apkContentsSigners else info?.signingCertificateHistory
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getPackageInfo(pkg, android.content.pm.PackageManager.GET_SIGNATURES).signatures
+                }
+                signatures.orEmpty().any { signature ->
+                    val hash = java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray())
+                        .joinToString("") { "%02x".format(it) }
+                    hash in fingerprints
+                }
+            }.getOrDefault(false)
+        }
+        if (!trusted) throw SecurityException("Only verified WhatsApp clients may read stickers")
+    }
+
     override fun onCreate(): Boolean = true
 
     override fun query(
@@ -62,6 +91,7 @@ class LumenStickerProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor? {
+        checkCaller()
         val ctx = context ?: return null
         val segments = uri.pathSegments
         // Only packs that meet WhatsApp's 3–30 rule are ever exposed.
@@ -124,7 +154,9 @@ class LumenStickerProvider : ContentProvider() {
     }
 
     override fun openAssetFile(uri: Uri, mode: String): AssetFileDescriptor? {
+        checkCaller()
         val ctx = context ?: return null
+        if (mode != "r") throw SecurityException("Read-only provider")
         val segments = uri.pathSegments
         if (segments.size != 3 || segments[0] != STICKERS_ASSET) throw FileNotFoundException(uri.toString())
         val packId = segments[1]
@@ -139,6 +171,7 @@ class LumenStickerProvider : ContentProvider() {
     }
 
     override fun getType(uri: Uri): String? {
+        checkCaller()
         val segments = uri.pathSegments
         val authority = uri.authority ?: return null
         return when {

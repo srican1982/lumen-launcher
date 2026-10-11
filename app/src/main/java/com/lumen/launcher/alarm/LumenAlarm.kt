@@ -15,16 +15,16 @@ data class LumenAlarm(
     val minute: Int,
     val enabled: Boolean = true,
     val daily: Boolean = false,
-    val label: String = ""
+    val label: String = "",
+    /** Fixed deadline for a countdown; ordinary alarms keep their local wall-clock time. */
+    val triggerAtMs: Long? = null
 ) {
-    fun nextTriggerMs(now: Long = System.currentTimeMillis()): Long {
-        val zone = ZoneId.systemDefault()
-        var at = LocalDateTime.of(LocalDate.now(zone), LocalTime.of(hour, minute))
-            .atZone(zone)
-            .toInstant()
-            .toEpochMilli()
-        if (at <= now + 15_000L) at += 24L * 60 * 60 * 1000
-        return at
+    fun nextTriggerMs(now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault()): Long {
+        triggerAtMs?.let { return it }
+        val date = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        var at = date.atTime(hour, minute).atZone(zone)
+        if (at.toInstant().toEpochMilli() <= now + 15_000L) at = date.plusDays(1).atTime(hour, minute).atZone(zone)
+        return at.toInstant().toEpochMilli()
     }
 
     fun displayTime(): String {
@@ -36,7 +36,7 @@ data class LumenAlarm(
         if (daily) return "Every day"
         val zone = ZoneId.systemDefault()
         val trigger = Instant.ofEpochMilli(nextTriggerMs(now)).atZone(zone).toLocalDate()
-        val today = LocalDate.now(zone)
+        val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         return when (trigger) {
             today -> "Today"
             today.plusDays(1) -> "Tomorrow"

@@ -20,9 +20,7 @@ object StatusBarController {
 
     @SuppressLint("WrongConstant", "PrivateApi")
     private fun expand(context: Context, settings: Boolean) {
-        HiddenApis.unseal()
         if (expandViaManager(context, settings)) return
-        if (expandViaBinder(settings)) return
         Log.w(TAG, "Could not expand ${if (settings) "quick settings" else "notifications"}")
     }
 
@@ -40,29 +38,6 @@ object StatusBarController {
         }
     }
 
-    @SuppressLint("PrivateApi")
-    private fun expandViaBinder(settings: Boolean): Boolean {
-        return runCatching {
-            val binder = Class.forName("android.os.ServiceManager")
-                .getMethod("getService", String::class.java)
-                .invoke(null, "statusbar") as? IBinder
-                ?: return false
-            val stub = Class.forName("com.android.internal.statusbar.IStatusBarService\$Stub")
-            val service = stub.getMethod("asInterface", IBinder::class.java).invoke(null, binder)
-                ?: return false
-            if (settings) {
-                runCatching {
-                    service.javaClass.getMethod("expandSettingsPanel", String::class.java).invoke(service, null as String?)
-                }.recoverCatching {
-                    service.javaClass.getMethod("expandSettingsPanel").invoke(service)
-                }.getOrThrow()
-            } else {
-                service.javaClass.getMethod("expandNotificationsPanel").invoke(service)
-            }
-            true
-        }.onFailure { Log.w(TAG, "Binder expand failed", it) }.getOrDefault(false)
-    }
-
     private fun invoke(
         cls: Class<*>,
         service: Any,
@@ -76,23 +51,5 @@ object StatusBarController {
             declared.invoke(service, *args)
             true
         }.onFailure { Log.w(TAG, "StatusBarManager.$method failed", it) }.getOrDefault(false)
-    }
-}
-
-internal object HiddenApis {
-    @SuppressLint("PrivateApi")
-    fun unseal() {
-        runCatching {
-            val vmRuntime = Class.forName("dalvik.system.VMRuntime")
-            val getRuntime = vmRuntime.getDeclaredMethod("getRuntime")
-            getRuntime.isAccessible = true
-            val runtime = getRuntime.invoke(null)
-            val setHiddenApiExemptions = vmRuntime.getDeclaredMethod(
-                "setHiddenApiExemptions",
-                Array<String>::class.java
-            )
-            setHiddenApiExemptions.isAccessible = true
-            setHiddenApiExemptions.invoke(runtime, arrayOf("L") as Any)
-        }
     }
 }

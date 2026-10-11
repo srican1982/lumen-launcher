@@ -34,12 +34,10 @@ object UpNextResolver {
     }
 
     private fun eventCard(now: Long, events: List<CalendarEvent>): UpNext? {
-        val event = events.firstOrNull { candidate ->
-            candidate.end > now - 60_000L && candidate.begin <= now + 2 * 60 * 60_000L
-        } ?: return null
-        val whenText = relative(now, event.begin, event.end)
+        val event = EventPresentation.next(events, now)?.takeIf { it.begin <= now + 2 * 60 * 60_000L } ?: return null
+        val whenText = EventPresentation.whenText(event, now)
         val travel = travel(event)
-        val place = event.location.trim().takeIf { it.isNotBlank() && !it.contains("http", true) }
+        val place = event.location.trim().takeIf { it.isNotBlank() && it.length <= 120 && !it.contains("Dear ", true) && !it.contains("http", true) }
         return if (travel) {
             UpNext(
                 kind = UpNext.Kind.Flight,

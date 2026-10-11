@@ -34,6 +34,9 @@ object LumenPalette {
 object Lumen {
     private val w: Boolean get() = LumenPalette.whiteGlass
 
+    val BrandGold = Color(0xFFE4CB91)
+    val OnBrandGold = Color(0xFF28251D)
+
     val Night: Color get() = if (w) Color(0xFF14171C) else Color(0xFF14061F)
     val Dusk: Color get() = if (w) Color(0xFF2A2F37) else Color(0xFF3B1568)
     val Bloom: Color get() = if (w) Color(0xFF4A5260) else Color(0xFF6D3AA0)

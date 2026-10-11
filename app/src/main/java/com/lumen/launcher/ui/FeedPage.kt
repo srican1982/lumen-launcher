@@ -83,8 +83,10 @@ fun FeedPage(
     viewModel: LauncherViewModel
 ) {
     var editingTopics by remember { mutableStateOf(false) }
-    if (state.newsInterests.isEmpty() || editingTopics) {
+    var dismissedInitial by remember { mutableStateOf(false) }
+    if ((state.newsInterests.isEmpty() && !dismissedInitial) || editingTopics) {
         FlowInterestPicker(
+            onClose={editingTopics=false;dismissedInitial=true},
             selected = state.newsInterests,
             calendars = state.deviceCalendars,
             accounts = state.phoneAccounts,
@@ -99,6 +101,7 @@ fun FeedPage(
             onAddGoogle = viewModel::addGoogleAccount,
             onAddWork = viewModel::addWorkAccount,
             onAllowCalendar = viewModel::requestCalendarAccess,
+            onConnectionsChanged = viewModel::setCalendarRoles,
             inboxAccess = state.inboxAccess,
             onAllowInbox = viewModel::requestInboxAccess,
             hasCallLogPermission = state.callLogAccess,
@@ -127,7 +130,7 @@ fun FeedPage(
                     .padding(10.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.Tune, contentDescription = "Topics", tint = Lumen.Accent, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Tune, contentDescription = "Topics", tint = Color(0xFFF5CB7E), modifier = Modifier.size(18.dp))
             }
         }
         Text(
@@ -145,14 +148,14 @@ fun FeedPage(
                 val on = topic.name in state.newsInterests
                 Text(
                     text = topic.title,
-                    color = if (on) Lumen.OnAccent else Lumen.Muted,
+                    color = if (on) Color(0xFF241B10) else Lumen.Muted,
                     fontSize = 13.sp,
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
                         .clip(RoundedCornerShape(18.dp))
                         .then(
-                            if (on) Modifier.background(Lumen.AccentFill)
+                            if (on) Modifier.background(Brush.horizontalGradient(listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E))))
                             else Modifier.background(Color.White.copy(0.08f))
                         )
                         .clickable { viewModel.toggleNewsInterest(topic) }
@@ -185,7 +188,7 @@ fun FeedPage(
                                 .clickable(onClick = viewModel::loadNews)
                                 .padding(18.dp)
                         ) {
-                            Text("NO STORIES YET", color = Lumen.Accent, fontFamily = Outfit, fontSize = 11.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Medium)
+                            Text("NO STORIES YET", color = Color(0xFFF5CB7E), fontFamily = Outfit, fontSize = 11.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Medium)
                             Text(
                                 "Pull down to load photos and headlines for your topics.",
                                 color = Lumen.Muted,
@@ -218,6 +221,7 @@ fun FeedPage(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun FlowInterestPicker(
     selected: Set<String>,
@@ -237,7 +241,9 @@ fun FlowInterestPicker(
     flowOrder: List<String> = defaultFlowNames(),
     flowEnabled: Set<String> = defaultFlowEnabled(),
     onToggleFlow: (String) -> Unit = {},
-    onMoveFlow: (String, Int) -> Unit = { _, _ -> }
+    onMoveFlow: (String, Int) -> Unit = { _, _ -> },
+    onConnectionsChanged: (Set<String>, Set<String>) -> Unit = { _, _ -> },
+    onClose: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(0) }
     var draft by remember(selected) { mutableStateOf(selected) }
@@ -256,17 +262,21 @@ fun FlowInterestPicker(
     }
     val work = roles.filterValues { it == CalendarRole.Work }.keys
     val personal = roles.filterValues { it == CalendarRole.Personal }.keys
-    val ready = draft.isNotEmpty()
+    val ready = tab != 2 || draft.isNotEmpty()
+    androidx.activity.compose.BackHandler(onBack=onClose)
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollConfiguration provides null) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 22.dp)
+            .padding(start = 22.dp, end = 22.dp, bottom = 40.dp)
     ) {
         Spacer(Modifier.height(18.dp))
-        Text("FLOW", color = Lumen.Faint, fontFamily = Outfit, fontWeight = FontWeight.Medium, letterSpacing = 2.sp, fontSize = 12.sp)
-        Text("Personalize", color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 34.sp, lineHeight = 40.sp)
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            androidx.compose.material3.TextButton(onClick=onClose) {Text("\u2715",color=Lumen.Text,fontSize=24.sp)}
+            Text("Personalize",color=Lumen.Text,fontFamily=Outfit,fontSize=30.sp)
+        }
         Row(
             modifier = Modifier
                 .padding(top = 16.dp, bottom = 14.dp)
@@ -275,11 +285,11 @@ fun FlowInterestPicker(
                 .background(Color.White.copy(0.10f))
                 .padding(4.dp)
         ) {
-            listOf("Cards", "Calendars", "News").forEachIndexed { index, label ->
+            listOf("Cards", "Connections", "News").forEachIndexed { index, label ->
                 val on = tab == index
                 Text(
                     label,
-                    color = if (on) Lumen.OnAccent else Lumen.Text,
+                    color = if (on) Color(0xFF241B10) else Lumen.Text,
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
@@ -287,190 +297,37 @@ fun FlowInterestPicker(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (on) Lumen.Accent else Color.Transparent)
+                        .background(if (on) Color(0xFFF5CB7E) else Color.Transparent)
                         .clickable { tab = index }
                         .padding(vertical = 10.dp)
                 )
             }
         }
         if (tab == 0) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    "Choose what Flow shows, and the order. Empty cards still hide themselves.",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(bottom = 14.dp)
-                )
-                parseFlowOrder(flowOrder).forEach { module ->
-                    val enabled = module.name in flowEnabled
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(0.08f))
-                            .clickable { onToggleFlow(module.name) }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            if (enabled) "On" else "Off",
-                            color = if (enabled) Lumen.Accent else Lumen.Faint,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp,
-                            modifier = Modifier.width(36.dp)
-                        )
-                        Text(
-                            module.title,
-                            color = Lumen.Text,
-                            fontFamily = Outfit,
-                            fontSize = 16.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            "↑",
-                            color = Lumen.Faint,
-                            fontSize = 16.sp,
-                            modifier = Modifier
-                                .clickable { onMoveFlow(module.name, -1) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                        Text(
-                            "↓",
-                            color = Lumen.Faint,
-                            fontSize = 16.sp,
-                            modifier = Modifier
-                                .clickable { onMoveFlow(module.name, 1) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
+            FlowCardOrderEditor(flowOrder,flowEnabled,onToggleFlow,onMoveFlow,Modifier.weight(1f))
         } else if (tab == 1) {
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    "Next is optional. Allow Android calendar access to show events already on this phone. If nothing is there, Next stays hidden — Flow still works with weather, calls, apps, reminders, and news.",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(bottom = 14.dp)
-                )
-                if (!hasCalendarPermission) {
-                    Text(
-                        "Allow calendar access",
-                        color = Lumen.OnAccent,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .padding(top = 6.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Lumen.Accent)
-                            .clickable(onClick = onAllowCalendar)
-                            .padding(vertical = 14.dp)
-                    )
-                    Text(
-                        "Optional. Lumen only reads calendars Android already exposes. It does not sign into Google or Microsoft.",
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 12.dp)
-                    )
-                } else if (calendars.isEmpty()) {
-                    Text(
-                        "No calendars on this phone yet, so Next stays hidden. Connect Google Calendar or Microsoft only if you want events here. Work Outlook and Teams often keep their calendars inside those apps, and Lumen will not try to bypass that.",
-                        color = Lumen.Muted,
-                        fontFamily = Outfit,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .padding(top = 6.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(0.08f))
-                            .padding(16.dp)
-                    )
-                } else {
-                    calendars.forEach { cal ->
-                        val id = cal.id.toString()
-                        CalendarRoleCard(
-                            calendar = cal,
-                            role = roles[id] ?: CalendarRole.Off,
-                            onRole = { next -> roles = roles + (id to next) }
-                        )
-                        Spacer(Modifier.height(10.dp))
+                Text("Choose what Flow can access.",color=Lumen.Faint,fontSize=14.sp,modifier=Modifier.padding(bottom=12.dp))
+                FlowConnectionRow("Calendars","Events on this phone",hasCalendarPermission,onAllowCalendar)
+                if(hasCalendarPermission) {
+                    if(calendars.isEmpty()) Text("No calendars found on this phone.",color=Lumen.Faint,fontSize=12.sp,modifier=Modifier.padding(8.dp))
+                    calendars.forEach {cal ->
+                        val id=cal.id.toString()
+                        CalendarRoleCard(cal,roles[id] ?: CalendarRole.Off) {next -> roles=roles+(id to next); onConnectionsChanged(roles.filterValues { it == CalendarRole.Work }.keys, roles.filterValues { it == CalendarRole.Personal }.keys)}
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
-                Text(
-                    "Deeper integration is optional.",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AccountChip("Connect Google Calendar", onAddGoogle)
-                    AccountChip("Connect Microsoft", onAddWork)
-                }
+                FlowConnectionRow("Outlook & Gmail","Email notifications",inboxAccess,onAllowInbox)
+                FlowConnectionRow("WhatsApp missed calls","Call notifications",inboxAccess,onAllowInbox)
+                FlowConnectionRow("Phone missed calls","Phone call history",hasCallLogPermission,onAllowCallLog)
+                Text("Optional accounts",color=Lumen.Faint,fontSize=13.sp,modifier=Modifier.padding(top=16.dp,bottom=8.dp))
+                AccountChip("Connect Google Calendar",onAddGoogle)
                 Spacer(Modifier.height(8.dp))
-                if (!inboxAccess) {
-                    Text(
-                        "Allow Outlook & Gmail",
-                        color = Lumen.OnAccent,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Lumen.Accent)
-                            .clickable(onClick = onAllowInbox)
-                            .padding(vertical = 14.dp)
-                    )
-                    Text(
-                        "Uses Outlook and Gmail already signed in. The same access shows WhatsApp missed calls. Lumen does not read Teams chats.",
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 8.dp)
-                    )
-                }
-                if (!hasCallLogPermission) {
-                    Text(
-                        "Allow missed calls",
-                        color = Lumen.OnAccent,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Lumen.Accent)
-                            .clickable(onClick = onAllowCallLog)
-                            .padding(vertical = 14.dp)
-                    )
-                    Text(
-                        "Phone call log is only requested if Lumen is the default digital assistant. WhatsApp missed calls still use notification access.",
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 8.dp)
-                    )
-                }
+                AccountChip("Connect Microsoft",onAddWork)
             }
         } else {
             LazyVerticalGrid(
@@ -493,9 +350,9 @@ fun FlowInterestPicker(
                 }
             }
         }
-        Text(
-            if (ready) "Save" else "Pick a news topic to save",
-            color = if (ready) Lumen.OnAccent else Lumen.Faint,
+        if(tab == 2) Text(
+            if(tab == 1) "Save connections" else if(ready) "Save ${draft.size} ${if(draft.size == 1) "topic" else "topics"}" else "Pick a news topic to save",
+            color = if (ready) Color(0xFF241B10) else Lumen.Faint,
             fontFamily = Outfit,
             fontWeight = FontWeight.Medium,
             fontSize = 16.sp,
@@ -503,12 +360,13 @@ fun FlowInterestPicker(
                 .padding(top = 16.dp, bottom = 18.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(22.dp))
-                .background(if (ready) Lumen.AccentFill else Brush.linearGradient(listOf(Color.White.copy(0.08f), Color.White.copy(0.08f))))
+                .background(if (ready) Brush.horizontalGradient(listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E))) else Brush.linearGradient(listOf(Color.White.copy(0.08f), Color.White.copy(0.08f))))
                 .clickable(enabled = ready) { onSave(draft, work, personal) }
                 .padding(vertical = 14.dp),
             textAlign = TextAlign.Center
         )
     }
+}
 }
 
 @Composable
@@ -568,12 +426,12 @@ private fun CalendarRoleCard(
 private fun RoleChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Text(
         label,
-        color = if (selected) Lumen.OnAccent else Lumen.Faint,
+        color = if (selected) Color(0xFF241B10) else Lumen.Faint,
         fontFamily = Outfit,
         fontSize = 11.sp,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) Lumen.Accent else Color.White.copy(0.08f))
+            .background(if (selected) Color(0xFFF5CB7E) else Color.White.copy(0.08f))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 5.dp)
     )
@@ -592,7 +450,7 @@ private fun TopicCard(topic: NewsTopic, selected: Boolean, onClick: () -> Unit) 
                 )
             )
             .then(
-                if (selected) Modifier.border(2.dp, Lumen.Accent, RoundedCornerShape(26.dp))
+                if (selected) Modifier.border(3.dp, Color.White, RoundedCornerShape(26.dp))
                 else Modifier.border(1.dp, Color.White.copy(0.12f), RoundedCornerShape(26.dp))
             )
             .clickable(onClick = onClick)
@@ -604,10 +462,10 @@ private fun TopicCard(topic: NewsTopic, selected: Boolean, onClick: () -> Unit) 
                     .align(Alignment.TopEnd)
                     .size(22.dp)
                     .clip(CircleShape)
-                    .background(Lumen.AccentFill),
+                    .background(Brush.horizontalGradient(listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E)))),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.Check, null, tint = Lumen.OnAccent, modifier = Modifier.size(14.dp))
+                Icon(Icons.Outlined.Check, null, tint = Color(0xFF241B10), modifier = Modifier.size(14.dp))
             }
         }
         Column(Modifier.align(Alignment.BottomStart)) {

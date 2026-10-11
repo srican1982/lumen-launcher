@@ -11,6 +11,7 @@ data class AlphabetIndex(
     val available: Set<Char>,
     val firstIndex: Map<Char, Int>,
     val previews: Map<Char, List<AppInfo>>,
+    val totals: Map<Char, Int> = emptyMap(),
     val spaceBoosted: Set<Char>
 ) {
     fun letterAt(fraction: Float): Char? {
@@ -65,6 +66,7 @@ data class AlphabetIndex(
                 available = available,
                 firstIndex = firstIndex,
                 previews = previews,
+                totals = sections.associate { (title, apps) -> title.first() to apps.size },
                 spaceBoosted = emptySet()
             )
         }
@@ -83,7 +85,7 @@ data class AlphabetIndex(
             val sections = order.mapNotNull { key ->
                 val bucket = grouped[key].orEmpty()
                 if (bucket.isEmpty()) return@mapNotNull null
-                val ranked = rankForSpace(bucket, space, preferred, recents)
+                val ranked = bucket.sortedWith(compareBy<AppInfo> { it.label.trim().lowercase(java.util.Locale.ROOT) }.thenBy { it.packageName })
                 if (ranked.firstOrNull()?.let { spaceWeight(it, space, preferred, recents) } ?: 0 > 0) {
                     boostedLetters += key.first()
                 }

@@ -19,6 +19,9 @@ interface TripDao {
     @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY COALESCE(endTime, startTime) DESC")
     fun observePastTrips(): Flow<List<TripEntity>>
 
+    @Query("SELECT * FROM trips WHERE isActive = 0 ORDER BY COALESCE(endTime, startTime) DESC LIMIT 1")
+    suspend fun getLatestEndedTrip(): TripEntity?
+
     @Query("SELECT * FROM trips WHERE id = :id")
     suspend fun getTrip(id: Long): TripEntity?
 
@@ -27,6 +30,12 @@ interface TripDao {
 
     @Insert
     suspend fun insertTrip(trip: TripEntity): Long
+
+    @Query("DELETE FROM trips WHERE id = :tripId AND isActive = 0")
+    suspend fun deleteEndedTrip(tripId: Long): Int
+
+    @Query("UPDATE trips SET startLatitude = :latitude, startLongitude = :longitude WHERE id = :tripId")
+    suspend fun updateStartCoordinates(tripId: Long, latitude: Double?, longitude: Double?)
 
     @Query(
         """

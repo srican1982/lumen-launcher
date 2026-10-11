@@ -4,4 +4,6 @@
     <string name="search_hint">Search anything…</string>
     <string name="set_default_home">Set as default Home app</string>
     <string name="search_web">Search the web for “%1$s”</string>
+    <string name="screen_lock_label">Lumen screen lock</string>
+    <string name="screen_lock_description">Locks the screen only when you request it. Lumen does not read screen contents or monitor actions through this service.</string>
 </resources>

@@ -62,7 +62,9 @@ fun FocusPeoplePicker(
     selected: List<FocusPerson>,
     onDismiss: () -> Unit,
     onSave: (List<FocusPerson>) -> Unit,
-    dismissSignal: Int = 0
+    dismissSignal: Int = 0,
+    groupContent: (@Composable (List<FocusPerson>) -> Unit)? = null,
+    selectionKey: String? = null
 ) {
     val context = LocalContext.current
     val dismiss by rememberUpdatedState(onDismiss)
@@ -85,13 +87,15 @@ fun FocusPeoplePicker(
         if (!hasPermission) permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
     }
 
+    // The producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
     val contacts by produceState(emptyList<DeviceContact>(), hasPermission) {
         value = if (!hasPermission) emptyList() else withContext(Dispatchers.IO) {
             loadDeviceContacts(context)
         }
     }
 
-    var draft by remember(selected) {
+    var draft by remember(selectionKey, selected) {
         mutableStateOf(selected.associateBy { it.id }.toMutableMap().let { LinkedHashMap(it) })
     }
     var query by remember { mutableStateOf("") }
@@ -105,7 +109,7 @@ fun FocusPeoplePicker(
         }
     }
 
-    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.88f) {
+    FocusPopupSheet(onDismiss = onDismiss, heightFraction = 0.82f, maxWidth = 480.dp) {
         FocusSheetSearchHeader(
             title = "Add contacts",
             query = query,
@@ -127,6 +131,7 @@ fun FocusPeoplePicker(
             }
         }
 
+        groupContent?.invoke(draft.values.toList())
         if (!searching) {
             Text(
                 "Select everyone who can still call during Focus.",
@@ -145,7 +150,7 @@ fun FocusPeoplePicker(
                     fontSize = 13.sp
                 )
                 TextButton(onClick = { permissionLauncher.launch(Manifest.permission.READ_CONTACTS) }) {
-                    Text("Allow contacts", color = FocusAccent)
+                    Text("Allow contacts", color = androidx.compose.ui.graphics.Color.White)
                 }
             }
             filtered.isEmpty() -> {
@@ -160,7 +165,8 @@ fun FocusPeoplePicker(
                 LazyColumn(
                     Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 380.dp),
+                        .weight(1f, fill = false)
+                        .heightIn(min = 80.dp, max = 320.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filtered, key = { it.id }) { contact ->

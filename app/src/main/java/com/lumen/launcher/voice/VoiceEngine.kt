@@ -44,6 +44,15 @@ class VoiceEngine(
     private var ttsReady = false
     private var mode = Mode.Idle
     private var wakeWanted = false
+    private var language = ""
+    private var commandHints: List<String> = emptyList()
+
+    fun updateContext(language: String, hints: List<String>) {
+        this.language = language
+        commandHints = SpeechContext.hints(hints)
+    }
+    private var wakeMisses = 0
+    private var recognizerMode = Mode.Idle
     private var starting = false
     private var lastPartial = ""
     private var listenAfterSpeak = false
@@ -102,9 +111,11 @@ class VoiceEngine(
     }
 
     fun setWakeWanted(wanted: Boolean) {
+        val changed = wanted != wakeWanted
+        if (wanted && changed) wakeMisses = 0
         wakeWanted = wanted
         if (wanted) {
-            if (mode == Mode.Idle) scheduleWake(280L)
+            if (changed && mode == Mode.Idle) scheduleWake(280L)
         } else if (mode == Mode.Wake) {
             goIdle(destroy = false)
         }
@@ -181,20 +192,20 @@ class VoiceEngine(
 
     private fun startNow(next: Mode, gen: Int) {
         if (gen != generation) return
-        val rec = ensureRecognizer()
+        val rec = ensureRecognizer(next)
         if (rec == null) {
             starting = false
             if (next == Mode.Command) callbacks.onNeedPrompt()
-            else scheduleWake(600L)
+            else scheduleWake((1_000L shl wakeMisses++.coerceAtMost(5)).coerceAtMost(30_000L))
             return
         }
         mode = next
         lastPartial = ""
         requestFocus()
         val intent = if (next == Mode.Wake) {
-            SpeechRecognizers.wakeIntent(app)
+            SpeechRecognizers.wakeIntent(app, language)
         } else {
-            SpeechRecognizers.commandIntent(app)
+            SpeechRecognizers.commandIntent(app, language, commandHints)
         }
         val started = runCatching { rec.startListening(intent) }.isSuccess
         starting = false
@@ -212,7 +223,7 @@ class VoiceEngine(
                 }, 280L)
             } else {
                 goIdle(destroy = true)
-                scheduleWake(500L)
+                scheduleWake((1_000L shl wakeMisses++.coerceAtMost(5)).coerceAtMost(30_000L))
             }
             return
         }
@@ -222,11 +233,13 @@ class VoiceEngine(
         }
     }
 
-    private fun ensureRecognizer(): SpeechRecognizer? {
+    private fun ensureRecognizer(next: Mode): SpeechRecognizer? {
+        if (recognizerMode != next) recreateRecognizer()
         recognizer?.let { return it }
-        val rec = SpeechRecognizers.createForCommands(app) ?: return null
+        val rec = (if (next == Mode.Wake) SpeechRecognizers.createForWake(app) else SpeechRecognizers.createForCommands(app)) ?: return null
         rec.setRecognitionListener(listener)
         recognizer = rec
+        recognizerMode = next
         return rec
     }
 
@@ -304,7 +317,7 @@ class VoiceEngine(
             main.removeCallbacks(commandWatchdog)
             if (current == Mode.Wake) {
                 goIdle(destroy = VoiceErrors.isBusy(error))
-                scheduleWake(if (VoiceErrors.isBusy(error)) 480L else 320L)
+                scheduleWake((1_000L shl wakeMisses++.coerceAtMost(5)).coerceAtMost(30_000L))
                 return
             }
             if (current != Mode.Command) return
@@ -345,7 +358,7 @@ class VoiceEngine(
                     wakeWanted = false
                     callbacks.onWake(hit.remainder)
                 } else {
-                    scheduleWake(240L)
+                    scheduleWake((1_000L shl (wakeMisses++.coerceAtMost(5))).coerceAtMost(30_000L))
                 }
                 return
             }

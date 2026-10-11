@@ -25,7 +25,7 @@ object InboxHub {
     }
 
     /** Called only from an explicit user tap, with the visible launcher Activity. */
-    private fun sendFromTap(context: Context, pending: PendingIntent): Boolean = runCatching {
+    fun sendFromTap(context: Context, pending: PendingIntent): Boolean = runCatching {
         val options = android.app.ActivityOptions.makeBasic()
         if (android.os.Build.VERSION.SDK_INT >= 34) {
             options.setPendingIntentBackgroundActivityStartMode(
@@ -38,15 +38,21 @@ object InboxHub {
     fun openConversation(context: Context, item: InboxItem): Boolean {
         val pending = contentIntent(item.key)
         // The individual notification is the most specific route to this message thread.
-        if (pending?.isActivity == true && sendFromTap(context, pending)) return true
+        if (pending != null && (android.os.Build.VERSION.SDK_INT < 31 || pending.isActivity) && sendFromTap(context, pending)) return true
         val bubble = synchronized(intents) { bubbleIntents[item.key] }
-        if (bubble?.isActivity == true && sendFromTap(context, bubble)) return true
+        if (bubble != null && (android.os.Build.VERSION.SDK_INT < 31 || bubble.isActivity) && sendFromTap(context, bubble)) return true
         val shortcut = synchronized(intents) { shortcuts[item.key] }
         val launcher = context.getSystemService(android.content.pm.LauncherApps::class.java)
         if (shortcut != null && launcher.hasShortcutHostPermission()) {
             if (runCatching { launcher.startShortcut(item.packageName, shortcut.first, null, null, shortcut.second) }.isSuccess) return true
         }
-        return pending != null && !pending.isActivity && sendFromTap(context, pending)
+        // A broadcast/service PendingIntent can succeed without opening any UI.
+        // Fall back to the originating app when the conversation activity is unavailable.
+        return runCatching {
+            val launch = context.packageManager.getLaunchIntentForPackage(item.packageName) ?: return false
+            context.startActivity(launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        }.getOrDefault(false)
     }
 
     fun publish(next: List<InboxItem>, nextIntents: Map<String, PendingIntent>) {
@@ -60,6 +66,12 @@ object InboxHub {
         }
         _items.value = next
         _conversations.value = recent
+    }
+
+    fun clear() {
+        synchronized(intents) { intents.clear(); shortcuts.clear(); bubbleIntents.clear() }
+        _items.value = emptyList()
+        _conversations.value = emptyList()
     }
 
     fun contentIntent(key: String): PendingIntent? = synchronized(intents) { intents[key] }

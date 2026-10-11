@@ -1,6 +1,7 @@
 package com.lumen.launcher.inbox
 
 import com.lumen.launcher.media.NowPlayingRepository
+import kotlinx.coroutines.*
 import androidx.core.graphics.drawable.toBitmap
 import android.app.Notification
 import android.app.PendingIntent
@@ -15,6 +16,10 @@ import com.lumen.launcher.data.CallLogRepository
 import com.lumen.launcher.data.MissedCall
 
 class LumenNotificationListener : NotificationListenerService() {
+    private val parseScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var parseJob: Job? = null
+    override fun onDestroy() { parseScope.cancel(); super.onDestroy() }
+
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -25,6 +30,10 @@ class LumenNotificationListener : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
+        parseJob?.cancel()
+        InboxHub.clear()
+        MeetingHub.publish(emptyList(), emptyMap())
+        WhatsAppMissedHub.publish(WhatsAppMissedSnapshot(), emptyMap())
         NotificationBadgeRepository.clear()
         NowPlayingRepository.stop()
     }
@@ -45,11 +54,19 @@ class LumenNotificationListener : NotificationListenerService() {
     }
 
     private fun publishActive() {
+        parseJob?.cancel()
+        parseJob = parseScope.launch {
+            delay(250)
+            parseActive()
+        }
+    }
+
+    private suspend fun parseActive() {
         val notes = runCatching { activeNotifications }.getOrNull().orEmpty()
         val ranking = runCatching { currentRanking }.getOrNull()
         NotificationBadgeRepository.rebuild(notes.toList(), packageName, ranking)
         // Music apps attach their player to their notification: use it for the TouchPad mini player.
-        NowPlayingRepository.updateFromNotifications(this, notes.mapNotNull { mediaToken(it) })
+        withContext(Dispatchers.Main) { NowPlayingRepository.updateFromNotifications(this@LumenNotificationListener, notes.mapNotNull { mediaToken(it) }) }
         val items = ArrayList<InboxItem>()
         val intents = LinkedHashMap<String, PendingIntent>()
         val meetings = ArrayList<CalendarEvent>()
@@ -83,6 +100,7 @@ class LumenNotificationListener : NotificationListenerService() {
                     sbn.notification.contentIntent?.let { intents[parsed.key] = it }
                 }
             }
+        currentCoroutineContext().ensureActive()
         InboxHub.publish(items, intents)
         MeetingHub.publish(meetings.sortedBy { it.begin }, meetingIntents)
         publishWhatsApp(notes.toList())
@@ -97,7 +115,8 @@ class LumenNotificationListener : NotificationListenerService() {
             .sortedByDescending { it.postTime }
             .forEach { sbn ->
                 val extras = sbn.notification.extras
-                val name = extras.char(Notification.EXTRA_CONVERSATION_TITLE)
+                if ((sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return@forEach
+                var name = extras.char(Notification.EXTRA_CONVERSATION_TITLE)
                     ?: extras.char(Notification.EXTRA_TITLE)
                     ?: return@forEach
                 if (name.equals("WhatsApp", true) || name.equals("WhatsApp Business", true)) return@forEach
@@ -105,16 +124,21 @@ class LumenNotificationListener : NotificationListenerService() {
                     ?: extras.char(Notification.EXTRA_BIG_TEXT)
                     ?: extras.char(Notification.EXTRA_SUB_TEXT)
                     ?: ""
-                val hay = "$preview ${sbn.notification.category.orEmpty()}".lowercase()
+                val titleText = name
+                if (name.contains("missed", true) && name.contains("call", true)) {
+                    name = preview.takeIf { it.isNotBlank() && !it.contains("missed", true) }
+                        ?: "Unknown caller"
+                }
+                val hay = "$titleText $preview ${sbn.notification.category.orEmpty()}".lowercase()
                 if (isWhatsAppOutgoing(sbn, hay)) {
                     outgoing += CallLogRepository.missedKey("", name, true)
                     outgoing += CallLogRepository.missedKey("", name, false)
-                } else if (isWhatsAppMissed(sbn, preview, sbn.notification.category.orEmpty())) {
+                } else if (isWhatsAppMissed(sbn, "$titleText $preview", sbn.notification.category.orEmpty())) {
                     val call = MissedCall(
                         number = "",
                         name = name,
                         at = sbn.postTime,
-                        count = 1,
+                        count = Regex("[0-9]+").find(titleText)?.value?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
                         whatsapp = true
                     )
                     if (missed.none { it.key == call.key }) {
@@ -130,7 +154,7 @@ class LumenNotificationListener : NotificationListenerService() {
         if (sbn.isOngoing) return false
         if (category == Notification.CATEGORY_MISSED_CALL) return true
         val text = preview.lowercase().trim()
-        if (text.length > 48) return false
+        if (text.length > 160) return false
         return text.contains("missed voice call") ||
             text.contains("missed video call") ||
             text.contains("missed group voice") ||
@@ -165,7 +189,11 @@ class LumenNotificationListener : NotificationListenerService() {
             ?: extras.char(Notification.EXTRA_TEXT)
             ?: extras.char(Notification.EXTRA_SUB_TEXT)
         if (title.isNullOrBlank() && preview.isNullOrBlank()) return null
+        if (source in setOf(InboxSource.WhatsApp, InboxSource.Telegram, InboxSource.Messenger) &&
+            (ConversationRecents.isSystemNotice(title.orEmpty()) ||
+                (style == null && sbn.notification.category in setOf(Notification.CATEGORY_SERVICE, Notification.CATEGORY_PROGRESS, Notification.CATEGORY_SYSTEM)))) return null
         return InboxItem(
+            secret = sbn.notification.visibility == Notification.VISIBILITY_SECRET,
             key = sbn.key,
             source = source,
             title = title?.ifBlank { source.title } ?: source.title,

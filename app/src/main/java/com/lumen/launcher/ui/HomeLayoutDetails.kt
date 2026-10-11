@@ -33,7 +33,7 @@ internal fun FittingGreeting(greeting: String) {
     }
 }
 
-internal fun Modifier.softGridEdges(canScrollUp: () -> Boolean, canScrollDown: () -> Boolean): Modifier =
+internal fun Modifier.softGridEdges(canScrollUp: () -> Boolean, canScrollDown: () -> Boolean, bottomFade: androidx.compose.ui.unit.Dp = 36.dp): Modifier =
     graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
         drawContent()
         if (canScrollUp()) {
@@ -42,7 +42,7 @@ internal fun Modifier.softGridEdges(canScrollUp: () -> Boolean, canScrollDown: (
                 size = Size(size.width, fade), blendMode = BlendMode.DstIn)
         }
         if (canScrollDown()) {
-            val fade = minOf(36.dp.toPx(), size.height / 2)
+            val fade = minOf(bottomFade.toPx(), size.height / 2)
             drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), size.height - fade, size.height),
                 topLeft = Offset(0f, size.height - fade), size = Size(size.width, fade), blendMode = BlendMode.DstIn)
         }

@@ -5,7 +5,10 @@ import com.lumen.launcher.voice.VoiceQuery
 /** Whole-request paraphrases only: never replace words inside a note or app name. */
 internal object NaturalVoicePhrases {
     fun normalize(raw: String, appLabels: List<String> = emptyList()): String {
-        val q = VoiceQuery.clean(raw)
+        val original = raw.trim()
+        // Full installed labels win before stripping words such as My/The/App.
+        if (appLabels.any { it.equals(original, true) }) return original.lowercase()
+        val q = VoiceQuery.clean(LocalVoiceBasics.commandText(original))
         val exact = mapOf(
             "what do i have to do" to "my tasks",
             "what do i need to do today" to "my tasks",
@@ -24,6 +27,15 @@ internal object NaturalVoicePhrases {
             "how does this work" to "help"
         )
         exact[q]?.let { return it }
+        Regex("""^(?:open up|open|launch|start|run|go to|show me|switch to|get me|fire up|bring up|pull up|take me to|let me use)\s+(.+)$""").matchEntire(q)?.let {
+            var name = it.groupValues[1].trim()
+            fun exact(value: String) = appLabels.any { label -> com.lumen.launcher.search.VoiceMatch.score(value, label) >= 980 }
+            if (!exact(name)) {
+                name = name.replace(Regex("""^(?:the|my|a|an)\s+"""), "")
+                if (!exact(name)) name = name.replace(Regex("""\s+(?:app|application|browser)$"""), "")
+            }
+            return "open $name"
+        }
         if (q.startsWith("use ") && appLabels.any { it.equals(q.removePrefix("use "), ignoreCase = true) }) return "open ${q.removePrefix("use ")}"
         Regex("""^(?:bring up|pull up|take me to|let me use) (.+)$""").matchEntire(q)?.let {
             // "Take me home" remains a navigation request, not launcher navigation.

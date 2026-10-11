@@ -31,10 +31,8 @@ internal fun TravelLinkDialog(category: TravelCategory, onDismiss: () -> Unit, o
     var url by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
     val normalized = TravelAttachments.webLink(url)
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(28.dp), color = Color(0xFF292532)) {
-            Column(Modifier.background(Brush.linearGradient(listOf(Color(0xFF3C304B), Color(0xFF242D34))))
-                .verticalScroll(rememberScrollState()).padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    com.lumen.launcher.ui.focus.FocusPopupSheet(stationary=true,onDismiss=onDismiss,heightFraction=.8f,maxWidth=480.dp) {
+            Column(Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TravelBadge(category)
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
@@ -69,6 +67,5 @@ internal fun TravelLinkDialog(category: TravelCategory, onDismiss: () -> Unit, o
                     Text("Save link")
                 }
             }
-        }
     }
 }

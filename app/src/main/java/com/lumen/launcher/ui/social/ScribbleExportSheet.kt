@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui.social
 
+import androidx.compose.material.icons.outlined.BorderColor
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -111,7 +113,7 @@ fun ScribbleExportSheet(
 
         CreateSectionLabel("Style")
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ScribbleBrushStyle.entries.forEach { s ->
+            ScribbleBrushStyle.entries.filter { it != ScribbleBrushStyle.Glow }.forEach { s ->
                 CreateChip(s.name, style == s, leading = { BrushStyleIcon(s, style == s) }) { style = s }
             }
         }
@@ -209,7 +211,8 @@ fun BrushStyleIcon(style: ScribbleBrushStyle, selected: Boolean) {
     val tint = chipIconTint(selected)
     when (style) {
         ScribbleBrushStyle.Sketch -> Icon(CreateIcons.Squiggle, null, tint = tint, modifier = Modifier.size(22.dp))
-        ScribbleBrushStyle.Marker -> Icon(Icons.Outlined.Edit, null, tint = tint, modifier = Modifier.size(20.dp))
+        ScribbleBrushStyle.Marker -> Icon(Icons.Outlined.BorderColor, null, tint = tint, modifier = Modifier.size(22.dp))
+        ScribbleBrushStyle.Pen -> Icon(Icons.Outlined.Edit, null, tint = tint, modifier = Modifier.size(20.dp))
         ScribbleBrushStyle.Glow -> Icon(Icons.Outlined.AutoAwesome, null, tint = tint, modifier = Modifier.size(20.dp))
     }
 }

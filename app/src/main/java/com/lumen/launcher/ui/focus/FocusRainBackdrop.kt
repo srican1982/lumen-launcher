@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import java.time.LocalTime
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -24,6 +27,19 @@ import com.lumen.launcher.R
 /** Full-screen Focus atmosphere — lake photo with a soft fade into navy (no hard band). */
 @Composable
 internal fun FocusRainBackdrop(active: Boolean = false) {
+    val hour by produceState(initialValue = LocalTime.now().hour) {
+        while (true) {
+            value = LocalTime.now().hour
+            delay(15_000)
+        }
+    }
+    val night = hour !in 5..20
+    val wallpaper = when (hour) {
+        in 5..11 -> R.drawable.focus_morning_lake
+        in 12..16 -> R.drawable.focus_afternoon_lake
+        in 17..20 -> R.drawable.focus_evening_lake
+        else -> if (active) R.drawable.focus_moonlit_lake else R.drawable.focus_rain_lake
+    }
     val transition = rememberInfiniteTransition(label = "Focus rain")
     val phase by transition.animateFloat(
         0f,
@@ -33,13 +49,13 @@ internal fun FocusRainBackdrop(active: Boolean = false) {
     )
     Box(Modifier.fillMaxSize()) {
         Image(
-            painterResource(if (active) R.drawable.focus_moonlit_lake else R.drawable.focus_rain_lake),
+            painterResource(wallpaper),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
             alignment = Alignment.CenterEnd
         )
-        if (!active) {
+        if (!active && night) {
             Canvas(Modifier.fillMaxSize()) {
                 repeat(48) { index ->
                     val x = ((index * 0.618034f + phase * 0.025f) % 1f) * size.width
@@ -60,12 +76,12 @@ internal fun FocusRainBackdrop(active: Boolean = false) {
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.00f to FocusInk.copy(alpha = 0.18f),
-                            0.28f to FocusInk.copy(alpha = 0.12f),
+                            0.00f to FocusInk.copy(alpha = if (night) 0.18f else 0.48f),
+                            0.28f to FocusInk.copy(alpha = if (night) 0.12f else 0.35f),
                             0.48f to FocusInk.copy(alpha = 0.35f),
                             0.62f to FocusInk.copy(alpha = 0.62f),
-                            0.76f to FocusInk.copy(alpha = 0.88f),
-                            1.00f to FocusInk.copy(alpha = 0.98f)
+                            0.76f to FocusInk.copy(alpha = 0.48f),
+                            1.00f to FocusInk.copy(alpha = 0.78f)
                         )
                     )
                 )

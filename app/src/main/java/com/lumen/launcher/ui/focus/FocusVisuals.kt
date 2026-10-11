@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui.focus
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,6 +61,9 @@ internal fun FocusPopupSheet(
     /** Fraction of screen height for tall pickers (apps / contacts). */
     heightFraction: Float = 0.78f,
     lockDismiss: Boolean = false,
+    stationary: Boolean = false,
+    maxWidth: Dp = 640.dp,
+    whiteGlass: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val maxH = (LocalConfiguration.current.screenHeightDp * heightFraction).dp
@@ -70,14 +75,14 @@ internal fun FocusPopupSheet(
                 .fillMaxWidth()
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xBDA5B0D8), Color(0xAD4A5680), Color(0xAD6E7CFF))
+                        if(whiteGlass) listOf(Color(0x70FFFFFF),Color(0x308D949E),Color(0x48FFFFFF)) else listOf(Color(0xBDA5B0D8), Color(0xAD4A5680), Color(0xAD6E7CFF))
                     ),
                     frame
                 )
                 .border(1.dp, Color.White.copy(alpha = 0.35f), frame)
                 .padding(horizontal = 14.dp)
         ) {
-            if (!lockDismiss) BottomSheetDefaults.DragHandle(
+            if (!lockDismiss && !stationary) BottomSheetDefaults.DragHandle(
                 color = Color.White.copy(alpha = 0.65f),
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) else Spacer(Modifier.height(14.dp))
@@ -88,7 +93,7 @@ internal fun FocusPopupSheet(
                     .heightIn(max = if (lockDismiss) maxH - 76.dp else maxH)
                     .then(if (lockDismiss) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                     .clip(card)
-                    .background(Color(0xF212182A))
+                    .background(if(whiteGlass) Color(0xED171B22) else Color(0xF212182A))
                     .border(1.dp, Color.White.copy(alpha = 0.12f), card)
                     .padding(16.dp)
                     .navigationBarsPadding()
@@ -99,16 +104,17 @@ internal fun FocusPopupSheet(
             Spacer(Modifier.height(10.dp))
         }
     }
-    if (lockDismiss) {
+    if (lockDismiss || stationary) {
         androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
                 dismissOnBackPress = true, dismissOnClickOutside = false)) {
             Box(Modifier.fillMaxSize().background(Color(0x6605081D)).statusBarsPadding().padding(bottom = maxOf(WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(), 64.dp) + 12.dp), contentAlignment = Alignment.BottomCenter) {
-                sheetContent()
+                Box(Modifier.widthIn(max=maxWidth).imePadding()) { sheetContent() }
             }
         }
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss,
+            sheetMaxWidth = maxWidth,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = Color.Transparent, scrimColor = Color(0x6605081D), dragHandle = null,
             contentWindowInsets = { WindowInsets.safeDrawing }) { sheetContent() }
@@ -129,16 +135,16 @@ internal fun Modifier.focusSafeBottom(extra: Dp = 24.dp): Modifier {
 /** Deep Focus mock — navy ink + indigo/periwinkle glow. */
 internal val FocusAccent get() = if (LumenPalette.whiteGlass) Color(0xFF8B80F8) else Color(0xFF6E7CFF)
 internal val FocusAccentEnd get() = if (LumenPalette.whiteGlass) Color(0xFF4C73F8) else Color(0xFF4C73F8)
-internal val FocusMuted get() = if (LumenPalette.whiteGlass) Color(0xFFA1A5B1) else Color(0xFF8E99B3)
+internal val FocusMuted get() = Color(0xFFB2B4BB)
 internal val FocusInk get() = if (LumenPalette.whiteGlass) Color(0xFF0B0E14) else Color(0xFF05081D)
 internal val FocusCard get() = if (LumenPalette.whiteGlass) Color(0xFF1A1F2A) else Color(0xFF12182A)
 internal val FocusCardSelected get() = if (LumenPalette.whiteGlass) Color(0xFF252B4A) else Color(0xFF1A2248)
 internal val FocusBorder get() = if (LumenPalette.whiteGlass) Color(0xFF2A3140) else Color(0x33FFFFFF)
 internal val FocusBorderGlow get() = if (LumenPalette.whiteGlass) Color(0xFF6E78F0) else Color(0xFF6E7CFF)
 internal val FocusIconTint get() = if (LumenPalette.whiteGlass) Color(0xFFACB4E0) else Color(0xFFACB4E0)
-internal val FocusCtaText get() = Color(0xFF0B0E18)
+internal val FocusCtaText get() = Color.White
 internal val FocusSelectionGradient get() = Brush.verticalGradient(listOf(Color(0xFF1E2758), Color(0xFF151C3A)))
-internal val FocusGradient get() = Brush.horizontalGradient(listOf(Color(0xFF7E8DFF), Color(0xFF5175FF)))
+internal val FocusGradient get() = Brush.verticalGradient(listOf(Color(0xFF505CFA), Color(0xFF242C91), Color(0xFF153879), Color(0xFF345CE2)))
 internal val FocusTitleGradient get() = Brush.horizontalGradient(listOf(Color(0xFFB8C2FF), Color(0xFFB49BFF)))
 internal val FocusSurface get() = Brush.linearGradient(listOf(Color(0xE612182A), Color(0xE60B101C)))
 internal val FocusDanger = Color(0xFFFF6B8A)
@@ -240,6 +246,7 @@ internal fun FocusGlassTile(
     selected: Boolean = false,
     width: Dp = 76.dp,
     height: Dp = 96.dp,
+    labelLines: Int = 1,
     topTrailing: (@Composable BoxScope.() -> Unit)? = null,
     icon: @Composable () -> Unit
 ) {
@@ -283,7 +290,8 @@ internal fun FocusGlassTile(
                 fontFamily = Outfit,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
-                maxLines = 1,
+                maxLines = labelLines,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
@@ -315,14 +323,14 @@ fun FocusHeader(greeting: String, weatherContent: @Composable () -> Unit = {}) {
 fun FocusSettingsButton(label: String? = null, dismissSignal: Int = 0) {
     val context = LocalContext.current
     val repo = remember { FocusAllowedPeopleRepository.get(context) }
-    val settings by repo.settings.collectAsState()
-    val people by repo.people.collectAsState()
+    val settings by repo.settings.collectAsStateWithLifecycle()
+    val people by repo.people.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var open by remember { mutableStateOf(false) }
     LaunchedEffect(dismissSignal) { open = false }
     if (label == null) IconButton(onClick = { open = true }) {
         Icon(Icons.Outlined.Settings, "Focus settings", tint = FocusMuted, modifier = Modifier.size(22.dp))
-    } else TextButton(onClick = { open = true }) { Text(label, color = FocusAccent, fontSize = 12.sp) }
+    } else TextButton(onClick = { open = true }) { Text(label, color = androidx.compose.ui.graphics.Color.White, fontSize = 12.sp) }
     if (open) FocusPopupSheet(onDismiss = { open = false }, heightFraction = 0.82f) {
         Text("Focus settings", color = Color.White, fontFamily = Outfit, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         fun save(next: FocusPolicySettings) {
@@ -342,7 +350,7 @@ fun FocusSettingsButton(label: String? = null, dismissSignal: Int = 0) {
 }
 
 @Composable
-private fun FocusToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun FocusToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -427,7 +435,7 @@ internal fun FocusPageBanner(title: String, subtitle: String, badge: String? = n
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     title,
-                    style = androidx.compose.ui.text.TextStyle(brush = FocusTitleGradient, fontWeight = FontWeight.Bold, fontSize = 34.sp),
+                    style = androidx.compose.ui.text.TextStyle(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 34.sp),
                     fontFamily = Outfit
                 )
                 if (badge != null) {

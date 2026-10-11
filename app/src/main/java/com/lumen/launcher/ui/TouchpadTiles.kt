@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -92,11 +93,13 @@ private fun Modifier.whiteGlassTile(): Modifier = this
 @Composable
 fun NowPlayingTile(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val np by NowPlayingRepository.state.collectAsState()
+    val np by NowPlayingRepository.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { NowPlayingRepository.start(context) }
 
     // Thumbnail of what's playing: the artwork, else the artwork link, else the player app's icon.
     val current = np
+    // The producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
     val thumb by produceState<ImageBitmap?>(null, current?.art, current?.artUri, current?.packageName) {
         value = withContext(Dispatchers.IO) {
             if (current == null) return@withContext null
@@ -238,7 +241,7 @@ private fun ControlButton(icon: ImageVector, label: String, size: androidx.compo
 @Composable
 fun NotificationsPreviewTile(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val badge by NotificationBadgeRepository.state.collectAsState()
+    val badge by NotificationBadgeRepository.state.collectAsStateWithLifecycle()
     val count = if (LocalNotificationBadgeMode.current == com.lumen.launcher.badge.NotificationBadgeMode.Off) 0 else badge.countsByPackage.values.sum()
 
     BoxWithConstraints(

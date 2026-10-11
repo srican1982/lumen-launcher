@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -34,3 +35,13 @@ jobs:
           path: Lumen.apk
           if-no-files-found: error
           retention-days: 90
+
+      - name: Upload test results and voice score
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lumen-test-results
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/reports/voice/phrase-pack.json
+          if-no-files-found: warn

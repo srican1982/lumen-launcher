@@ -73,6 +73,7 @@ class FocusPolicyController(private val context: Context) {
         ledger.getString("rule_id", null)?.let { nm.getAutomaticZenRule(it)?.isEnabled == true } ?: false
     }.getOrDefault(false) else ledger.contains("prior_filter")
 
+    @androidx.annotation.RequiresApi(29)
     fun buildZenPolicy(people: List<FocusPerson>, settings: FocusPolicySettings): ZenPolicy {
         val builder = ZenPolicy.Builder().disallowAllSounds()
             // Keep media unmuted so allowed apps (YouTube, music, etc.) can play audio during Focus.

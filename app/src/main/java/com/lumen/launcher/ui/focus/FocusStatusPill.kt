@@ -122,7 +122,7 @@ fun FocusTouchpadButton(
             Spacer(Modifier.height(2.dp))
             Text(
                 timeLabel,
-                color = Color(0xFFB8C2FF),
+                color = androidx.compose.ui.graphics.Color.White,
                 fontFamily = Outfit,
                 fontSize = 13.sp,
                 lineHeight = 16.sp

@@ -1,5 +1,7 @@
 package com.lumen.launcher.travel
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,10 +73,15 @@ private val CardStroke = Color(0xFFBF94EE).copy(alpha = 0.22f)
 @Composable
 fun TripModeCard(
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
     tripVm: TripViewModel = viewModel(),
-    onViewTrip: (Trip) -> Unit = {}
+    onViewTrip: ((Trip) -> Unit)? = null
 ) {
-    val state by tripVm.uiState.collectAsState()
+    val state by tripVm.uiState.collectAsStateWithLifecycle()
+    var albumTrip by remember { mutableStateOf<Trip?>(null) }
+    val openTrip: (Trip) -> Unit = { trip ->
+        if (onViewTrip != null) onViewTrip(trip) else albumTrip = trip
+    }
     var confirmEnd by remember { mutableStateOf(false) }
     val awaitingLocationSettings = remember { AtomicBoolean(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -106,7 +112,17 @@ fun TripModeCard(
     ) { granted -> tripVm.onMediaPermissionResult(granted) }
 
     val shape = RoundedCornerShape(18.dp)
-    Column(
+    if (compact) Row(modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+        Text(if (state.isLoading) "Please wait..." else "Trip mode",color=Color.White,fontFamily=Outfit,fontSize=13.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+        Switch(checked=state.tripModeEnabled,onCheckedChange={ enabled ->
+            if(enabled) tripVm.onTripModeToggled(true) else confirmEnd=true
+        },enabled=!state.isLoading,modifier=Modifier.height(32.dp),
+            colors=SwitchDefaults.colors(
+                checkedTrackColor=Color(0xFFAC1749),checkedThumbColor=Color.White,
+                checkedBorderColor=Color(0xFFC55B7D),
+                uncheckedTrackColor=Color.White.copy(alpha=.23f),uncheckedThumbColor=Color.White,
+                uncheckedBorderColor=Color.White.copy(alpha=.30f)))
+    } else Column(
         modifier
             .fillMaxWidth()
             .clip(shape)
@@ -154,11 +170,11 @@ fun TripModeCard(
                 enabled = !state.isLoading,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = TripPurple,
+                    checkedTrackColor = Color(0xFFAC1749),
                     checkedBorderColor = Color.Transparent,
                     uncheckedThumbColor = Color.White,
                     uncheckedTrackColor = Color.White.copy(alpha = 0.22f),
-                    uncheckedBorderColor = Color.Transparent
+                    uncheckedBorderColor = Color.White.copy(alpha = 0.30f)
                 )
             )
         }
@@ -167,7 +183,7 @@ fun TripModeCard(
         if (trip != null) {
             ActiveTripBlock(
                 trip = trip,
-                onViewTrip = { onViewTrip(trip) },
+                onViewTrip = { openTrip(trip) },
                 onEndTrip = { confirmEnd = true },
                 busy = state.isLoading
             )
@@ -176,7 +192,7 @@ fun TripModeCard(
         if (state.pastTrips.isNotEmpty()) {
             PastTripsBlock(
                 trips = state.pastTrips.take(3),
-                onOpen = onViewTrip
+                onOpen = openTrip
             )
         }
     }
@@ -274,8 +290,8 @@ fun TripModeCard(
             confirmButton = {
                 TextButton(onClick = {
                     tripVm.dismissCompleted()
-                    onViewTrip(done)
-                }) { Text("View Trip") }
+                    openTrip(done)
+                }) { Text("View album") }
             },
             dismissButton = {
                 TextButton(onClick = tripVm::dismissCompleted) { Text("Close") }
@@ -283,6 +299,7 @@ fun TripModeCard(
         )
     }
 
+    albumTrip?.let { trip -> TripAlbumScreen(trip, onClose = { albumTrip = null }, tripVm = tripVm) }
     state.errorMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = tripVm::clearError,

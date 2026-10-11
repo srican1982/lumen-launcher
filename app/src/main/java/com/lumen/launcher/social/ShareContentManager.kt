@@ -43,7 +43,7 @@ class ShareContentManager(private val context: Context) {
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = resolver.insert(collection, values) ?: return false
+        val uri = runCatching { resolver.insert(collection, values) }.getOrNull() ?: return false
         return runCatching {
             resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("no stream")
             values.clear()
@@ -51,7 +51,7 @@ class ShareContentManager(private val context: Context) {
             resolver.update(uri, values, null, null)
             true
         }.getOrElse {
-            resolver.delete(uri, null, null)
+            runCatching { resolver.delete(uri, null, null) }
             false
         }
     }

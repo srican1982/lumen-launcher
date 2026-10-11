@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
 
-private val WorkspaceAccent = Color(0xFFBF94EE)
+private val WorkspaceAccent = Color(0xFFF5CB7E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,12 +43,11 @@ fun WorkspacePopup(state: LauncherUiState, vm: LauncherViewModel) {
         ) {
             val frame = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
             Column(Modifier.fillMaxWidth()
-                .background(Brush.linearGradient(listOf(Color(0xBDA5B7B0), Color(0xAD697A8F), Color(0xAD897B9F))), frame)
-                .border(1.dp, Color.White.copy(alpha = .35f), frame)
-                .padding(horizontal = 16.dp)
+                .background(Color(0xFF12182A), frame)
+                .border(1.dp, Color.White.copy(alpha = .14f), frame)
             ) {
                 BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = .65f), modifier = Modifier.align(androidx.compose.ui.Alignment.CenterHorizontally))
-                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 12.dp)) {
                     BackHandler { vm.setWorkspaceOpen(false) }
                     ModeWorkspace(state, vm)
                 }

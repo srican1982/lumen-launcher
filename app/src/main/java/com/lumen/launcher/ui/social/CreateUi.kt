@@ -122,7 +122,8 @@ fun CreateToolHeader(
     title: String,
     onClose: () -> Unit,
     onShare: () -> Unit,
-    subtitle: String? = null
+    subtitle: String? = null,
+    showShare: Boolean = true
 ) {
     Row(
         Modifier
@@ -147,7 +148,7 @@ fun CreateToolHeader(
                 Text(subtitle, color = CreatePalette.Subtitle, fontFamily = Outfit, fontSize = 14.sp)
             }
         }
-        RoundIconButton(
+        if (showShare) RoundIconButton(
             onClick = onShare,
             fill = Color(0x553A1C63),
             border = Color(0xAA9D63EE)
@@ -196,15 +197,16 @@ fun CreateChip(
     selected: Boolean,
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
+    goldAccent: Boolean = false,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(22.dp)
     Row(
         modifier = modifier
-            .then(if (selected) Modifier.shadow(10.dp, shape, spotColor = Color(0xFFC99AF2)) else Modifier)
+            .then(if (selected) Modifier.shadow(10.dp, shape, spotColor = if(goldAccent) Color(0xFFF5CB7E) else Color(0xFFC99AF2)) else Modifier)
             .clip(shape)
             .then(
-                if (selected) Modifier.background(CreatePalette.SelectedFill)
+                if (selected) Modifier.background(if(goldAccent) Brush.horizontalGradient(listOf(Color(0xFFF3D7A0),Color(0xFFF5CB7E))) else CreatePalette.SelectedFill)
                 else Modifier
                     .background(CreatePalette.ChipFill)
                     .border(1.dp, CreatePalette.ChipBorder, shape)
@@ -241,65 +243,84 @@ fun CreateActionBar(
     onSave: () -> Unit,
     onShare: () -> Unit,
     modifier: Modifier = Modifier,
-    onSticker: (() -> Unit)? = null
+    onSticker: (() -> Unit)? = null,
+    small: Boolean = false,
+    goldAccent: Boolean = false,
+    stickerTipKey: String? = null,
+    stickerPreview: androidx.compose.ui.graphics.ImageBitmap? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("creation_tips",android.content.Context.MODE_PRIVATE) }
+    var tipVisible by remember(stickerTipKey) { mutableStateOf(stickerTipKey != null && !prefs.getBoolean(stickerTipKey,false)) }
+    fun dismissTip() {
+        tipVisible=false
+        stickerTipKey?.let { prefs.edit().putBoolean(it,true).apply() }
+    }
+    Column {
+
     val shape = RoundedCornerShape(30.dp)
     val compact = onSticker != null
+    val accent = if(goldAccent) Color(0xFFF5CB7E) else CreatePalette.Accent
     Row(
         modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = if(small) 6.dp else 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(
             Modifier
                 .weight(1f)
-                .height(58.dp)
+                .height(if(small) 48.dp else 58.dp)
                 .clip(shape)
                 .background(Color(0x14FFFFFF))
-                .border(1.dp, Color(0x40A36BF0), shape)
+                .border(1.dp, if(goldAccent) accent.copy(alpha=.3f) else Color(0x40A36BF0), shape)
                 .clickable(onClick = onSave),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Outlined.FileDownload, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Outlined.FileDownload, null, tint = Color.White, modifier = Modifier.size(if(small) 19.dp else 22.dp))
             Spacer(Modifier.width(8.dp))
-            Text(if (compact) "Save" else "Save to Gallery", color = Color.White, fontFamily = Outfit, fontSize = 16.sp, maxLines = 1)
+            Text(if (compact || small) "Save" else "Save to Gallery", color = Color.White, fontFamily = Outfit, fontSize = if(small) 14.sp else 16.sp, maxLines = 1)
         }
         if (onSticker != null) {
             Row(
                 Modifier
                     .weight(1f)
-                    .height(58.dp)
+                    .height(if(small) 48.dp else 58.dp)
                     .clip(shape)
-                    .background(Color(0x333A1C63))
-                    .border(1.5.dp, CreatePalette.Accent, shape)
-                    .clickable(onClick = onSticker),
+                    .background(if(goldAccent) accent.copy(alpha=.08f) else Color(0x333A1C63))
+                    .border(1.5.dp, accent, shape)
+                    .clickable { dismissTip(); onSticker() },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(CreateIcons.Sticker, null, tint = CreatePalette.Accent, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Sticker", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
+                if(stickerPreview != null) {
+                    androidx.compose.foundation.Image(stickerPreview,"Your sticker",modifier=Modifier.size(24.dp),contentScale=androidx.compose.ui.layout.ContentScale.Fit)
+                } else {
+                    Icon(CreateIcons.Sticker,null,tint=accent,modifier=Modifier.size(24.dp))
+                }
+                Spacer(Modifier.width(6.dp))
+                Text("Sticker",color=Color.White,fontFamily=Outfit,fontSize=if(small) 14.sp else 16.sp,maxLines=1)
             }
         }
         Row(
             Modifier
                 .weight(1f)
-                .height(58.dp)
-                .shadow(16.dp, shape, spotColor = Color(0xFFB57BF5))
+                .height(if(small) 48.dp else 58.dp)
+                .shadow(16.dp, shape, spotColor = if(goldAccent) accent else Color(0xFFB57BF5))
                 .clip(shape)
-                .background(CreatePalette.ShareFill)
+                .background(if(goldAccent) Brush.horizontalGradient(listOf(Color(0xFFF3D7A0),accent)) else CreatePalette.ShareFill)
                 .clickable(onClick = onShare),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Outlined.FileUpload, null, tint = CreatePalette.Ink, modifier = Modifier.size(22.dp))
+            Icon(Icons.Outlined.FileUpload, null, tint = CreatePalette.Ink, modifier = Modifier.size(if(small) 19.dp else 22.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Share", color = CreatePalette.Ink, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 1)
+            Text("Share", color = CreatePalette.Ink, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = if(small) 14.sp else 16.sp, maxLines = 1)
         }
     }
 }
+    }
 
 /** Color swatch with a ring when selected. */
 @Composable

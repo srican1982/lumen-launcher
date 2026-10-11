@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.material.icons.outlined.Person
+
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -109,10 +111,10 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     var stickers by remember { mutableStateOf(false) }
     var tripAlbums by remember { mutableStateOf(false) }
     val socialApps = remember(state.homeApps, state.visibleApps) {
-        val preferred = state.homeApps.filter { it.category == AppCategory.Social }
-        preferred.ifEmpty {
-            state.visibleApps.filter { it.category == AppCategory.Social }
-        }.distinctBy { it.packageName }.take(24)
+        val known = listOf("com.whatsapp", "com.whatsapp.w4b", "com.instagram.android", "com.zhiliaoapp.musically", "org.telegram.messenger", "com.twitter.android", "com.snapchat.android", "com.facebook.orca", "com.facebook.katana")
+        val installed = (state.visibleApps + state.homeApps).distinctBy { it.packageName }
+        val preferred = installed.filter { it.packageName in known }.sortedBy { known.indexOf(it.packageName) }
+        (preferred + if(preferred.size < 4) installed.filter { it.category == AppCategory.Social && it.packageName !in known }.take(4-preferred.size) else emptyList()).take(24)
     }
     val socialPackages = remember(state.visibleApps) { state.visibleApps.filter { it.category == AppCategory.Social }.map { it.packageName }.toSet() }
 
@@ -128,12 +130,52 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
         }
     }
 
-    val chats = remember(state.recentConversations, state.hidden, state.privateApps) {
-        com.lumen.launcher.inbox.ConversationRecents.latest(
-            state.recentConversations.filter { chat -> chat.packageName !in state.hidden &&
-                state.privateApps.none { it.substringBefore('/') == chat.packageName } },
-            System.currentTimeMillis(), 5
-        )
+    val chats by androidx.compose.runtime.produceState<List<InboxItem>>(emptyList(), state.recentConversations, state.missedCalls, state.hidden, state.privateApps) {
+        value = withContext(Dispatchers.IO) {
+            val names = mutableSetOf<String>()
+            val phones = mutableSetOf<String>()
+            runCatching {
+                context.contentResolver.query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                    arrayOf("display_name", "data1"), null, null, null)?.use { rows ->
+                    while(rows.moveToNext()) {
+                        names += rows.getString(0).orEmpty().trim().lowercase()
+                        phones += rows.getString(1).orEmpty().filter { it.isDigit() }.takeLast(10)
+                    }
+                }
+            }
+            val calls = mutableListOf<InboxItem>()
+            runCatching {
+                context.contentResolver.query(android.provider.CallLog.Calls.CONTENT_URI,
+                    arrayOf("_id", "number", "name", "date", "type"), "date >= ?",
+                    arrayOf((System.currentTimeMillis()-86_400_000L).toString()), "date DESC")?.use { rows ->
+                    while(rows.moveToNext() && calls.size < 50) {
+                        val number = rows.getString(1).orEmpty()
+                        if(number.isNotBlank()) calls += InboxItem(
+                            key="phone-call:${rows.getLong(0)}", source=InboxSource.Messages,
+                            title=rows.getString(2).orEmpty().ifBlank {number}, preview=number,
+                            packageName=context.packageManager.resolveActivity(Intent(Intent.ACTION_DIAL),0)?.activityInfo?.packageName.orEmpty(),
+                            postedAt=rows.getLong(3),isConversation=true,isCall=true,conversationId=number)
+                    }
+                }
+            }
+            val whatsappCalls = state.missedCalls.filter { it.whatsapp }.map { call ->
+                InboxItem(key="wa-call:${call.key}",source=InboxSource.WhatsApp,title=call.display,preview=call.number,
+                    packageName="com.whatsapp",postedAt=call.at,isConversation=true,isCall=true,conversationId=call.key)
+            }
+            com.lumen.launcher.inbox.ConversationRecents.latest((state.recentConversations + calls + whatsappCalls).filter { chat ->
+                val digits = chat.title.filter { it.isDigit() }
+                val numeric = chat.title.none { it.isLetter() }
+                val tollFree = digits.takeLast(10).take(3) in setOf("800","888","877","866","855","844","833","822")
+                val saved = chat.title.trim().lowercase() in names || (digits.length >= 7 && digits.takeLast(10) in phones)
+                val appChat = chat.source in setOf(com.lumen.launcher.inbox.InboxSource.WhatsApp,
+                    com.lumen.launcher.inbox.InboxSource.Telegram, com.lumen.launcher.inbox.InboxSource.Messenger) &&
+                    (!chat.sender.isNullOrBlank() || !chat.conversationId.isNullOrBlank())
+                val business = Regex("(?i)(\\.com\\b|\\.net\\b|\\b(inc|llc|bank|pharmacy|delivery|support|customer service|offers|rewards)\\b)").containsMatchIn(chat.title) ||
+                    listOf("reply stop", "unsubscribe", "verification code", "one-time password").any { chat.preview.contains(it,true) }
+                (saved || appChat) && !business && !(numeric && (digits.length < 7 || tollFree)) && chat.packageName !in state.hidden &&
+                    state.privateApps.none { it.substringBefore('/') == chat.packageName }
+            },System.currentTimeMillis(),10)
+        }
     }
 
     Column(
@@ -163,7 +205,13 @@ fun SocialSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
             chats = chats,
             icons = vm.icons,
             apps = state.visibleApps,
-            onOpen = { vm.openConversation(it) },
+            onOpen = { chat ->
+                when {
+                    chat.key.startsWith("phone-call:") -> context.startActivity(Intent(Intent.ACTION_DIAL,android.net.Uri.fromParts("tel",chat.preview,null)))
+                    chat.key.startsWith("wa-call:") -> state.missedCalls.firstOrNull { "wa-call:${it.key}" == chat.key }?.let(vm::callBack)
+                    else -> vm.openConversation(chat)
+                }
+            },
             onNewChat = {
                 val preferred = socialApps.firstOrNull {
                     it.packageName in InboxSource.WhatsApp.packages ||
@@ -482,7 +530,7 @@ private fun CreateSomethingRow(
             Spacer(Modifier.width(2.dp))
             TripAlbumPolaroidStack(
                 onClick = onTripAlbums,
-                modifier = Modifier.offset(x = 22.dp, y = (-16).dp).graphicsLayer { scaleX = 1.12f; scaleY = 1.12f }
+                modifier = Modifier.offset(x = 22.dp, y = (-12).dp).graphicsLayer { scaleX = 1.12f; scaleY = 1.12f }
             )
         }
     }
@@ -659,16 +707,18 @@ private fun RecentConversationsRow(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                chats.forEach { chat ->
+                chats.take(10).forEach { chat ->
+                    Box(Modifier.width(84.dp), contentAlignment=Alignment.TopCenter) {
                     ConversationChip(
                         chat = chat,
                         icons = icons,
                         activityName = apps.firstOrNull { it.packageName == chat.packageName }?.activityName.orEmpty(),
                         onClick = { onOpen(chat) }
                     )
+                    }
                 }
             }
-            Column(
+            if(chats.isEmpty()) Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .width(68.dp)
@@ -750,7 +800,7 @@ private fun ConversationChip(
             color = Color.White,
             fontFamily = Outfit,
             fontSize = 11.sp, lineHeight = 14.sp,
-            maxLines = 2,
+            maxLines = 1,
             textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis
         )
@@ -1116,21 +1166,17 @@ private class SocialRowScrollBoundary : NestedScrollConnection {
 
 @Composable
 private fun ConversationAvatar(chat: InboxItem) {
-    val atlas = androidx.compose.ui.graphics.ImageBitmap.imageResource(com.lumen.launcher.R.drawable.social_avatar_atlas)
-    val index = Math.floorMod((chat.packageName + (chat.conversationId ?: chat.title)).hashCode(), 6)
-    val cellWidth = atlas.width / 3
-    val cellHeight = atlas.height / 2
-    // A square crop inside each portrait cell avoids stretching faces.
-    val painter = remember(atlas, index) {
-        androidx.compose.ui.graphics.painter.BitmapPainter(atlas,
-            androidx.compose.ui.unit.IntOffset((index % 3) * cellWidth, (index / 3) * cellHeight + (cellHeight - cellWidth) / 3),
-            androidx.compose.ui.unit.IntSize(cellWidth, cellWidth))
+    val unknown = chat.title.count { it.isDigit() } >= 7 && chat.title.none { it.isLetter() }
+    var loaded by remember(chat.avatarPath) { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha=.14f)),contentAlignment=Alignment.Center) {
+        if (!loaded) {
+            if (unknown) Icon(androidx.compose.material.icons.Icons.Outlined.Person, contentDescription="Unknown contact", tint=Color.White, modifier=Modifier.size(28.dp))
+            else Text(chat.title.split(" ").filter { it.isNotBlank() }.take(2).map { it.take(1) }.joinToString("").uppercase(), color=Color.White, fontSize=22.sp)
+        }
+        chat.avatarPath?.let { path ->
+            coil.compose.AsyncImage(model=java.io.File(path),contentDescription="Contact photo",
+                onSuccess={loaded=true},onError={loaded=false},
+                contentScale=androidx.compose.ui.layout.ContentScale.Crop,modifier=Modifier.fillMaxSize())
+        }
     }
-    coil.compose.AsyncImage(
-        model = chat.avatarPath?.let { java.io.File(it) },
-        contentDescription = if (chat.avatarPath == null) "Placeholder profile photo" else "Profile photo",
-        placeholder = painter, error = painter, fallback = painter,
-        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-        modifier = Modifier.fillMaxSize()
-    )
 }

@@ -100,6 +100,8 @@ class TripRepository private constructor(context: Context) {
         return enrichTrip(e)
     }
 
+    suspend fun getLatestEndedTrip(): Trip? = dao.getLatestEndedTrip()?.let { enrichTrip(it) }
+
     private suspend fun enrichTrip(e: TripEntity): Trip {
         val photos = dao.getTripPhotos(e.id)
         return enrichFromPhotos(e, photos)
@@ -132,22 +134,28 @@ class TripRepository private constructor(context: Context) {
             return@withContext enrichTrip(existing)
         }
         val now = System.currentTimeMillis()
-        val place = location.obtainPhoneLocation(forceRefresh = true)
         val id = dao.insertTrip(
             TripEntity(
                 startTime = now,
-                countryCode = place?.countryCode,
-                countryName = place?.countryName,
                 primaryCity = null,
                 title = "Current Trip",
                 isActive = true,
                 createdAt = now,
-                startLatitude = place?.latitude,
-                startLongitude = place?.longitude
             )
         )
-        ensureObserverRunning()
-        syncNewPhotos()
+        // Commit the trip immediately; GPS/geocoding must never block the switch.
+        scope.launch {
+            runCatching {
+                val place = location.obtainPhoneLocation(forceRefresh = true)
+                syncMutex.withLock {
+                    if (dao.getActiveTrip()?.id == id) {
+                        dao.updateStartCoordinates(id, place?.latitude, place?.longitude)
+                        syncNewPhotosLocked(System.currentTimeMillis())
+                    }
+                }
+            }
+        }
+        ensureObserverRunning(syncImmediately = false)
         enrichTrip(dao.getTrip(id)!!)
     } }
 
@@ -156,7 +164,9 @@ class TripRepository private constructor(context: Context) {
         val end = System.currentTimeMillis()
         syncMutex.withLock {
             try {
-                syncNewPhotosLocked(end)
+                // Finishing a trip must not wait for a GPS fix. Photo membership
+                // is timestamp-based; retain any place metadata already collected.
+                syncNewPhotosLocked(end, resolvePlaces = false)
             } catch (_: SecurityException) {
                 // Revoked photo access must not prevent the user ending a trip.
             }
@@ -168,12 +178,12 @@ class TripRepository private constructor(context: Context) {
         enrichTrip(dao.getTrip(active.id)!!)
     } }
 
-    @Synchronized private fun ensureObserverRunning() {
+    @Synchronized private fun ensureObserverRunning(syncImmediately: Boolean = true) {
         if (observer != null) return
         val obs = MediaStorePhotoObserver(app, scope) { syncNewPhotos() }
         observer = obs
         obs.start()
-        scope.launch { runCatching { syncNewPhotos() } }
+        if (syncImmediately) scope.launch { runCatching { syncNewPhotos() } }
     }
 
     @Synchronized private fun stopObserver() {
@@ -191,7 +201,7 @@ class TripRepository private constructor(context: Context) {
         syncNewPhotosLocked(System.currentTimeMillis())
     }
 
-    private suspend fun syncNewPhotosLocked(until: Long) {
+    private suspend fun syncNewPhotosLocked(until: Long, resolvePlaces: Boolean = true) {
         withContext(Dispatchers.IO) {
             val trip = dao.getActiveTrip() ?: return@withContext
             val photos = MediaStorePhotoRepository.queryPhotosSince(app, trip.startTime)
@@ -217,6 +227,11 @@ class TripRepository private constructor(context: Context) {
                         addedAt = System.currentTimeMillis()
                     )
                 )
+            }
+
+            if (!resolvePlaces) {
+                refreshTripIdentity(trip.id)
+                return@withContext
             }
 
             val phonePlace = location.obtainPhoneLocation()
@@ -280,6 +295,15 @@ class TripRepository private constructor(context: Context) {
         if (photoIds.isEmpty()) return@withContext
         dao.deletePhotosByIds(photoIds)
         dao.getActiveTrip()?.id?.let { refreshTripIdentity(it) }
+    }
+
+    /** Deletes only Lumen's album records. MediaStore originals are never deleted. */
+    suspend fun deleteAlbum(tripId: Long) = lifecycleMutex.withLock {
+        syncMutex.withLock {
+            withContext(Dispatchers.IO) {
+                check(dao.deleteEndedTrip(tripId) > 0) { "End this trip before deleting its album." }
+            }
+        }
     }
 
     suspend fun photosByIds(photoIds: List<Long>): List<TripPhoto> = withContext(Dispatchers.IO) {

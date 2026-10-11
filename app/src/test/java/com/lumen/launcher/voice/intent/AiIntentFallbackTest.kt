@@ -140,7 +140,7 @@ class AiIntentFallbackTest {
         assertThat(body).contains("OPEN_APP")
         assertThat(body).contains("ANSWER")
         assertThat(body).contains("ChatGPT")
-        assertThat(AiIntentFallback.MODEL).isEqualTo("gemini-3-flash-preview")
+        assertThat(AiIntentFallback.MODEL).isEqualTo("gemini-2.5-flash")
         assertThat(body).doesNotContain("launch this intent")
         assertThat(body).contains("abbreviated")
     }
@@ -174,5 +174,12 @@ class AiIntentFallbackTest {
         assertThat(intent!!.action).isEqualTo(VoiceAction.OPEN_APP)
         assertThat(intent.appName).isEqualTo("boa")
         assertThat(VoiceConfidence.shouldExecute(intent)).isTrue()
+    }
+    @Test fun relevantAppBeyondAlphabeticalLimitIsIncluded() {
+        val labels = (1..100).map { "A filler app $it" } + "Zoom"
+        val body = AiIntentFallback.requestBody("open Zoom", labels)
+        val prompt = org.json.JSONObject(body).getJSONArray("contents").getJSONObject(0)
+            .getJSONArray("parts").getJSONObject(0).getString("text")
+        assertThat(prompt.substringAfter("Installed apps:").substringBefore("\n")).contains("Zoom")
     }
 }

@@ -7,11 +7,17 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.net.Uri
-import com.lumen.launcher.data.LauncherPreferences
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 object AlarmScheduler {
+
+    fun canFullScreen(context: Context): Boolean = android.os.Build.VERSION.SDK_INT < 34 ||
+        context.getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent()
+
+    fun requestFullScreenAccess(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT < 34) return
+        runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+            .setData(Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
 
     fun canExact(context: Context): Boolean {
         val am = context.getSystemService(AlarmManager::class.java)
@@ -38,8 +44,8 @@ object AlarmScheduler {
         val show = PendingIntent.getActivity(
             context,
             alarm.id.hashCode() + 17,
-            Intent(context, AlarmActivity::class.java).apply {
-                putExtras(fireIntent(context, alarm, tone).extras!!)
+            Intent(context, com.lumen.launcher.LauncherActivity::class.java).apply {
+                action = Intent.ACTION_MAIN
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -56,8 +62,7 @@ object AlarmScheduler {
     }
 
     fun rescheduleAll(context: Context) {
-        val stored = runBlocking { LauncherPreferences(context).state.first() }
-        stored.alarms.forEach { schedule(context, it, stored.alarmTone) }
+        synchronized(AlarmStore) { AlarmStore.read(context).forEach { schedule(context, it, AlarmStore.tone(context)) } }
     }
 
     fun fireIntent(context: Context, alarm: LumenAlarm, tone: String): Intent {

@@ -1,7 +1,16 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import kotlinx.coroutines.launch
+import com.lumen.launcher.data.TaskIcon
+import com.lumen.launcher.data.TaskAgenda
+import com.lumen.launcher.data.CaptureKind
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -32,19 +42,27 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Medication
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AllInclusive
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.MicNone
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
@@ -61,6 +79,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -68,6 +87,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -101,18 +121,60 @@ private val Frost = Color(0x3D000000)
 private val Sheet = Color(0xE616121C)
 
 @Composable
+fun TasksRoute(viewModel: LauncherViewModel, onPickerVisible: (Boolean) -> Unit, onComposerFocus: (Boolean) -> Unit) {
+    val state by viewModel.tasksState.collectAsStateWithLifecycle()
+    TodoPage(state, viewModel, onPickerVisible, onComposerFocus)
+}
+
+@Composable
 fun TodoPage(
-    state: LauncherUiState,
+    state: com.lumen.launcher.vm.TasksUiState,
     viewModel: LauncherViewModel,
+    onPickerVisible: (Boolean) -> Unit = {},
     onComposerFocus: (Boolean) -> Unit = {}
 ) {
     val space = state.activeSpace
-    val items = state.spaceTodos
-    val today = items.filter { TodoTime.isToday(it) }
-    val upcoming = items.filter { TodoTime.isUpcoming(it) }
+    val items = state.todos.filter { it.space != SpaceKind.Private || space == SpaceKind.Private }
+    val now by androidx.compose.runtime.produceState(System.currentTimeMillis()) {
+        while(true) { value=System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
+    }
+    val today = TaskAgenda.today(items, now)
+    val completedToday = TaskAgenda.completedToday(items, now)
+    val tomorrow = TaskAgenda.tomorrow(items, now)
+    val upcoming = items.filter { TodoTime.isUpcoming(it, now) }
     val done = items.filter { it.done }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val pendingCompletion = remember { androidx.compose.runtime.mutableStateMapOf<String, TodoItem>() }
+    var editing by remember { mutableStateOf<TodoItem?>(null) }
+    var editText by remember { mutableStateOf("") }
+    fun changeTask(item: TodoItem, deleting: Boolean = false) {
+        if (deleting) viewModel.deleteTodo(item.id)
+        else {
+            if (!item.done) {
+                pendingCompletion[item.id] = item.copy(done = true)
+                scope.launch { kotlinx.coroutines.delay(1200); pendingCompletion.remove(item.id) }
+            }
+            viewModel.toggleTodo(item.id)
+        }
+        scope.launch {
+            val result = snackbar.showSnackbar(if (deleting) "Task deleted" else if (item.done) "Task reopened" else "Task completed", "Undo", duration = androidx.compose.material3.SnackbarDuration.Short)
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                pendingCompletion.remove(item.id)
+                viewModel.restoreTodo(item)
+            }
+        }
+    }
     var filter by remember { mutableStateOf(TaskFilter.Today) }
+    var selectedDay by remember { mutableLongStateOf(TodoTime.startOfDay()) }
+    var calendarAnchor by remember { mutableLongStateOf(TodoTime.startOfDay()) }
+    var viewMenu by remember { mutableStateOf(false) }
+    var completedExpanded by remember { mutableStateOf(false) }
+    var addedMessage by remember { mutableStateOf<String?>(null) }
+    var addedView by remember { mutableStateOf(TaskFilter.Today) }
+    LaunchedEffect(addedMessage) { if(addedMessage != null) { kotlinx.coroutines.delay(2000); addedMessage=null } }
     var draft by remember(space) { mutableStateOf("") }
+    var dateChosen by remember(space) { mutableStateOf(false) }
     var dueAt by remember(space) { mutableLongStateOf(TodoTime.startOfDay()) }
     var priority by remember(space) { mutableStateOf(false) }
     var repeat by remember(space) { mutableStateOf("") }
@@ -120,8 +182,22 @@ fun TodoPage(
     var pickingDate by remember { mutableStateOf(false) }
     var pickingTime by remember { mutableStateOf(false) }
     var pickingRepeat by remember { mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(pickingDate, pickingTime, pickingRepeat, editing) {
+        onPickerVisible(pickingDate || pickingTime || pickingRepeat || editing != null)
+        onDispose { onPickerVisible(false) }
+    }
     var spaceMenu by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+    val pickerRequested = pickingDate || pickingTime || pickingRepeat
+    LaunchedEffect(pickerRequested) {
+        if (pickerRequested) {
+            focusManager.clearFocus(force = true)
+            keyboard?.hide()
+            onComposerFocus(false)
+        }
+    }
     val focusRequester = remember { FocusRequester() }
     val pickerDue = items.find { it.id == dueEditId }?.dueAt ?: dueAt
 
@@ -137,7 +213,7 @@ fun TodoPage(
 
     fun applyDue(next: Long) {
         val id = dueEditId
-        if (id == null) dueAt = next
+        if (id == null) { dueAt = next; dateChosen = true }
         else viewModel.setTodoDue(id, next)
     }
 
@@ -166,8 +242,10 @@ fun TodoPage(
         draft = ""
         keyboard?.hide()
         onComposerFocus(false)
-        filter = if (dueAt > TodoTime.endOfDay()) TaskFilter.Upcoming else TaskFilter.Today
+        addedView = if (dueAt > TodoTime.endOfDay()) TaskFilter.Upcoming else TaskFilter.Today
+        addedMessage = "Task added to ${TodoTime.dayLabel(dueAt)}" + if(TodoTime.hasClock(dueAt)) " at ${TodoTime.timeLabel(dueAt)}" else " \u00b7 Anytime"
         dueAt = TodoTime.startOfDay()
+        dateChosen = false
         priority = false
         repeat = ""
     }
@@ -179,7 +257,8 @@ fun TodoPage(
     }
 
     val shown = when (filter) {
-        TaskFilter.Today -> today
+        TaskFilter.Today -> if (TodoTime.startOfDay(selectedDay) != TodoTime.startOfDay(now)) items.filter { !it.done && it.dueAt?.let(TodoTime::startOfDay) == TodoTime.startOfDay(selectedDay) } else TaskAgenda.today((today + pendingCompletion.values.map { it.copy(done = false) }).distinctBy { it.id }, now)
+            .map { pendingCompletion[it.id] ?: it }
         TaskFilter.Upcoming -> upcoming
         TaskFilter.Done -> done
     }
@@ -191,82 +270,47 @@ fun TodoPage(
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 10.dp)
         ) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
+            ReferenceTaskWeek(calendarAnchor, selectedDay, items,
+                onNavigate = { step, month ->
+                    calendarAnchor = if (step == 0) TodoTime.startOfDay(now) else Calendar.getInstance().apply {
+                        timeInMillis = calendarAnchor
+                        add(if (month) Calendar.MONTH else Calendar.WEEK_OF_YEAR, step)
+                    }.timeInMillis
+                    if (step == 0) { selectedDay = TodoTime.startOfDay(now); filter = TaskFilter.Today }
+                }, onSelect = { selectedDay = it; filter = TaskFilter.Today })
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Tasks", color = Lumen.Accent, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 32.sp)
-                Spacer(Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text("Tasks", color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.Bold, fontSize = 34.sp)
+                    Text(if (filter == TaskFilter.Today) android.text.format.DateFormat.format("EEEE, MMM d", selectedDay).toString() else filter.name,
+                        color = Color.White.copy(alpha = .85f), fontFamily = Outfit, fontSize = 16.sp)
+                }
+                Text("${shown.size} ${if (shown.size == 1) "task" else "tasks"}", color = Color.White, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.clickable(onClickLabel = "Choose task view") { viewMenu = true })
                 Box {
-                    Text(
-                        space.title,
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .padding(end = 10.dp)
-                            .clickable { spaceMenu = true }
-                    )
-                    DropdownMenu(expanded = spaceMenu, onDismissRequest = { spaceMenu = false }, containerColor = Sheet) {
-                        DropdownMenuItem(
-                            text = { Text("Auto · follow Home", color = Lumen.Text, fontFamily = Outfit) },
-                            onClick = { spaceMenu = false; viewModel.selectSpace(null) }
-                        )
-                        SpaceKind.entries.filter { it != SpaceKind.Private }.forEach { kind ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        kind.title,
-                                        color = if (kind == space && !state.spaceAutomatic) Lumen.Accent else Lumen.Text,
-                                        fontFamily = Outfit
-                                    )
-                                },
-                                onClick = { spaceMenu = false; viewModel.selectSpace(kind) }
-                            )
-                        }
+                    DropdownMenu(expanded = viewMenu, onDismissRequest = { viewMenu = false }, containerColor = Sheet, shape = RoundedCornerShape(18.dp)) {
+                        TaskFilter.entries.forEach { choice -> DropdownMenuItem(text = { Text(choice.name, color = Lumen.Text) }, onClick = {
+                            filter = choice; selectedDay = TodoTime.startOfDay(now); viewMenu = false
+                        }) }
+                        DropdownMenuItem(text = { Text("Settings", color = Lumen.Text) }, onClick = { viewMenu = false; viewModel.openSettings() })
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundIcon(Icons.Outlined.PersonOutline) { viewModel.openSettings() }
-                    RoundIcon(Icons.Outlined.Settings) { viewModel.openSettings() }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip("Today", filter == TaskFilter.Today) { filter = TaskFilter.Today }
-                    FilterChip("Upcoming", filter == TaskFilter.Upcoming) { filter = TaskFilter.Upcoming }
-                    FilterChip("Done", filter == TaskFilter.Done) { filter = TaskFilter.Done }
-                }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (state.focusing) "End" else "Focus 30",
-                    color = if (state.focusing) Lumen.OnAccent else Lumen.Text,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (state.focusing) Lumen.Accent else Frost)
-                        .clickable { if (state.focusing) viewModel.endFocus() else viewModel.startFocus(30) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
+                Spacer(Modifier.width(6.dp))
+                RoundIcon(Icons.Outlined.Settings) { viewModel.openSettings() }
             }
             Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Frost)
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .glass(RoundedCornerShape(14.dp), LocalGlass.current)
                     .clickable(onClick = { openComposer() })
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Lumen.Accent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.AutoAwesome, null, tint = Lumen.OnAccent, modifier = Modifier.size(18.dp))
-                }
                 BasicTextField(
                     value = draft,
                     onValueChange = { draft = it },
@@ -285,42 +329,26 @@ fun TodoPage(
                         },
                     decorationBox = { inner ->
                         Box {
-                            if (draft.isBlank()) Text("Add a task…", color = Lumen.Faint, fontFamily = Outfit, fontSize = 16.sp)
+                            if (draft.isBlank()) Text("Add a task\u2026", color = Lumen.Faint, fontFamily = Outfit, fontSize = 16.sp)
                             inner()
                         }
                     }
                 )
-                Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).clickable { viewModel.openVoice() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.MicNone, contentDescription = "Speak a task", tint = Lumen.Faint, modifier = Modifier.size(20.dp))
+                Box(Modifier.size(36.dp).clickable(onClickLabel = if (draft.isNotBlank()) "Add task" else "Speak a task") {
+                    if (draft.isNotBlank()) submit() else viewModel.voice.openVoice()
+                }, contentAlignment = Alignment.Center) {
+                    Icon(if (draft.isNotBlank()) Icons.Outlined.Check else Icons.Outlined.MicNone,
+                        if (draft.isNotBlank()) "Add task" else "Speak a task", tint = Color(0xFFF5CB7E), modifier = Modifier.size(24.dp))
                 }
             }
+            }
             Spacer(Modifier.height(8.dp))
-            val reminderSet = TodoTime.hasClock(dueAt) || TodoTime.dayLabel(dueAt) != "Today"
-            Row(
-                Modifier.clip(RoundedCornerShape(18.dp))
-                    .background(Lumen.Accent.copy(alpha = if (reminderSet) .24f else .13f))
-                    .clickable(onClickLabel = "Choose reminder date and time") { openWhen() }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(Icons.Outlined.Schedule, null, tint = Lumen.Accent, modifier = Modifier.size(20.dp))
-                Text(
-                    if (reminderSet) TodoTime.dayLabel(dueAt) + if (TodoTime.hasClock(dueAt)) " · " + TodoTime.timeLabel(dueAt) else " · Set time"
-                    else "Set reminder",
-                    color = Lumen.Text, fontFamily = Outfit, fontSize = 14.sp, fontWeight = FontWeight.Medium
-                )
+            if(draft.isNotBlank()) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                QuickChip(if(TodoTime.hasClock(dueAt)) TodoTime.timeLabel(dueAt) else "Time", TodoTime.hasClock(dueAt), Icons.Outlined.Schedule) { dueEditId=null; pickingTime=true }
+                QuickChip(if(dateChosen) TodoTime.dayLabel(dueAt) else "Date", false, Icons.Outlined.CalendarMonth) { openWhen() }
+                QuickChip("Priority", priority, Icons.Outlined.Flag) { priority=!priority }
             }
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(filter.name, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 22.sp)
-                Spacer(Modifier.weight(1f))
-                Text(if (shown.size == 1) "1 task" else "${shown.size} tasks", color = Lumen.Faint, fontFamily = Outfit, fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(4.dp))
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -328,59 +356,74 @@ fun TodoPage(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (shown.isEmpty()) {
-                    Text(
-                        when (filter) {
-                            TaskFilter.Today -> "Nothing in ${space.title} today."
-                            TaskFilter.Upcoming -> "No upcoming ${space.title} tasks."
-                            TaskFilter.Done -> "Nothing checked off in ${space.title}."
-                        },
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(top = 8.dp, start = 4.dp)
-                    )
-                } else {
+                if (filter == TaskFilter.Today && TodoTime.startOfDay(selectedDay) == TodoTime.startOfDay(now)) {
+                    AnimatedContent(targetState = today.isEmpty() && pendingCompletion.isEmpty(), label = "Today state") { clear ->
+                        if (clear) TaskCalmHero(completedToday.size) {
+                            dueAt = TodoTime.tomorrowStart(); dateChosen = true; openComposer()
+                        }
+                    }
+                } else if (shown.isEmpty()) {
+                    Text(if (filter == TaskFilter.Upcoming) "No upcoming tasks yet" else if (filter == TaskFilter.Today) "No tasks for this date" else "Completed tasks will appear here", color = Lumen.Text, fontFamily = Outfit, fontSize = 14.sp)
+                }
+                Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     shown.forEach { item ->
-                        TaskRow(
-                            item = item,
-                            onToggle = { viewModel.toggleTodo(item.id) },
-                            onDelete = { viewModel.deleteTodo(item.id) },
-                            onDue = {
-                                dueEditId = item.id
-                                pickingDate = true
-                            },
-                            onTime = { openWhen(item.id) },
-                            onRepeat = {
-                                dueEditId = item.id
-                                pickingRepeat = true
-                            },
-                            onPriority = { viewModel.setTodoPriority(item.id, !item.priority) }
-                        )
+                        androidx.compose.runtime.key(item.id) {
+                            TaskRow(item = item, todayView = filter == TaskFilter.Today,
+                                overdue = TaskAgenda.overdue(item, now),
+                                onToggle = { changeTask(item) }, onDelete = { changeTask(item, deleting = true) },
+                                onEdit = { editing = item; editText = item.text },
+                                onDue = { dueEditId = item.id; pickingDate = true },
+                                onTime = { dueEditId = item.id; pickingTime = true },
+                                onRepeat = { dueEditId = item.id; pickingRepeat = true },
+                                onPriority = { viewModel.setTodoPriority(item.id, !item.priority) })
+                        }
                     }
                 }
+                if (filter == TaskFilter.Today && TodoTime.startOfDay(selectedDay) == TodoTime.startOfDay(now)) {
+                    if (completedToday.any { it.id !in pendingCompletion }) {
+                        Row(Modifier.fillMaxWidth().glass(RoundedCornerShape(20.dp), LocalGlass.current)
+                            .clickable { completedExpanded = !completedExpanded }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Check, null, tint = Lumen.Accent, modifier = Modifier.size(24.dp))
+                            Text("Completed today  (${completedToday.size})", color = Lumen.Muted, fontFamily = Outfit, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                            Text(if (completedExpanded) "\u2303" else "\u2304", color = Lumen.Muted, fontSize = 20.sp)
+                        }
+                        if (completedExpanded) completedToday.filter { it.id !in pendingCompletion }.forEach { item ->
+                            androidx.compose.runtime.key("done-${item.id}") {
+                                TaskRow(item, true, false, onToggle = { changeTask(item) }, onDelete = { changeTask(item, true) },
+                                    onEdit = { editing = item; editText = item.text }, onDue = { openWhen(item.id) },
+                                    onTime = { dueEditId = item.id; pickingTime = true }, onRepeat = { dueEditId = item.id; pickingRepeat = true },
+                                    onPriority = { viewModel.setTodoPriority(item.id, !item.priority) })
+                            }
+                        }
+                    }
+
+                }
+
             }
         }
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(end = 20.dp, bottom = 28.dp)
-                .size(62.dp)
-                .clip(CircleShape)
-                .background(Lumen.Accent)
-                .clickable { if (draft.isNotBlank()) submit() else openComposer() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                if (draft.isNotBlank()) Icons.Outlined.Check else Icons.Outlined.Add,
-                contentDescription = "Add task",
-                tint = Lumen.OnAccent,
-                modifier = Modifier.size(28.dp)
-            )
+        androidx.compose.material3.SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding().padding(bottom = 44.dp))
+        editing?.let { item ->
+            androidx.compose.material3.AlertDialog(onDismissRequest = { editing = null }, title = { Text("Edit task") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    androidx.compose.material3.OutlinedTextField(editText, { editText = it }, label = { Text("Task") })
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuickChip("Date", false, Icons.Outlined.CalendarMonth) { viewModel.renameTodo(item.id, editText); editing = null; openWhen(item.id) }
+                        QuickChip("Time", false, Icons.Outlined.Schedule) { viewModel.renameTodo(item.id, editText); editing = null; dueEditId = item.id; pickingTime = true }
+                    }
+                }
+            }, confirmButton = { androidx.compose.material3.TextButton(onClick = { viewModel.renameTodo(item.id, editText); editing = null }) { Text("Save") } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { editing = null }) { Text("Cancel") } })
         }
-        if (pickingDate) {
+        addedMessage?.let { message ->
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding()
+                .padding(start=24.dp,end=24.dp,bottom=48.dp)
+                .background(Color(0xF212182A),RoundedCornerShape(20.dp))
+                .border(1.dp,Color.White.copy(alpha=.35f),RoundedCornerShape(20.dp))
+                .padding(horizontal=18.dp,vertical=12.dp)) {
+                Text(message,color=Lumen.Text,fontFamily=Outfit,fontSize=14.sp,textAlign=TextAlign.Center)
+            }
+        }
+        if (pickingDate && imeBottom == 0) {
             DateSheet(
                 initial = pickerDue,
                 onDismiss = { pickingDate = false; dueEditId = null },
@@ -391,7 +434,7 @@ fun TodoPage(
                 }
             )
         }
-        if (pickingTime) {
+        if (pickingTime && imeBottom == 0) {
             TimeSheet(
                 initial = pickerDue,
                 initialRepeat = items.find { it.id == dueEditId }?.repeat ?: repeat,
@@ -413,7 +456,7 @@ fun TodoPage(
                 }
             )
         }
-        if (pickingRepeat) {
+        if (pickingRepeat && imeBottom == 0) {
             RepeatSheet(
                 initial = items.find { it.id == dueEditId }?.repeat ?: repeat,
                 dueAt = pickerDue,
@@ -434,7 +477,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
         val cal = Calendar.getInstance().apply { timeInMillis = initial }
         mutableStateOf(cal.get(Calendar.YEAR) to cal.get(Calendar.MONTH))
     }
-    var selected by remember { mutableLongStateOf(TodoTime.startOfDay(initial)) }
+    var selected by remember { mutableLongStateOf(maxOf(TodoTime.startOfDay(initial),TodoTime.startOfDay())) }
     val today = TodoTime.startOfDay()
     val monthCal = Calendar.getInstance().apply {
         set(Calendar.YEAR, cursor.first)
@@ -460,8 +503,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickChip("Today", TodoTime.startOfDay(selected) == today) { selected = today }
             QuickChip("Tomorrow", TodoTime.startOfDay(selected) == TodoTime.tomorrowStart()) { selected = TodoTime.tomorrowStart() }
-            QuickChip("This week", TodoTime.startOfDay(selected) == thisWeek()) { selected = thisWeek() }
-            QuickChip("Next week", TodoTime.startOfDay(selected) == nextWeek()) { selected = nextWeek() }
+            QuickChip("Weekend", selected == nextWeekday(Calendar.SATURDAY)) { selected = nextWeekday(Calendar.SATURDAY) }
         }
         Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -499,7 +541,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
                             modifier = Modifier
                                 .weight(1f)
                                 .height(44.dp)
-                                .clickable { selected = cell },
+                                .clickable(enabled = cell >= today) { selected = cell },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -512,7 +554,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
                             ) {
                                 Text(
                                     "$day",
-                                    color = if (isSelected) Lumen.OnAccent else Lumen.Text,
+                                    color = if(cell < today) Lumen.Faint.copy(alpha=.3f) else if (isSelected) Lumen.OnAccent else Lumen.Text,
                                     fontFamily = Outfit,
                                     fontSize = 15.sp
                                 )
@@ -546,14 +588,7 @@ private fun DateSheet(initial: Long, onDismiss: () -> Unit, onSet: (Long) -> Uni
                     fontSize = 15.sp
                 )
             }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
-            ) {
-                Text(TodoTime.dayLabel(selected), color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
-            }
+
         }
         Spacer(Modifier.height(18.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -574,11 +609,13 @@ private fun TimeSheet(
     onSet: (Int, Int, String, Boolean) -> Unit,
     onAnytime: (String, Boolean) -> Unit
 ) {
-    val startHour = if (TodoTime.hasClock(initial)) TodoTime.hourOf(initial) else 9
-    val startMinute = if (TodoTime.hasClock(initial)) TodoTime.minuteOf(initial) else 0
+    val nextRound = remember { Calendar.getInstance().apply { set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0); add(Calendar.MINUTE,30-get(Calendar.MINUTE)%30) }.timeInMillis }
+    val defaultTime = if(TodoTime.hasClock(initial) && initial > System.currentTimeMillis()) initial else nextRound
+    val startHour = TodoTime.hourOf(defaultTime)
+    val startMinute = TodoTime.minuteOf(defaultTime)
     var hour24 by remember { mutableIntStateOf(startHour) }
     var minute by remember { mutableIntStateOf(startMinute) }
-    var anytime by remember { mutableStateOf(!TodoTime.hasClock(initial)) }
+    var anytime by remember { mutableStateOf(false) }
     var pickedRepeat by remember { mutableStateOf(initialRepeat) }
     var pickedPriority by remember { mutableStateOf(initialPriority) }
     val hour12 = if (hour24 % 12 == 0) 12 else hour24 % 12
@@ -601,7 +638,7 @@ private fun TimeSheet(
         onClose = onDismiss
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(9 to "9:00 AM", 12 to "12:00 PM", 15 to "3:00 PM", 18 to "6:00 PM").forEach { (h, label) ->
+            listOf(9 to "9:00 AM", 12 to "12:00 PM", 15 to "3:00 PM", 18 to "6:00 PM").filter { (h, _) -> TodoTime.withClock(initial,h,0) > System.currentTimeMillis() }.forEach { (h, label) ->
                 val selected = !anytime && hour24 == h && minute == 0
                 QuickChip(label, selected, if (selected) Icons.Outlined.Schedule else null) {
                     anytime = false
@@ -611,35 +648,8 @@ private fun TimeSheet(
             }
         }
         Spacer(Modifier.height(24.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "%d".format(hour12),
-                color = Lumen.Text,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Light,
-                fontSize = 56.sp
-            )
-            Text(" : ", color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 56.sp)
-            Text(
-                "%02d".format(minute),
-                color = Lumen.Text,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Light,
-                fontSize = 56.sp
-            )
-            Box(
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Lumen.Accent)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(if (isAm) "AM" else "PM", color = Lumen.OnAccent, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-            }
-        }
-        Spacer(Modifier.height(8.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().graphicsLayer { alpha=if(anytime) .35f else 1f },
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -709,39 +719,6 @@ private fun TimeSheet(
                 TodoRepeat.Monthly to "Monthly"
             ).forEach { (value, label) ->
                 QuickChip(label, pickedRepeat == value, modifier = Modifier.weight(1f)) { pickedRepeat = value }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(Frost)
-                .clickable { pickedPriority = !pickedPriority }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Flag, null, tint = if (pickedPriority) Lumen.Accent else Lumen.Faint, modifier = Modifier.size(18.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text("Priority", color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 16.sp)
-                Text(if (pickedPriority) "High priority" else "Normal", color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
-            }
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .border(1.6.dp, if (pickedPriority) Lumen.Accent else Color.White.copy(alpha = 0.35f), CircleShape)
-                    .background(if (pickedPriority) Lumen.Accent else Color.Transparent),
-                contentAlignment = Alignment.Center
-            ) {
-                if (pickedPriority) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(Lumen.OnAccent))
-                }
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -883,8 +860,12 @@ private fun PickerScaffold(
                 .imePadding()
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(36.dp))
-                .background(Color(0xF218141E))
+                .background(Brush.linearGradient(listOf(Color(0xBDA5B0D8),Color(0xAD4A5680),Color(0xAD6E7CFF))),RoundedCornerShape(topStart=30.dp,topEnd=30.dp))
+                .border(1.dp,Color.White.copy(alpha=.35f),RoundedCornerShape(topStart=30.dp,topEnd=30.dp))
+                .padding(14.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xF212182A))
+                .border(1.dp,Color.White.copy(alpha=.12f),RoundedCornerShape(24.dp))
                 .padding(horizontal = 20.dp, vertical = 12.dp)
                 .verticalScroll(rememberScrollState())
         ) {
@@ -961,15 +942,12 @@ private fun ActionFrost(label: String, filled: Boolean, modifier: Modifier = Mod
 }
 
 @Composable
-private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(if (selected) Lumen.Accent else Frost)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp)
-    ) {
-        Text(label, color = if (selected) Lumen.OnAccent else Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+private fun FilterChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(modifier.clip(RoundedCornerShape(24.dp))
+        .background(if (selected) Brush.horizontalGradient(listOf(Lumen.Accent.copy(alpha = .78f), Color(0xFF7365AC))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+        .border(1.dp, if (selected) Lumen.Accent.copy(alpha = .5f) else Color.Transparent, RoundedCornerShape(24.dp))
+        .clickable(onClick = onClick).padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        Text(label, color = if (selected) Color.White else Lumen.Muted, fontFamily = Outfit, fontWeight = FontWeight.Medium, fontSize = 14.sp)
     }
 }
 
@@ -991,105 +969,80 @@ private fun RoundIcon(icon: ImageVector, onClick: () -> Unit) {
 @Composable
 private fun TaskRow(
     item: TodoItem,
+    todayView: Boolean,
+    overdue: Boolean,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onDue: () -> Unit,
     onTime: () -> Unit,
     onRepeat: () -> Unit,
     onPriority: () -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
+    val tint = when (item.space) {
+        SpaceKind.Home -> Color(0xFFF5CB7E)
+        SpaceKind.Work -> Color(0xFF9CBFEF)
+        SpaceKind.Personal -> Color(0xFFD3ACF2)
+        SpaceKind.Travel -> Color(0xFFAC1749)
+        SpaceKind.Focus -> Color(0xFFA7CDB7)
+        SpaceKind.Private -> Color(0xFFBAC4DB)
+    }
+    val tagText = if (item.space == SpaceKind.Travel) Color(0xFFFFDCE6) else tint
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Frost)
-            .combinedClickable(onClick = onToggle, onLongClick = onDelete)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .clip(RoundedCornerShape(13.dp))
+            .glass(RoundedCornerShape(13.dp), LocalGlass.current)
+            .graphicsLayer { alpha = if (item.done) .65f else 1f }
+            .combinedClickable(onClick = onEdit, onLongClick = { menu = true })
+            .padding(horizontal = 12.dp, vertical = if (item.done) 6.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (item.done) Lumen.Accent else Color.Transparent)
-                .border(1.4.dp, if (item.done) Lumen.Accent else Color.White.copy(alpha = 0.35f), RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (item.done) Icon(Icons.Outlined.Check, null, tint = Lumen.OnAccent, modifier = Modifier.size(14.dp))
+        Box(Modifier.size(28.dp).border(1.4.dp, if (item.done) tint else Color.White.copy(alpha = .6f), CircleShape)
+            .toggleable(value = item.done, role = androidx.compose.ui.semantics.Role.Checkbox, onValueChange = { onToggle() }), contentAlignment = Alignment.Center) {
+            if (item.done) Icon(Icons.Outlined.Check, null, tint = tint, modifier = Modifier.size(17.dp))
         }
-        if (item.priority) {
-            Icon(
-                Icons.Outlined.Flag,
-                contentDescription = "High priority",
-                tint = Lumen.Accent,
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .size(14.dp)
-                    .clickable(onClick = onPriority)
-            )
-        }
+        if (!item.done) Icon(taskLineIcon(item.text), null, tint = Color(0xFFF5CB7E).copy(alpha = .85f), modifier = Modifier.padding(start = 10.dp).size(24.dp))
+        Column(Modifier.weight(1f).padding(start=14.dp,end=8.dp)) {
         Text(
             item.text,
             color = if (item.done) Lumen.Faint else Lumen.Text,
             fontFamily = Outfit,
-            fontSize = 16.sp,
+            fontSize = if (item.done) 13.sp else 15.sp,
+            fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None,
-            modifier = Modifier.weight(1f).padding(start = 14.dp, end = 8.dp)
+            modifier = Modifier
         )
-        Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(end = 6.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable(onClick = onDue)
-            ) {
-                Icon(Icons.Outlined.CalendarMonth, null, tint = Lumen.Faint, modifier = Modifier.size(13.dp))
-                Text(
-                    item.dueAt?.let { TodoTime.dayLabel(it) } ?: "Today",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 3.dp).clickable(onClick = onTime)
-            ) {
-                Icon(Icons.Outlined.Schedule, null, tint = Lumen.Faint, modifier = Modifier.size(13.dp))
-                Text(
-                    item.dueAt?.let { if (TodoTime.hasClock(it)) TodoTime.timeLabel(it) else "Anytime" } ?: "Anytime",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-            if (item.repeat.isNotBlank()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 3.dp).clickable(onClick = onRepeat)
-                ) {
-                    Icon(Icons.Outlined.Repeat, null, tint = Lumen.Faint, modifier = Modifier.size(13.dp))
-                    Text(
-                        TodoRepeat.chip(item.repeat),
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
-            }
+        val due = item.dueAt
+        val metadata = buildList {
+            if (due != null && (!todayView || TodoTime.startOfDay(due) != TodoTime.startOfDay())) add(TodoTime.dayLabel(due))
+            if (due != null && TodoTime.hasClock(due)) add(TodoTime.timeLabel(due))
+            if (due == null || !TodoTime.hasClock(due)) add("Anytime")
+            if (overdue) add("Overdue")
+            if (item.repeat.isNotBlank()) add(TodoRepeat.chip(item.repeat))
+        }.joinToString(" \u00B7 ")
+        Row(Modifier.padding(top = 4.dp).clickable(onClick = onDue), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Schedule, null, tint = if (overdue) Color(0xFFFF8A80) else Lumen.Muted, modifier = Modifier.size(12.dp))
+            Text(metadata, color = if (overdue) Color(0xFFFF8A80) else Lumen.Muted,
+                fontFamily = Outfit, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 5.dp))
         }
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box {
             Icon(
-                Icons.Outlined.MoreVert,
+                Icons.Outlined.MoreHoriz,
                 contentDescription = "More",
                 tint = Lumen.Faint,
                 modifier = Modifier.size(18.dp).clickable { menu = true }
             )
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Sheet) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Sheet, shape = RoundedCornerShape(22.dp)) {
+                DropdownMenuItem(text = { Text(if (item.done) "Mark as not done" else "Mark as done", color = Lumen.Text, fontFamily = Outfit) },
+                    onClick = { menu = false; onToggle() })
                 DropdownMenuItem(
                     text = { Text("Change date", color = Lumen.Text, fontFamily = Outfit) },
                     onClick = { menu = false; onDue() }
@@ -1118,7 +1071,21 @@ private fun TaskRow(
                 )
             }
         }
+            Text(item.space.title, color = tagText, fontFamily = Outfit, fontSize = 10.sp, maxLines = 1,
+                modifier = Modifier.padding(top = 6.dp).background(tint.copy(alpha = if (item.space == SpaceKind.Travel) .65f else .12f), RoundedCornerShape(9.dp))
+                    .border(.7.dp, tint.copy(alpha = .25f), RoundedCornerShape(9.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+        }
     }
+}
+
+private fun taskLineIcon(text: String): ImageVector = when (TaskIcon.symbol(text)) {
+    "\uD83D\uDCDE" -> Icons.Outlined.Call
+    "\uD83D\uDC8A" -> Icons.Outlined.Medication
+    "\uD83D\uDCB3" -> Icons.Outlined.CreditCard
+    "\uD83D\uDED2" -> Icons.Outlined.ShoppingCart
+    "\uD83D\uDC65" -> Icons.Outlined.Groups
+    "\uD83D\uDCDD" -> Icons.Outlined.Description
+    else -> Icons.Outlined.Assignment
 }
 
 private fun thisWeek(): Long {
@@ -1130,3 +1097,13 @@ private fun thisWeek(): Long {
 }
 
 private fun nextWeek(): Long = TodoTime.startOfDay() + 7 * 24 * 60 * 60 * 1000L
+
+private fun taskOverdue(item: TodoItem, now: Long): Boolean {
+    val due = item.dueAt ?: return false
+    return !item.done && if(TodoTime.hasClock(due)) due < now else TodoTime.startOfDay(due) < TodoTime.startOfDay(now)
+}
+
+private fun nextWeekday(day: Int): Long = Calendar.getInstance().apply {
+    timeInMillis=TodoTime.startOfDay()
+    do { add(Calendar.DAY_OF_YEAR,1) } while(get(Calendar.DAY_OF_WEEK) != day)
+}.timeInMillis

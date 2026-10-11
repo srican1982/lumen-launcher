@@ -48,6 +48,7 @@ internal val TravelCategory.tint: Color get() = when (this) {
     TravelCategory.Hotels -> Color(0xFFF1D88C)
     TravelCategory.Tickets -> Color(0xFF9CE6B7)
     TravelCategory.Itinerary -> Color(0xFF9DCFFA)
+    TravelCategory.Apps -> Color(0xFFB6CBFF)
     TravelCategory.Other -> Color(0xFFCCB6FF)
 }
 internal val TravelCategory.icon: ImageVector get() = when (this) {
@@ -55,6 +56,7 @@ internal val TravelCategory.icon: ImageVector get() = when (this) {
     TravelCategory.Hotels -> Icons.Outlined.Hotel
     TravelCategory.Tickets -> Icons.Outlined.ConfirmationNumber
     TravelCategory.Itinerary -> Icons.Outlined.Map
+    TravelCategory.Apps -> Icons.Outlined.Apps
     TravelCategory.Other -> Icons.Outlined.Description
 }
 
@@ -76,6 +78,12 @@ internal fun openTravelItem(context: android.content.Context, state: LauncherUiS
 
 @Composable
 fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCategory: TravelCategory? = null, onDismiss: () -> Unit) {
+    var manage by rememberSaveable { mutableStateOf(false) }
+    val saved = state.travelAttachments.filter { it.travelCategory == initialCategory }
+    if (!manage && initialCategory != null && initialCategory != TravelCategory.Apps && saved.isNotEmpty()) {
+        TravelDocumentViewer(saved, state, vm, onManage = { manage = true }, onDismiss = onDismiss)
+        return
+    }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable { mutableStateOf(initialCategory?.name) }
@@ -122,11 +130,8 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
     }
     val entries = state.travelAttachments.filter { category == null || it.travelCategory == category }
     val shape = RoundedCornerShape(30.dp)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxWidth().padding(12.dp).imePadding().fillMaxHeight(.98f)
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xFF393347), Color(0xFF253339), Color(0xFF302D40))))
-            .border(1.dp, Color.White.copy(.28f), shape).padding(16.dp)) {
+    com.lumen.launcher.ui.focus.FocusPopupSheet(stationary=true,onDismiss=onDismiss,heightFraction=.86f,maxWidth=480.dp) {
+        Column(Modifier.fillMaxWidth().height((androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * .66f).dp).imePadding()) {
             Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp).size(34.dp, 4.dp)
                 .clip(RoundedCornerShape(3.dp)).background(Color(0xFFAAA0CF).copy(alpha = .45f)))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -171,6 +176,8 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
                     Button(onClick = { adding = true }, shape = RoundedCornerShape(18.dp)) {
                         Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Add document")
                     }
+                } else if(category == TravelCategory.Apps) {
+                    Button(onClick={apps=true}) { Text("Add apps") }
                 } else {
                     // All import sources belong to the selected category, including links and apps.
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -203,7 +210,23 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
                             Text("Add files, a web link or a travel app.", color = Color(0xFFD5C8E1), fontSize = 12.sp)
                         }
                     }
-                    items(entries, key = { it.travelCategory.name + it.uri }) { item ->
+                    if(category == TravelCategory.Apps) {
+                        items(entries.chunked(3)) { row ->
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                row.forEach { entry ->
+                                    val app=state.visibleApps.firstOrNull { it.key==entry.uri }
+                                    Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha=.08f)).clickable {
+                                        if(!openTravelItem(context,state,vm,entry)) error="App unavailable. It may have been uninstalled."
+                                    }.padding(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                                        if(app!=null) AppIcon(app.packageName,app.activityName,46.dp,vm.icons,showNotificationBadge=false)
+                                        Text(entry.title,color=Color.White,fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                                        IconButton(onClick={vm.removeTravelAttachment(entry)},modifier=Modifier.size(28.dp)) { Icon(Icons.Outlined.Close,"Remove ${entry.title}",tint=Color.LightGray,modifier=Modifier.size(16.dp)) }
+                                    }
+                                }
+                                repeat(3-row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    } else items(entries, key = { it.travelCategory.name + it.uri }) { item ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(.08f))
                             .border(.8.dp, Color.White.copy(.25f), RoundedCornerShape(22.dp)).padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically) {
@@ -241,7 +264,7 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
                 Spacer(Modifier.width(8.dp))
                 Text("Removing a shortcut keeps your original file.", color = Color(0xFFC8BED3), fontSize = 10.sp, lineHeight = 14.sp)
             }
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(44.dp),
+            Button(onClick = { if(initialCategory != null && entries.isNotEmpty() && initialCategory != TravelCategory.Apps) manage=false else onDismiss() }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(44.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD09AF4), contentColor = Color(0xFF291738))) { Text("Done") }
         }
     }
@@ -251,20 +274,26 @@ fun TravelCollection(state: LauncherUiState, vm: LauncherViewModel, initialCateg
     }
     if (apps && category != null) {
         var query by remember { mutableStateOf("") }
+        var selectedApps by remember { mutableStateOf(setOf<String>()) }
         AlertDialog(onDismissRequest = { apps = false }, title = { Text("Choose a travel app") },
             text = { Column {
                 OutlinedTextField(query, { query = it }, placeholder = { Text("Find an app") }, singleLine = true, shape = RoundedCornerShape(16.dp))
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(state.visibleApps.filter { it.label.contains(query, true) }.sortedBy { it.label }, key = { it.key }) { app ->
                         Row(Modifier.fillMaxWidth().clickable {
-                            save(app.key, app.label, "application/x-lumen-app", category); apps = false
+                            selectedApps = if(app.key in selectedApps) selectedApps - app.key else selectedApps + app.key
                         }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             AppIcon(app.packageName, app.activityName, 36.dp, vm.icons, showNotificationBadge = false)
-                            Text(app.label, Modifier.padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(app.label, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Checkbox(checked=app.key in selectedApps,onCheckedChange={ checked -> selectedApps=if(checked) selectedApps+app.key else selectedApps-app.key })
                         }
                     }
                 }
-            } }, confirmButton = { TextButton(onClick = { apps = false }) { Text("Cancel") } })
+            } }, confirmButton = { TextButton(onClick = {
+                vm.addTravelAttachments(state.visibleApps.filter { it.key in selectedApps }.map { TravelAttachment(it.key,it.label,"application/x-lumen-app",category=category) })
+                apps=false
+            },enabled=selectedApps.isNotEmpty()) { Text("Add selected (${selectedApps.size})") } },
+            dismissButton={TextButton(onClick={apps=false}) { Text("Cancel") }})
     }
 }
 

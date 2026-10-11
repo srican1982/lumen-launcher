@@ -59,6 +59,7 @@ object NowPlayingRepository {
     private var component: ComponentName? = null
     private var controller: MediaController? = null
     /** Players found through their media notifications (backup when the session list is unavailable). */
+    private var observed: List<MediaController> = emptyList()
     private var fromNotifications: List<MediaController> = emptyList()
 
     private val callback = object : MediaController.Callback() {
@@ -127,7 +128,7 @@ object NowPlayingRepository {
 
     fun playPause(context: Context) {
         val c = controller ?: return sendMediaKey(context, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-        if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
+        if (isPlaying(c.playbackState?.state)) c.transportControls.pause()
         else c.transportControls.play()
     }
 
@@ -187,20 +188,25 @@ object NowPlayingRepository {
         return (a + b).filter { seen.add(it.sessionToken) }
     }
 
+    private fun isPlaying(state: Int?): Boolean = state in setOf(PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING, PlaybackState.STATE_CONNECTING)
+
     private fun choose(list: List<MediaController>) {
-        val playing = list.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        observed.filter { old -> list.none { it.sessionToken == old.sessionToken } }.forEach { runCatching { it.unregisterCallback(callback) } }
+        list.filter { new -> observed.none { it.sessionToken == new.sessionToken } }.forEach { it.registerCallback(callback, main) }
+        observed = list
+
+        val playing = list.firstOrNull { isPlaying(it.playbackState?.state) }
         val current = list.firstOrNull { it.sessionToken == controller?.sessionToken }
         val pick = playing ?: current ?: list.firstOrNull()
         if (pick?.sessionToken != controller?.sessionToken) {
-            detach()
             controller = pick
-            pick?.registerCallback(callback, main)
         }
         publish()
     }
 
     private fun detach() {
-        runCatching { controller?.unregisterCallback(callback) }
+        observed.forEach { runCatching { it.unregisterCallback(callback) } }
+        observed = emptyList()
         controller = null
     }
 
@@ -231,7 +237,7 @@ object NowPlayingRepository {
             artUri = md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_ART_URI)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
-            playing = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING,
+            playing = isPlaying(state),
             positionMs = ps?.position ?: 0L,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
             positionUpdatedAt = ps?.lastPositionUpdateTime?.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(),

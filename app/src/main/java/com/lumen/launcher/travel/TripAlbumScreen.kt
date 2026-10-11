@@ -1,5 +1,7 @@
 package com.lumen.launcher.travel
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import android.app.Activity
 import android.net.Uri
 import android.os.Build
@@ -48,7 +50,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,12 +87,12 @@ fun TripAlbumScreen(
     tripVm: TripViewModel = viewModel()
 ) {
     val liveTripFlow = remember(tripVm, trip.id) { tripVm.trip(trip.id) }
-    val liveTrip by liveTripFlow.collectAsState(initial = trip)
+    val liveTrip by liveTripFlow.collectAsStateWithLifecycle(initialValue = trip)
     val shown = liveTrip ?: trip
     val photoFlow = remember(tripVm, trip.id) { tripVm.photos(trip.id) }
     val placeFlow = remember(tripVm, trip.id) { tripVm.placeSections(trip.id) }
-    val photos by photoFlow.collectAsState(initial = emptyList())
-    val places by placeFlow.collectAsState(initial = emptyList())
+    val photos by photoFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val places by placeFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var filter by remember(trip.id) { mutableStateOf<String?>(null) } // null = All
     var selected by remember(trip.id) { mutableStateOf(setOf<Long>()) }
     var pendingDelete by remember { mutableStateOf(emptyList<Long>()) }
@@ -122,7 +123,7 @@ fun TripAlbumScreen(
     }
     val navBottom = rememberNavBottomPadding(56.dp)
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val sheetReserve = if (selecting) 240.dp + navBottom else navBottom + 24.dp
+    val sheetReserve = if (selecting) 240.dp else 24.dp
 
     val deleteLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -141,12 +142,11 @@ fun TripAlbumScreen(
             decorFitsSystemWindows = false
         )
     ) {
-        Surface(Modifier.fillMaxSize(), color = Color(0xFF14121A)) {
+        TripGlassFrame {
             Box(Modifier.fillMaxSize()) {
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .padding(top = statusTop)
                         .padding(horizontal = 16.dp)
                 ) {
                     Row(
@@ -255,7 +255,7 @@ fun TripAlbumScreen(
                 if (selecting) {
                     SelectionSheet(
                         photos = selectedPhotos,
-                        navBottom = navBottom,
+                        navBottom = 0.dp,
                         onClear = { selected = emptySet() },
                         onShare = {
                             tripVm.share(selectedPhotos.map { Uri.parse(it.contentUri) })

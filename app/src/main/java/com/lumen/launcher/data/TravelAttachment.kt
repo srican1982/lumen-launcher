@@ -9,6 +9,7 @@ enum class TravelCategory(val title: String, val description: String) {
     Hotels("Hotels", "Bookings and reservation details"),
     Tickets("Tickets", "Rail, events and attractions"),
     Itinerary("Itinerary", "Trip plans and travel schedules"),
+    Apps("Trip apps", "Apps for this trip"),
     Other("Other documents", "Visas, insurance and confirmations")
 }
 

@@ -1,6 +1,7 @@
 package com.lumen.launcher.voice.intent
 
 import com.lumen.launcher.data.LlmClient
+import com.lumen.launcher.data.AiModels
 import com.lumen.launcher.data.SpaceKind
 import com.lumen.launcher.flow.flowModuleFromSpeech
 import com.lumen.launcher.search.FuzzySearch
@@ -14,13 +15,7 @@ import org.json.JSONObject
  */
 object AiIntentFallback {
 
-    const val MODEL = "gemini-3-flash-preview"
-    private val models = listOf(MODEL, "gemini-2.5-flash")
-    private val openRouterModels = listOf(
-        "google/gemini-2.5-flash",
-        "google/gemini-2.0-flash-001"
-    )
-
+    const val MODEL = "gemini-2.5-flash"
     private val destructive = setOf(
         VoiceAction.REMOVE_FROM_DOCK,
         VoiceAction.UNPIN_APP,
@@ -91,8 +86,8 @@ object AiIntentFallback {
         apps: List<String>
     ): Outcome {
         var last = Error.EMPTY
-        for (model in models) {
-            for (body in requestBodies(said, saidContext, model)) {
+        for (model in listOf(AiModels.gemini)) {
+            for (body in requestBodies(said, saidContext, model).take(1)) {
                 val reply = LlmClient.postGemini(apiKey, model, body) ?: return Outcome.Failed(Error.OFFLINE)
                 when (val outcome = readReply(reply, said, apps, last)) {
                     is Outcome.Ok -> return outcome
@@ -116,8 +111,8 @@ object AiIntentFallback {
     ): Outcome {
         val prompt = requestPrompt(said, saidContext)
         var last = Error.EMPTY
-        for (model in openRouterModels) {
-            for (json in listOf(true, false)) {
+        for (model in listOf(AiModels.openRouter)) {
+            for (json in listOf(true)) {
                 val reply = LlmClient.postOpenRouter(apiKey, model, prompt, json, 2048)
                     ?: return Outcome.Failed(Error.OFFLINE)
                 when (val outcome = readReply(reply, said, apps, last)) {
@@ -170,7 +165,8 @@ object AiIntentFallback {
             return VoiceIntent(VoiceAction.UNKNOWN, 0.20f, original)
         }
         val confidence = json.optDouble("confidence", 0.80).toFloat().coerceIn(0f, 0.96f)
-        val appName = refineApp(json.optionalString("appName"), appLabels)
+        val contactAction = action in setOf(VoiceAction.CALL, VoiceAction.SEND_MESSAGE)
+        val appName = if (contactAction) null else refineApp(json.optionalString("appName"), appLabels)
         val clarify = json.optJSONArray("clarify").toStringList()
         val alternatives = json.optJSONArray("options")?.let { array ->
             (0 until array.length()).mapNotNull { index ->
@@ -187,6 +183,9 @@ object AiIntentFallback {
             confidence = confidence,
             originalText = original,
             appName = appName,
+            recipientName = if (contactAction) json.optionalString("recipientName") ?: json.optionalString("appName") else null,
+            messagingApp = if (contactAction) json.optionalString("messagingApp") else null,
+            durationSeconds = json.optionalInt("durationSeconds")?.takeIf { it in 1..86400 },
             folderName = json.optionalString("folderName"),
             module = json.optionalString("module")?.let { flowModuleFromSpeech(it) },
             beforeModule = json.optionalString("beforeModule")?.let { flowModuleFromSpeech(it) },
@@ -234,7 +233,7 @@ object AiIntentFallback {
     }
 
     private fun requestPrompt(said: String, context: Context): String {
-        val apps = context.apps.take(80).joinToString(", ")
+        val apps = AiAppCandidates.rank(said, context.apps).joinToString(", ")
         val contacts = context.contacts.take(40).joinToString(", ")
         val alarms = context.alarms.take(8).joinToString("; ")
         val history = context.history.takeLast(16).joinToString("\n")
@@ -266,8 +265,8 @@ object AiIntentFallback {
             Do not use UNKNOWN only because the spoken name is longer than the label.
             If they ask a general question, use ANSWER. Do not force it onto an app.
             Use conversation history for words like him, that, or make it 8 instead.
-            For CALL or SEND_MESSAGE, put the person in appName or textValue.
-            For SET_TIMER, intValue is minutes.
+            For CALL or SEND_MESSAGE, put the person in recipientName and the requested messaging app in messagingApp. textValue is the message body; never put a contact in textValue.
+            For SET_TIMER, durationSeconds is seconds; intValue is legacy minutes.
             For NAVIGATE or PLAY_MEDIA, put the place or query in textValue.
             If a slot is missing, use ASK_USER and put the follow-up in textValue.
 
@@ -286,7 +285,7 @@ object AiIntentFallback {
             User said: $said
 
             Return JSON only with keys:
-            action, confidence, appName, folderName, module, beforeModule, space,
+            action, confidence, appName, recipientName, messagingApp, durationSeconds, folderName, module, beforeModule, space,
             enabled, intValue, floatValue, textValue, hour, minute, daily, destructive,
             clarify (array of strings), options (array of the same object).
             Use null when a field does not apply. space is Home, Work, Social (or Personal), Focus, or null.

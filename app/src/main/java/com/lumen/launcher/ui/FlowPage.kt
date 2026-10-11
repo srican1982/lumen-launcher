@@ -2,6 +2,7 @@ package com.lumen.launcher.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -103,12 +105,17 @@ fun FlowPage(
 ) {
     var personalize by remember { mutableStateOf(false) }
     val showPersonalize = personalize || state.personalizeFlow
+    androidx.compose.runtime.DisposableEffect(isActive) {
+        viewModel.onFlowVisible(isActive)
+        onDispose { viewModel.onFlowVisible(false) }
+    }
     LaunchedEffect(isActive) {
         if (isActive) viewModel.refreshFlow()
     }
     if (showPersonalize) {
         LaunchedEffect(Unit) { viewModel.refreshFlow() }
         FlowInterestPicker(
+            onClose = {personalize=false;viewModel.closePersonalize()},
             selected = state.newsInterests,
             calendars = state.deviceCalendars,
             accounts = state.phoneAccounts,
@@ -127,6 +134,7 @@ fun FlowPage(
             onAddGoogle = viewModel::addGoogleAccount,
             onAddWork = viewModel::addWorkAccount,
             onAllowCalendar = viewModel::requestCalendarAccess,
+            onConnectionsChanged = viewModel::setCalendarRoles,
             inboxAccess = state.inboxAccess,
             onAllowInbox = viewModel::requestInboxAccess,
             hasCallLogPermission = state.callLogAccess,
@@ -141,15 +149,23 @@ fun FlowPage(
     val hour = LocalDateTime.now().hour
     val greeting = SpaceCopy.greetingFor(hour, state.firstName)
     val continueApp = state.recentApps.firstOrNull()
+    val needNow = state.needNowHints
+        .filterNot { continueApp != null && FlowModule.Continue in state.flowModules && it.app?.packageName == continueApp.packageName }
+        .distinctBy { it.app?.packageName ?: it.title }
+    val now by androidx.compose.runtime.produceState(System.currentTimeMillis()) {
+        while (true) { value = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
+    }
+    val nextEvent = com.lumen.launcher.data.EventPresentation.next(state.upcomingEvents + listOfNotNull(state.nextEvent), now)
+    val recentCalls = state.missedCalls.filter { now - it.at < 24 * 60 * 60 * 1000L }.take(2)
     val news = state.news.take(2)
     val modules = state.flowModules.filter { module ->
         when (module) {
             FlowModule.Alarms -> state.upcomingAlarms.isNotEmpty()
-            FlowModule.Next -> state.upcomingEvents.isNotEmpty() || state.nextEvent != null
-            FlowModule.Missed -> state.missedCalls.isNotEmpty()
+            FlowModule.Next -> nextEvent != null
+            FlowModule.Missed -> recentCalls.isNotEmpty()
             FlowModule.Inbox -> state.inbox.any { !it.isDigest }
             FlowModule.Weather -> state.weather != null
-            FlowModule.NeedNow -> state.needNowHints.isNotEmpty()
+            FlowModule.NeedNow -> needNow.isNotEmpty()
             FlowModule.Continue -> continueApp != null
             FlowModule.Reminders -> state.openTasks.isNotEmpty()
             FlowModule.News -> news.isNotEmpty()
@@ -165,69 +181,27 @@ fun FlowPage(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
+            .padding(bottom = 64.dp)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    "Flow",
-                    color = Color(0xFFE9D5FF),
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Light,
-                    fontSize = 44.sp,
-                    letterSpacing = (-0.5).sp
-                )
-                Text(
-                    greeting,
-                    color = Lumen.Text,
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 22.sp,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    "Here's what matters right now.",
-                    color = Color.White.copy(alpha = 0.62f),
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Light,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
+                Text(greeting,color=Lumen.Text,fontFamily=Outfit,fontWeight=FontWeight.SemiBold,fontSize=26.sp)
+                Text(DateTimeFormatter.ofPattern("EEE, MMM d").format(LocalDate.now()),color=Lumen.Faint,fontFamily=Outfit,fontSize=12.sp)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FlowRoundIcon(Icons.Outlined.PersonOutline) { viewModel.openSettings() }
-                    FlowRoundIcon(Icons.Outlined.Settings) { viewModel.openSettings() }
-                }
-                state.weather?.let { weather ->
-                    Text(
-                        DateTimeFormatter.ofPattern("EEE, MMM d").format(LocalDate.now()),
-                        color = Lumen.Faint,
-                        fontFamily = Outfit,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 10.dp)
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Icon(weatherGlyph(weather.summary), null, tint = Color(0xFFFFD56A), modifier = Modifier.size(14.dp))
-                        Text(
-                            "${weather.temperatureLabel()} ${weather.summary}",
-                            color = Lumen.Text,
-                            fontFamily = Outfit,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                    Text(weather.place, color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp)
-                }
-            }
+            FlowRoundIcon(Icons.Outlined.PersonOutline) { viewModel.openSettings() }
+            Spacer(Modifier.width(8.dp))
+            FlowRoundIcon(Icons.Outlined.Widgets, "Lumen widgets") { viewModel.openWidgets() }
+            Spacer(Modifier.width(8.dp))
+            FlowRoundIcon(Icons.Outlined.Settings) { personalize=true }
         }
         Spacer(Modifier.height(14.dp))
         if (state.focusing) {
             FocusFlowCard(state, viewModel)
         }
-        state.upNext?.let { item ->
+        state.upNext?.takeIf { it.event == null || it.event.end > now }?.let { item ->
             Spacer(Modifier.height(10.dp))
             UpNextCard(item) { viewModel.openUpNext(item) }
         }
@@ -240,7 +214,7 @@ fun FlowPage(
                     }
                 }
                 FlowModule.Next -> {
-                    val event = state.upcomingEvents.firstOrNull() ?: state.nextEvent
+                    val event = nextEvent
                     val same = event != null && state.upNext?.event?.id == event.id && event.id != 0L
                     if (event != null && !same) {
                         Spacer(Modifier.height(10.dp))
@@ -248,9 +222,9 @@ fun FlowPage(
                     }
                 }
                 FlowModule.Missed -> {
-                    if (state.missedCalls.isNotEmpty()) {
+                    if (recentCalls.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        MissedCallsCard(state.missedCalls.take(3), viewModel::callBack, viewModel::openCallLog)
+                        MissedCallsCard(recentCalls, viewModel::callBack, viewModel::openCallLog)
                     }
                 }
                 FlowModule.Inbox -> {
@@ -283,9 +257,9 @@ fun FlowPage(
                     NotesCard(state, viewModel)
                 }
                 FlowModule.NeedNow -> {
-                    if (state.needNowHints.isNotEmpty()) {
+                    if (needNow.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
-                        NeedNowCard(state.needNowHints, viewModel)
+                        NeedNowCard(needNow, viewModel)
                     }
                 }
                 FlowModule.Continue -> {
@@ -319,36 +293,8 @@ fun FlowPage(
             }
         }
         Spacer(Modifier.height(18.dp))
-        val glass = LocalGlass.current
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .glass(RoundedCornerShape(28.dp), glass)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFF4A2D75).copy(alpha = 0.45f),
-                            Color(0xFF2A1848).copy(alpha = 0.35f)
-                        )
-                    )
-                )
-                .clickable { personalize = true }
-                .padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.Tune, null, tint = Color(0xFFE9D5FF), modifier = Modifier.size(18.dp))
-            Text(
-                "Personalize Flow",
-                color = Lumen.Text,
-                fontFamily = Outfit,
-                fontWeight = FontWeight.Medium,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            )
-            Icon(Icons.Outlined.ChevronRight, null, tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
-        }
+        Text("Edit Flow",color=Lumen.Text,fontFamily=Outfit,fontSize=14.sp,
+            modifier=Modifier.align(Alignment.CenterHorizontally).clickable {personalize=true}.padding(12.dp))
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -356,7 +302,7 @@ fun FlowPage(
 }
 
 @Composable
-private fun FlowRoundIcon(icon: ImageVector, onClick: () -> Unit) {
+private fun FlowRoundIcon(icon: ImageVector, label: String? = null, onClick: () -> Unit) {
     val glass = LocalGlass.current
     Box(
         modifier = Modifier
@@ -365,7 +311,7 @@ private fun FlowRoundIcon(icon: ImageVector, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(20.dp))
+        Icon(icon, label, tint = Color.White.copy(alpha = 0.92f), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -417,7 +363,7 @@ private fun FlowCard(
 @Composable
 private fun LeadIcon(
     icon: ImageVector,
-    tint: Color = Lumen.Accent,
+    tint: Color = Color(0xFFF5CB7E),
     background: Color = Color.White.copy(alpha = 0.10f),
     leading: @Composable (() -> Unit)? = null
 ) {
@@ -510,12 +456,12 @@ private fun UpNextCard(item: UpNext, onClick: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Lumen.Accent.copy(alpha = 0.22f))
+                    .background(Color(0xFFF5CB7E).copy(alpha = 0.22f))
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
                     item.actionLabel,
-                    color = Lumen.Accent,
+                    color = Color(0xFFF5CB7E),
                     fontFamily = Outfit,
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp
@@ -555,7 +501,7 @@ private fun NextCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    formatEventSpan(event.begin, event.end),
+                    com.lumen.launcher.data.EventPresentation.whenText(event, System.currentTimeMillis(), includeEnd = true),
                     color = Lumen.Muted,
                     fontFamily = Outfit,
                     fontSize = 12.sp
@@ -588,9 +534,7 @@ private fun NextCard(
                 modifier = Modifier
                     .clip(RoundedCornerShape(18.dp))
                     .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xFF9B5DE5), Color(0xFF7C3AED))
-                        )
+                        Brush.verticalGradient(listOf(Color(0x33F5CB7E), Color(0x19F5CB7E)))
                     )
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
@@ -617,13 +561,14 @@ private fun NextCard(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MissedCallsCard(
     calls: List<MissedCall>,
     onCall: (MissedCall) -> Unit,
     onSeeAll: () -> Unit
 ) {
-    val total = calls.sumOf { it.count }.coerceAtLeast(calls.size)
+    val context = LocalContext.current
     FlowCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LeadIcon(
@@ -633,12 +578,7 @@ private fun MissedCallsCard(
             )
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("MISSED CALLS")
-                Text(
-                    if (total == 1) "1 missed call" else "$total missed calls",
-                    color = Lumen.Faint,
-                    fontFamily = Outfit,
-                    fontSize = 12.sp
-                )
+
             }
             SeeAll(onSeeAll)
         }
@@ -648,10 +588,16 @@ private fun MissedCallsCard(
                     .fillMaxWidth()
                     .padding(top = 8.dp)
                     .flowWell()
-                    .clickable { onCall(call) }
+                    .combinedClickable(onClick = { onCall(call) }, onLongClick = {
+                        if (call.number.isNotBlank()) context.startActivity(android.content.Intent(android.content.Intent.ACTION_INSERT_OR_EDIT).apply {
+                            type = android.provider.ContactsContract.Contacts.CONTENT_ITEM_TYPE
+                            putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, call.number)
+                        })
+                    })
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                CallerAvatar(call)
                 Column(Modifier.weight(1f)) {
                     Text(
                         missedCallTitle(call),
@@ -687,19 +633,17 @@ private fun MissedCallsCard(
 }
 
 private fun missedCallTitle(call: MissedCall): String {
-    val who = call.display
-    val extra = if (call.count > 1) " · ${call.count}x" else ""
-    return who + extra
+    if (call.name.isNotBlank() && call.name != call.number) return call.name
+    val number = call.number.ifBlank { call.name }
+    val region = java.util.Locale.getDefault().country.ifBlank { "US" }
+    return android.telephony.PhoneNumberUtils.formatNumber(number, region) ?: call.display
 }
 
-private fun missedCallDetail(call: MissedCall): String {
-    val number = call.number.trim()
-    val bits = mutableListOf<String>()
-    if (number.isNotBlank() && !number.equals(call.display, ignoreCase = true)) bits += number
-    if (call.whatsapp) bits += "WhatsApp"
-    bits += relativeMissed(call.at)
-    return bits.joinToString("  ·  ")
-}
+private fun missedCallDetail(call: MissedCall): String = listOf(
+    "${call.count} ${if (call.count == 1) "call" else "calls"}",
+    if (call.whatsapp) "WhatsApp" else "Phone",
+    relativeMissed(call.at)
+).joinToString(" \u00b7 ")
 
 @Composable
 private fun AlarmsCard(alarms: List<LumenAlarm>, viewModel: LauncherViewModel) {
@@ -742,7 +686,7 @@ private fun AlarmsCard(alarms: List<LumenAlarm>, viewModel: LauncherViewModel) {
                 }
                 Text(
                     "Remove",
-                    color = Lumen.Accent,
+                    color = Color(0xFFF5CB7E),
                     fontFamily = Outfit,
                     fontSize = 12.sp,
                     modifier = Modifier
@@ -769,7 +713,7 @@ private fun InboxCard(
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("INBOX")
                 Text(
-                    digest.ifBlank { if (total == 1) "1 new" else "$total new" },
+                    "$total new",
                     color = Lumen.Faint,
                     fontFamily = Outfit,
                     fontSize = 12.sp,
@@ -901,7 +845,7 @@ private fun HourChip(hour: WeatherHour) {
 
 @Composable
 private fun NeedNowCard(hints: List<NeedNowHint>, viewModel: LauncherViewModel) {
-    val task = hints.firstOrNull()?.detail
+    val task = hints.firstOrNull { it.detail.isNotBlank() && it.detail != it.app?.label && it.title != "Continue" }?.detail
     FlowCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LeadIcon(Icons.Outlined.Widgets)
@@ -927,7 +871,7 @@ private fun NeedNowCard(hints: List<NeedNowHint>, viewModel: LauncherViewModel) 
                     val app = hint.app
                     if (app != null) {
                         IconSlot(
-                            label = hint.title,
+                            label = app.label,
                             packageName = app.packageName,
                             activityName = app.activityName,
                             iconSize = 40.dp,
@@ -1138,7 +1082,7 @@ private fun RemindersCard(
                     .clickable { onComplete(item) }
                     .padding(top = 8.dp, start = 42.dp)
             ) {
-                Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Lumen.Accent, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.CheckBoxOutlineBlank, null, tint = Color(0xFFF5CB7E), modifier = Modifier.size(18.dp))
                 Text(
                     item,
                     color = Lumen.Text,
@@ -1166,7 +1110,7 @@ private fun NewsCard(
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Kicker("YOUR NEWS")
                 Text(
-                    if (topics.isBlank()) "Top stories" else "Top stories from $topics",
+                    if (topics.isBlank()) "Top stories" else "Your topics",
                     color = Lumen.Faint,
                     fontFamily = Outfit,
                     fontSize = 12.sp
@@ -1207,7 +1151,7 @@ private fun NewsCard(
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp)
                     )
                     Text(
-                        item.source,
+                        newsSourceAndTime(item),
                         color = Lumen.Faint,
                         fontFamily = Outfit,
                         fontSize = 11.sp,
@@ -1221,11 +1165,9 @@ private fun NewsCard(
     }
 }
 
-private fun weatherGlyph(summary: String, epochMs: Long? = null): ImageVector {
-    val hour = epochMs?.let {
-        Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).hour
-    }
-    val night = hour != null && (hour < 6 || hour >= 19)
+internal fun weatherGlyph(summary: String, epochMs: Long? = null): ImageVector {
+    val hour = Instant.ofEpochMilli(epochMs ?: System.currentTimeMillis()).atZone(ZoneId.systemDefault()).hour
+    val night = hour < 6 || hour >= 19
     return when {
         summary.contains("Storm", true) -> Icons.Outlined.Thunderstorm
         summary.contains("Snow", true) -> Icons.Outlined.AcUnit
@@ -1235,14 +1177,6 @@ private fun weatherGlyph(summary: String, epochMs: Long? = null): ImageVector {
         summary.contains("Mostly", true) -> Icons.Outlined.WbCloudy
         else -> Icons.Outlined.WbSunny
     }
-}
-
-private fun formatEventSpan(begin: Long, end: Long): String {
-    val zone = ZoneId.systemDefault()
-    val fmt = DateTimeFormatter.ofPattern("h:mm a")
-    val start = Instant.ofEpochMilli(begin).atZone(zone)
-    val stop = Instant.ofEpochMilli(end).atZone(zone)
-    return "${fmt.format(start)} – ${fmt.format(stop)}"
 }
 
 private fun minutesAway(begin: Long): Pair<String?, String> {
@@ -1330,7 +1264,44 @@ private fun FlowBrandIcon(
                 .background(Color.White.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(fallback, null, tint = Lumen.Accent, modifier = Modifier.size(size * 0.52f))
+            Icon(fallback, null, tint = Color(0xFFF5CB7E), modifier = Modifier.size(size * 0.52f))
         }
+    }
+}
+
+private fun newsSourceAndTime(item: NewsItem): String {
+    val source = item.source.takeUnless { it.equals(item.topic.title, true) || it.isBlank() }
+        ?: runCatching { java.net.URI(item.url).host.removePrefix("www.") }.getOrDefault("News")
+    val at = runCatching { java.time.ZonedDateTime.parse(item.published, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() }
+        .getOrNull() ?: runCatching { java.time.Instant.parse(item.published) }.getOrNull()
+    val minutes = at?.let { java.time.Duration.between(it, java.time.Instant.now()).toMinutes().coerceAtLeast(0) }
+    val age = minutes?.let { if(it < 60) "${it}m" else if(it < 1440) "${it / 60}h" else "${it / 1440}d" }
+    return listOfNotNull(source, age).joinToString(" \u00b7 ")
+}
+
+@Composable
+private fun CallerAvatar(call: MissedCall) {
+    val context = LocalContext.current
+    // This producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
+    val photo by androidx.compose.runtime.produceState<String?>(null, call.key) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val uri = if(call.number.isNotBlank()) android.net.Uri.withAppendedPath(
+                    android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI, android.net.Uri.encode(call.number))
+                    else android.provider.ContactsContract.Contacts.CONTENT_URI
+                context.contentResolver.query(uri, arrayOf("photo_uri"),
+                    if(call.number.isBlank()) "display_name = ?" else null,
+                    if(call.number.isBlank()) arrayOf(call.name) else null, null)?.use {
+                        if(it.moveToFirst()) it.getString(0) else null
+                    }
+            }.getOrNull()
+        }
+    }
+    Box(Modifier.padding(end=10.dp).size(36.dp).clip(CircleShape).background(Color.White.copy(alpha=.12f)),contentAlignment=Alignment.Center) {
+        if(photo != null) coil.compose.AsyncImage(model=photo,contentDescription=null,modifier=Modifier.fillMaxSize(),contentScale=androidx.compose.ui.layout.ContentScale.Crop)
+        else if (call.name.isBlank() || call.name == call.number || call.name == "Unknown caller")
+            Icon(Icons.Outlined.PersonOutline, contentDescription="Unknown caller", tint=Lumen.Text, modifier=Modifier.size(22.dp))
+        else Text(call.name.take(1).uppercase(),color=Lumen.Text,fontSize=16.sp)
     }
 }

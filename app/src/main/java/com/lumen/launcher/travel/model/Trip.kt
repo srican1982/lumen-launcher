@@ -18,8 +18,15 @@ data class Trip(
     val citiesLabel: String? = null
 ) {
     val displayTitle: String
-        get() = title.ifBlank {
-            countryName?.takeIf { it.isNotBlank() } ?: "Current Trip"
+        get() {
+            if (!isActive && (title.isBlank() || title.trim().equals("Current Trip", ignoreCase = true))) {
+                val date = java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
+                    .format(java.util.Date(startTime))
+                return "Trip \u00b7 $date"
+            }
+            return title.ifBlank {
+                countryName?.takeIf { it.isNotBlank() } ?: "Current Trip"
+            }
         }
 
     val flagEmoji: String

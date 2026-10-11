@@ -16,6 +16,7 @@ object ScribbleRenderer {
         style: ScribbleBrushStyle,
         live: Boolean = false
     ) {
+        val style = stroke.brush ?: style
         val path = StrokeSmoothing.toPath(stroke.points)
         if (stroke.erase) {
             scope.drawPath(
@@ -27,7 +28,7 @@ object ScribbleRenderer {
             return
         }
         val baseWidth = when (style) {
-            ScribbleBrushStyle.Sketch -> stroke.width
+            ScribbleBrushStyle.Sketch, ScribbleBrushStyle.Pen -> stroke.width
             ScribbleBrushStyle.Marker -> stroke.width * 1.35f
             ScribbleBrushStyle.Glow -> stroke.width
         }

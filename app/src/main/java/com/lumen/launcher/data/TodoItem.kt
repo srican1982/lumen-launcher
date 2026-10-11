@@ -11,7 +11,8 @@ data class TodoItem(
     val createdAt: Long = 0L,
     val dueAt: Long? = null,
     val priority: Boolean = false,
-    val repeat: String = ""
+    val repeat: String = "",
+    val completedAt: Long? = null
 )
 
 object TodoTime {
@@ -86,6 +87,7 @@ object TodoTime {
         val day = startOfDay(ms)
         return when (day) {
             today -> "Today"
+            calendar(today).apply { add(Calendar.DAY_OF_YEAR, -1) }.timeInMillis -> "Yesterday"
             today + DayMs -> "Tomorrow"
             else -> android.text.format.DateFormat.format("EEE, MMM d", ms).toString()
         }

@@ -65,12 +65,21 @@ enum class VoiceAction {
     UNKNOWN
 }
 
+enum class VoiceSlot { CONTACT, DURATION, ALARM_TIME, APP }
+enum class ClockQuery { TIME, DATE, DAY }
+
 data class VoiceIntent(
     val action: VoiceAction,
     val confidence: Float,
     val originalText: String,
     val appName: String? = null,
+    val recipientName: String? = null,
+    val messagingApp: String? = null,
+    val durationSeconds: Int? = null,
+    val missingSlot: VoiceSlot? = null,
+    val clockQuery: ClockQuery? = null,
     val folderName: String? = null,
+    val phoneNumber: String? = null,
     val module: FlowModule? = null,
     val beforeModule: FlowModule? = null,
     val space: SpaceKind? = null,
@@ -83,12 +92,18 @@ data class VoiceIntent(
     val daily: Boolean = false,
     val clarify: List<String> = emptyList(),
     val alternatives: List<VoiceIntent> = emptyList(),
+    val confirmed: Boolean = false,
     val destructive: Boolean = false
 ) {
     val key: String
         get() = listOf(
             action.name,
             appName,
+            recipientName,
+            messagingApp,
+            durationSeconds?.toString(),
+            missingSlot?.name,
+            clockQuery?.name,
             folderName,
             module?.name,
             beforeModule?.name,

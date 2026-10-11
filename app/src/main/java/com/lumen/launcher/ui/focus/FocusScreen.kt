@@ -1,6 +1,12 @@
 package com.lumen.launcher.ui.focus
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -54,6 +59,7 @@ import com.lumen.launcher.focus.FocusPerson
 import com.lumen.launcher.ui.AppIcon
 import com.lumen.launcher.ui.theme.Outfit
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun FocusActiveScreen(
     remainingMs: Long,
@@ -71,184 +77,90 @@ fun FocusActiveScreen(
     onLaunchApp: (AppInfo) -> Unit
 ) {
     val context = LocalContext.current
-    val icons = remember { IconCache(context) }
-    var appRevision by remember { mutableStateOf(0) }
-    val selectedPkgs = remember(appRevision) { FocusAppAccess.selected(context) }
-    val apps by produceState(emptyList(), appRevision) {
-        val all = AppRepository(context).loadLaunchableApps().distinctBy { it.packageName }
-        value = all.filter { it.packageName in selectedPkgs }.sortedBy { it.label.lowercase() }
-    }
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val ringSize = minOf(configuration.screenWidthDp - 72, (configuration.screenHeightDp * 0.34f).toInt(), 310).coerceAtLeast(180).dp * 0.8f
     val repo = com.lumen.launcher.focus.FocusAllowedPeopleRepository.get(context)
-    val groups by repo.groups.collectAsState()
-    val selectedGroups by repo.selectedGroups.collectAsState()
-    var manageApps by remember { mutableStateOf(false) }
-    var details by remember { mutableStateOf(false) }
-    val underOneMinute = remainingMs < 60_000L
-    val countdownValue = if (underOneMinute) {
-        ((remainingMs + 999L) / 1_000L).coerceAtLeast(0L)
-    } else {
-        (remainingMs + 59_999L) / 60_000L
-    }
-    val countdownUnit = when {
-        paused -> "paused"
-        underOneMinute -> if (countdownValue == 1L) "second left" else "seconds left"
-        else -> "minutes left"
-    }
+    val groups by repo.groups.collectAsStateWithLifecycle()
+    var contacts by remember { mutableStateOf(false) }
+    var appsOpen by remember { mutableStateOf(false) }
+    var soundsOpen by remember { mutableStateOf(false) }
+    val apps by produceState<List<AppInfo>>(emptyList()) { value = AppRepository(context).loadLaunchableApps().distinctBy { it.packageName } }
+    val icons = remember { IconCache(context) }
+    val seconds = ((remainingMs + 999) / 1000).coerceAtLeast(0)
+    val countdown = "%02d:%02d".format(seconds / 60, seconds % 60)
     val fraction = (remainingMs.toFloat() / totalMs.coerceAtLeast(1)).coerceIn(0f, 1f)
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(FocusSurface)
-                .border(1.dp, FocusBorder, RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(
-                        "Quiet,\nwithout becoming\nunreachable.",
-                        color = Color(0xFFA9CEFF),
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 20.sp,
-                        lineHeight = 26.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Silence distractions.\nKeep the people who matter.",
-                        color = FocusMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(androidx.compose.ui.res.painterResource(com.lumen.launcher.R.drawable.ic_lumen_mark), null,
+            tint = Color(0xFFAB9AFF), modifier = Modifier.size(28.dp))
+        Text(if (paused) "Focus is paused" else "Focus is on", color = Color.White, fontFamily = Outfit, fontSize = 23.sp, fontWeight = FontWeight.Medium)
+        Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val inset = 16.dp.toPx()
+                val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                drawCircle(Brush.radialGradient(listOf(Color(0xDB07111F), Color(0xA9101A29))), radius = size.minDimension / 2 - inset)
+                drawArc(Color(0x555F574B), -90f, 360f, false, Offset(inset,inset), arcSize, style = Stroke(13.dp.toPx()))
+                drawArc(Color(0x887E7969), -90f, 360f, false, Offset(inset,inset), arcSize, style = Stroke(1.5.dp.toPx()))
+                for (width in listOf(19f, 12f, 7f)) {
+                    drawArc(Color(0xFFFFB83F).copy(alpha = 0.14f), -90f, 360f * fraction, false, Offset(inset,inset), arcSize, style = Stroke(width.dp.toPx(), cap = StrokeCap.Round))
                 }
-                Box(Modifier.size(184.dp), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val inset = 10.dp.toPx()
-                        val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
-                        drawCircle(Brush.radialGradient(listOf(Color(0x303C9FEF), Color.Transparent)), radius = size.width / 2)
-                        drawArc(Color(0xFF253B4B), -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(8.dp.toPx(), cap = StrokeCap.Round))
-                        drawArc(
-                            Brush.sweepGradient(listOf(Color(0xFF8EA9FF), Color(0xFFAA8DFF), Color(0xFF44BFEF), Color(0xFF8EA9FF))),
-                            -90f, 360f * fraction, false, Offset(inset, inset), arcSize, style = Stroke(8.dp.toPx(), cap = StrokeCap.Round)
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "$countdownValue",
-                            color = Color.White,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = if (underOneMinute) 38.sp else 40.sp,
-                            lineHeight = 46.sp
-                        )
-                        Text(countdownUnit, color = Color(0xFFD8E4F5), fontFamily = Outfit, fontSize = 13.sp, lineHeight = 18.sp)
-                    }
-                }
+                drawArc(Color(0xFFFFD275), -90f, 360f * fraction, false, Offset(inset,inset), arcSize, style = Stroke(4.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(Color(0xFFFFF1B7), -90f, 360f * fraction, false, Offset(inset,inset), arcSize, style = Stroke(1.4.dp.toPx(), cap = StrokeCap.Round))
             }
-            // Active task at the bottom of the countdown hero.
-            val taskShape = RoundedCornerShape(16.dp)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(taskShape)
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), taskShape)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(Icons.Outlined.Checklist, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Focusing on",
-                        color = FocusMuted,
-                        fontFamily = Outfit,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        if (taskLabel.isNullOrBlank()) "No task selected" else taskLabel,
-                        color = Color.White,
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            val textScale = ringSize.value / 248f / configuration.fontScale.coerceAtLeast(1f)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(.76f)) {
+                Text(countdown, color = Color.White, fontSize = (48 * textScale).sp, fontFamily = Outfit,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                        .clickable(onClickLabel = "Add 5 minutes", onClick = onExtend)
+                        .padding(horizontal = 8.dp, vertical = 2.dp))
+                Text(if (paused) "paused" else "left", color = Color.White, fontFamily = Outfit, fontSize = (17 * textScale).sp)
+                Spacer(Modifier.height(ringSize * .025f))
+                Text("Tap time to add 5 min", color = FocusMuted, fontFamily = Outfit, fontSize = (10 * textScale).sp, maxLines = 1)
+                Spacer(Modifier.height(ringSize * .045f))
+                Row(Modifier.width(ringSize * .45f).height(ringSize * .135f)
+                    .clip(RoundedCornerShape(50))
+                    .background(Brush.verticalGradient(listOf(Color(0xCC3C3B39), Color(0xE6121927))))
+                    .border(1.dp, Color(0x997F693E), RoundedCornerShape(50))
+                    .clickable(onClick = if (paused) onResume else onPause),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, null, tint = Color.White, modifier = Modifier.size(ringSize * .055f))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (paused) "Resume" else "Pause", color = Color.White, fontFamily = Outfit, fontSize = (12 * textScale).sp)
                 }
             }
         }
-        FocusGlass(Modifier.clickable { details = true }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Eco, null, tint = Color(0xFF9AF0B2), modifier = Modifier.size(30.dp))
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(if (paused) "Focus is paused" else "Focus is ON", color = Color.White, fontFamily = Outfit, fontSize = 15.sp, lineHeight = 20.sp)
-                    Text(
-                        if (paused) "Your previous sound settings are restored."
-                        else "Selected callers can reach you.",
-                        color = FocusMuted,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text("›", color = FocusMuted, fontSize = 24.sp)
-            }
+        if (!taskLabel.isNullOrBlank()) Text(taskLabel, color = Color.White, fontFamily = Outfit, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ActiveFocusEdit("Add contacts", Icons.Outlined.People, { contacts = true }, Modifier.weight(1f))
+            ActiveFocusEdit("Add apps", Icons.Outlined.Apps, { appsOpen = true }, Modifier.weight(1f))
+            ActiveFocusEdit("Change sounds", Icons.Outlined.MusicNote, { soundsOpen = true }, Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FocusGlass(Modifier.weight(1f).fillMaxHeight().clickable(onClick = onAddSomeone)) {
-                Text(groups.filter { it.id in selectedGroups }.joinToString(" + ") { it.title }.ifBlank { "Selected people" }, color = Color.White, fontSize = 14.sp)
-                Text("${people.size} contacts can call you", color = FocusMuted, fontSize = 11.sp)
-            }
-            FocusGlass(Modifier.weight(1f).fillMaxHeight()) {
-                Icon(Icons.Outlined.NotificationsOff, null, tint = FocusAccent, modifier = Modifier.size(22.dp))
-                Text("Distractions silenced during Focus.", color = FocusMuted, fontSize = 11.sp)
-            }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.size(64.dp).clip(CircleShape).background(Color(0xBB111D30)).border(1.dp, Color(0xFFD3B27B), CircleShape)
+            .combinedClickable(onClick = {}, onLongClick = onEnd, onLongClickLabel = "End Focus"), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Stop, "Hold to end Focus", tint = Color(0xFFFFE8C4), modifier = Modifier.size(26.dp))
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Allowed apps (${apps.size})", Modifier.weight(1f), color = Color.White, fontSize = 15.sp)
-            TextButton(onClick = { manageApps = true }) { Text("Manage apps", color = FocusAccent) }
-        }
-        LazyRow(Modifier.fillMaxWidth().focusContainHorizontalScroll(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(apps, key = { it.packageName }) { app ->
-                FocusGlassTile(label = app.label, width = 64.dp, height = 64.dp, onClick = { onLaunchApp(app) }) {
-                    AppIcon(app.packageName, app.activityName, 30.dp, icons, showNotificationBadge = false)
-                }
-            }
-            item { FocusGlassTile(label = "Add app", width = 64.dp, height = 64.dp, onClick = { manageApps = true }) { Icon(Icons.Outlined.Add, null, tint = FocusAccent) } }
-        }
-        FocusActiveSoundCard()
-        Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FocusControl(if (paused) "Resume" else "Pause", if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (paused) onResume else onPause, Modifier.weight(1f))
-            FocusControl("+15 min", Icons.Outlined.Schedule, onExtend, Modifier.weight(1f))
-            FocusControl("End", Icons.Outlined.Stop, onEnd, Modifier.weight(1f), danger = true)
-        }
-        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.NotificationsOff, null, tint = FocusMuted, modifier = Modifier.size(13.dp))
-            Text("  Quiet mode · Android manages interruptions", color = FocusMuted, fontSize = 10.sp, lineHeight = 15.sp)
-        }
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(1.dp, Color(0xFF36475F), RoundedCornerShape(20.dp)).padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.AllInclusive, null, tint = FocusAccent, modifier = Modifier.size(18.dp))
-            Text("  Focus keeps running when you switch Spaces.", color = FocusAccent, fontSize = 10.sp, lineHeight = 14.sp)
-        }
+        Text("Hold to end", color = Color.White, fontFamily = Outfit, fontSize = 12.sp)
     }
-    if (manageApps) FocusPopupSheet(onDismiss = { manageApps = false; appRevision++ }) {
-        FocusAppsSection()
-        FocusPrimaryAction("Done", action = { manageApps = false; appRevision++ })
+    if (contacts) {
+        val groupId = groups.firstOrNull()?.id
+        if (groupId != null) FocusGroupContactPicker(groupId, onDismiss = { contacts = false })
+        else { contacts = false; onAddSomeone() }
     }
-    if (details) AlertDialog(onDismissRequest = { details = false }, containerColor = Color(0xFF15202C),
-        title = { Text("Your Focus policy", color = Color.White) }, text = { Text(capabilityNote, color = FocusMuted) },
-        confirmButton = { TextButton(onClick = { details = false }) { Text("Got it", color = FocusAccent) } })
+    if (appsOpen) AllowedAppsDialog(apps, icons, FocusAppAccess.selected(context),
+        onDismiss = { appsOpen = false }, onSave = { FocusAppAccess.save(context, it); appsOpen = false })
+    if (soundsOpen) FocusPopupSheet(onDismiss = { soundsOpen = false }, heightFraction = 0.6f, maxWidth = 480.dp) {
+        FocusSoundsSection(heading = "Change sounds")
+        FocusPrimaryAction("Done", action = { soundsOpen = false })
+    }
 }
 
 @Composable
-private fun FocusControl(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier, danger: Boolean = false) {
-    Column(modifier.clip(RoundedCornerShape(17.dp)).background(if (danger) Brush.verticalGradient(listOf(Color(0xFF381D23), Color(0xFF25181D))) else FocusSurface)
-        .border(1.dp, if (danger) Color(0xFF72343D) else Color(0xFF344454), RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = if (danger) Color(0xFFFF8795) else Color.White, modifier = Modifier.size(23.dp))
-        Spacer(Modifier.height(5.dp))
-        Text(label, color = if (danger) Color(0xFFFF8795) else Color.White, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = Outfit)
+private fun ActiveFocusEdit(label: String, icon: ImageVector, action: () -> Unit, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(FocusSurface).border(1.dp, FocusBorder, RoundedCornerShape(18.dp))
+        .clickable(onClick = action).padding(horizontal = 4.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = Color.White, fontFamily = Outfit, fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }

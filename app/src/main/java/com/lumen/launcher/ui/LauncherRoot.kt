@@ -77,6 +77,8 @@ fun LauncherRoot(
     state: LauncherUiState,
     onRequestDefaultHome: () -> Unit
 ) {
+    if (state.activeSpace == SpaceKind.Home) HomeWelcome(state, viewModel)
+    SpaceWelcome(state, viewModel)
     val density = LocalDensity.current
     val layoutDir = LocalLayoutDirection.current
     val screen = LocalView.current.resources.displayMetrics
@@ -91,8 +93,9 @@ fun LauncherRoot(
     val edgeDeadPx = maxOf(gestureLeftPx, gestureRightPx, with(density) { 18.dp.toPx() })
     val drawerZonePx = bottomDeadPx + with(density) { 108.dp.toPx() }
     val homePage = 1
-    val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 3 })
+    val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 4 })
     val pagerScope = rememberCoroutineScope()
+    var taskPickerVisible by remember { mutableStateOf(false) }
     var listTyping by remember { mutableStateOf(false) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(viewModel::setSpaceWallpaper)
@@ -174,6 +177,9 @@ fun LauncherRoot(
                         }
                     )
             ) {
+                @Suppress("DEPRECATION")
+                @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+                CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollConfiguration provides null) {
                 HorizontalPager(
                 state = pagerState,
                 beyondViewportPageCount = 1,
@@ -196,11 +202,12 @@ fun LauncherRoot(
                             viewModel = viewModel,
                             isActive = pagerState.settledPage == 0
                         )
-                        2 -> TodoPage(
-                            state = state,
+                        2 -> TasksRoute(
                             viewModel = viewModel,
+                            onPickerVisible = { taskPickerVisible = it },
                             onComposerFocus = { listTyping = it }
                         )
+                        3 -> LumenWidgetsPage(isActive = pagerState.settledPage == 3)
                         else -> HomeScreen(
                             state = state,
                             viewModel = viewModel,
@@ -209,6 +216,7 @@ fun LauncherRoot(
                         )
                     }
                 }
+            }
             }
             if (homeIdle) {
                 Box(
@@ -221,7 +229,7 @@ fun LauncherRoot(
                             onQuickSettings = viewModel::expandQuickSettings
                         )
                 )
-                if (!(pagerState.currentPage == homePage && state.activeSpace == SpaceKind.Focus)) Row(
+                if (!taskPickerVisible && !(pagerState.currentPage == homePage && state.activeSpace == SpaceKind.Focus)) Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .navigationBarsPadding()
@@ -229,7 +237,7 @@ fun LauncherRoot(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    repeat(3) { index ->
+                    repeat(4) { index ->
                         val active = pagerState.currentPage == index
                         Box(
                             Modifier
@@ -309,6 +317,9 @@ fun LauncherRoot(
             if (state.sheet == Sheet.TripAlbums) {
                 com.lumen.launcher.travel.TripGalleryScreen(onClose = viewModel::closeSheet, initialTripId = state.searchTripId)
             }
+            if (state.sheet == Sheet.WidgetTool) {
+                WidgetToolSheet(state, viewModel)
+            }
             if (state.sheet == Sheet.TravelDocs) {
                 TravelCollection(state, viewModel, state.searchTravelCategory, onDismiss = viewModel::closeSheet)
                 val context = androidx.compose.ui.platform.LocalContext.current
@@ -339,17 +350,13 @@ fun LauncherRoot(
             ) {
                 SearchSheet(state = state, viewModel = viewModel, onDismiss = viewModel::closeSheet)
             }
+            if (homeIdle) VoiceReturnHint(viewModel, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp))
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Voice,
                 enter = fadeIn(tween(180)),
                 exit = fadeOut(tween(140))
             ) {
-                VoiceSheet(
-                    state = state,
-                    onDismiss = viewModel::closeSheet,
-                    onSubmit = viewModel::submitVoiceText,
-                    onRetry = viewModel::retryVoice
-                )
+                VoiceRoute(viewModel)
             }
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Menu,

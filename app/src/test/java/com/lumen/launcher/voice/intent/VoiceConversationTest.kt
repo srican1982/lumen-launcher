@@ -27,4 +27,11 @@ class VoiceConversationTest {
         assertThat(conversation.history()).isEmpty()
         assertThat(conversation.needsContext("make it eight", local)).isFalse()
     }
+    @Test fun localPrivateRepliesNeverEnterAiHistory() {
+        val conversation = VoiceConversation()
+        conversation.record("read inbox", "A private notification with code 123456", false, shareable = false)
+        assertThat(conversation.history()).isEmpty()
+        conversation.record("what is two plus two", "Four", false)
+        assertThat(conversation.history()).containsExactly("User: what is two plus two", "Lumen: Four").inOrder()
+    }
 }

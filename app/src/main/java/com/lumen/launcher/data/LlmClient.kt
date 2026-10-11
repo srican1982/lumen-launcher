@@ -6,6 +6,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object LlmClient {
+    private val requests = java.util.concurrent.Executors.newFixedThreadPool(4) { task ->
+        Thread(task, "lumen-http").apply { isDaemon = true }
+    }
+    private val deadline = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { task ->
+        Thread(task, "lumen-http-deadline").apply { isDaemon = true }
+    }
 
     enum class Kind { Gemini, OpenRouter }
 
@@ -81,22 +87,39 @@ object LlmClient {
     }
 
     private fun post(url: URL, body: String, headers: Map<String, String>): Reply? {
+        val task = requests.submit<Reply?> { performPost(url, body, headers) }
+        return try { task.get(10, java.util.concurrent.TimeUnit.SECONDS) }
+        catch (_: Exception) { task.cancel(true); null }
+    }
+
+    private fun performPost(url: URL, body: String, headers: Map<String, String>): Reply? {
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 8_000
-            readTimeout = 18_000
+            readTimeout = 8_000
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             headers.forEach { (name, value) -> setRequestProperty(name, value) }
         }
+        val timeout = deadline.schedule({ connection.disconnect() }, 10, java.util.concurrent.TimeUnit.SECONDS)
         return try {
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            Reply(code, stream?.bufferedReader()?.readText().orEmpty())
+            Reply(code, stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                val buffer = CharArray(4096)
+                val result = StringBuilder()
+                while (result.length < 524_288) {
+                    val count = reader.read(buffer, 0, minOf(buffer.size, 524_288 - result.length))
+                    if (count < 0) break
+                    result.append(buffer, 0, count)
+                }
+                result.toString()
+            }.orEmpty())
         } catch (_: Exception) {
             null
         } finally {
+            timeout.cancel(false)
             connection.disconnect()
         }
     }

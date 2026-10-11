@@ -4,4 +4,4 @@
     android:sessionService="com.lumen.launcher.voice.LumenVoiceSessionService"
     android:settingsActivity="com.lumen.launcher.LauncherActivity"
     android:supportsAssist="true"
-    android:supportsLaunchVoiceAssistFromKeyguard="true" />
+    android:supportsLaunchVoiceAssistFromKeyguard="false" />

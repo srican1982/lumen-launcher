@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui.focus
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,9 +36,9 @@ import com.lumen.launcher.ui.theme.Outfit
 @Composable
 internal fun FocusGroupCards(dismissSignal: Int = 0) {
     val repo = FocusAllowedPeopleRepository.get(LocalContext.current)
-    val groups by repo.groups.collectAsState()
-    val selected by repo.selectedGroups.collectAsState()
-    val revision by repo.listsRevision.collectAsState()
+    val groups by repo.groups.collectAsStateWithLifecycle()
+    val selected by repo.selectedGroups.collectAsStateWithLifecycle()
+    val revision by repo.listsRevision.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<String?>(null) }
     var create by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
@@ -48,12 +50,12 @@ internal fun FocusGroupCards(dismissSignal: Int = 0) {
         Modifier
             .fillMaxWidth()
             .focusContainHorizontalScroll(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(sortedGroups, key = { it.id }) { group ->
             val isSelected = group.id in selected
             val members = groupMembers[group.id].orEmpty()
-            Row(Modifier.width(176.dp).height(56.dp).clip(RoundedCornerShape(14.dp))
+            Row(Modifier.width(if (members.isEmpty()) 148.dp else 164.dp).height(56.dp).clip(RoundedCornerShape(14.dp))
                 .background(if(isSelected) FocusCardSelected else FocusCard)
                 .border(1.dp, if(isSelected) FocusAccent else FocusBorder, RoundedCornerShape(14.dp))
                 .clickable { open = group.id }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -67,8 +69,8 @@ internal fun FocusGroupCards(dismissSignal: Int = 0) {
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 7.dp)) {
-                    Text(group.title, color = Color.White, fontSize = 11.sp, maxLines = 1)
-                    Text(if (members.isEmpty()) "Tap to add" else "${members.size} ${if (members.size == 1) "contact" else "contacts"}", color = FocusMuted, fontSize = 9.sp)
+                    Text(group.title, color = Color.White, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (members.isEmpty()) "Tap to add" else "${members.size} ${if (members.size == 1) "contact" else "contacts"}", color = FocusMuted, fontSize = 9.sp, lineHeight = 12.sp, maxLines = 1)
                 }
                 Box(Modifier.size(24.dp).clip(CircleShape).border(1.5.dp, if(isSelected) FocusAccent else FocusMuted, CircleShape)
                     .background(if(isSelected) FocusAccent else Color.Transparent)
@@ -78,12 +80,12 @@ internal fun FocusGroupCards(dismissSignal: Int = 0) {
             }
         }
         item(key = "new_group") {
-            Row(Modifier.width(176.dp).height(56.dp).clip(RoundedCornerShape(14.dp)).background(FocusCard)
+            Row(Modifier.width(132.dp).height(56.dp).clip(RoundedCornerShape(14.dp)).background(FocusCard)
                 .border(1.dp, FocusBorder, RoundedCornerShape(14.dp)).clickable { create = true }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.AddCircleOutline, null, tint = FocusMuted, modifier = Modifier.size(30.dp))
                 Column(Modifier.padding(start = 7.dp)) {
-                    Text("New group", color = Color.White, fontSize = 11.sp)
-                    Text("Add people", color = FocusMuted, fontSize = 9.sp)
+                    Text("New group", color = Color.White, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 1)
+                    Text("Add people", color = FocusMuted, fontSize = 9.sp, lineHeight = 12.sp, maxLines = 1)
                 }
             }
         }
@@ -143,8 +145,8 @@ private fun FocusGroupMembers(initialId: String, repo: FocusAllowedPeopleReposit
     var id by remember { mutableStateOf(initialId) }
     var picking by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val groups by repo.groups.collectAsState()
-    val revision by repo.listsRevision.collectAsState()
+    val groups by repo.groups.collectAsStateWithLifecycle()
+    val revision by repo.listsRevision.collectAsStateWithLifecycle()
     val group = groups.find { it.id == id }
     LaunchedEffect(group) { if (group == null) onDismiss() }
     if (group == null) return
@@ -163,7 +165,7 @@ private fun FocusGroupMembers(initialId: String, repo: FocusAllowedPeopleReposit
             if (canDelete) {
                 Text(
                     "Delete",
-                    color = FocusDanger,
+                    color = androidx.compose.ui.graphics.Color.White,
                     fontFamily = Outfit,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -272,7 +274,7 @@ private fun FocusGroupMembers(initialId: String, repo: FocusAllowedPeopleReposit
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(Icons.Outlined.RemoveCircleOutline, null, tint = FocusDanger, modifier = Modifier.size(20.dp))
-                        Text("Remove", color = FocusDanger, fontSize = 10.sp, fontFamily = Outfit)
+                        Text("Remove", color = androidx.compose.ui.graphics.Color.White, fontSize = 10.sp, fontFamily = Outfit)
                     }
                 }
                 HorizontalDivider(color = Color.White.copy(alpha = 0.06f))

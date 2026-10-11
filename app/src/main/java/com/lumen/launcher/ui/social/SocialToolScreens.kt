@@ -11,10 +11,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BlurOn
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.detectTapGestures
 import com.lumen.launcher.social.photo.BlurLevels
 import com.lumen.launcher.social.photo.BlurBox
@@ -64,6 +68,8 @@ import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Redo
@@ -162,68 +168,52 @@ fun SocialToolOverlay(
 
 @Composable
 private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    val stickerSaved = rememberStickerSavedPrompt()
     val strokes = remember { mutableStateListOf<InkStroke>() }
     val undo = remember { mutableStateListOf<InkStroke>() }
+    val stickerStrokes = strokes.toList()
+    // The producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
+    val miniSticker by produceState<ImageBitmap?>(null,stickerStrokes) {
+        value = if(stickerStrokes.isEmpty()) null else withContext(Dispatchers.Default) {
+            com.lumen.launcher.social.StickerMaker.make(
+                ScribbleExport.render(stickerStrokes,ScribbleBrushStyle.Sketch,ScribbleExportBackground.Transparent,sticker=true)
+            ).asImageBitmap()
+        }
+    }
+
     val livePoints = remember { mutableStateListOf<Offset>() }
     var penColor by remember { mutableStateOf(Color.White) }
     var erasing by remember { mutableStateOf(false) }
     var brushStyle by remember { mutableStateOf(ScribbleBrushStyle.Sketch) }
     var showExportSheet by remember { mutableStateOf(false) }
-    val penColors = listOf(Color.White, Color.Black, Color(0xFFB794F4), Color(0xFFFFD56A))
+    var brushSize by remember { mutableStateOf(12f) }
+    var brushOpen by remember { mutableStateOf(false) }
+    var customColor by remember { mutableStateOf(false) }
+    var clearConfirm by remember { mutableStateOf(false) }
+    var eraserSize by remember { mutableStateOf(28f) }
+    var opacity by remember { mutableStateOf(1f) }
+    val penColors = listOf(Color.White, Color.Black, Color(0xFF9460FF), Color(0xFF80BBFF), Color(0xFFFF88C4), Color(0xFFFFD56A), Color(0xFF51DDC1))
+    val visibleColors = remember { mutableStateListOf(Color.White, Color.Black, Color(0xFF9460FF), Color(0xFF80BBFF)) }
+    fun selectColor(color: Color) {
+        if (color != Color.White) {
+            val next = (listOf(Color.White, color) + visibleColors.filter { it != Color.White && it != color }).take(4)
+            visibleColors.clear()
+            visibleColors.addAll(next)
+        }
+        penColor = color
+        erasing = false
+    }
+
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            CreateToolHeader("Scribble", onClose, onShare = { if (strokes.isNotEmpty()) showExportSheet = true })
-
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ScribbleBrushStyle.entries.forEach { s ->
-                    CreateChip(s.name, brushStyle == s, leading = { BrushStyleIcon(s, brushStyle == s) }) { brushStyle = s }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal=16.dp,vertical=6.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                ScribbleBoardButton("Close",Icons.Outlined.Close,onClick=onClose)
+                listOf(ScribbleBrushStyle.Sketch,ScribbleBrushStyle.Pen,ScribbleBrushStyle.Marker).forEach { style ->
+                    ScribbleStyleChip(style,!erasing && brushStyle==style) { brushStyle=style;erasing=false }
                 }
             }
-
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                CreateChip("Pen", !erasing, leading = {
-                    Icon(Icons.Outlined.Edit, null, tint = chipIconTint(!erasing), modifier = Modifier.size(20.dp))
-                }) { erasing = false }
-                CreateChip("Eraser", erasing, leading = {
-                    Icon(CreateIcons.Eraser, null, tint = chipIconTint(erasing), modifier = Modifier.size(22.dp))
-                }) { erasing = true }
-                CreateChip("Undo", false, leading = {
-                    Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
-                }) { if (strokes.isNotEmpty()) undo.add(strokes.removeAt(strokes.lastIndex)) }
-                CreateChip("Redo", false, leading = {
-                    Icon(Icons.Outlined.Redo, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
-                }) { if (undo.isNotEmpty()) strokes.add(undo.removeAt(undo.lastIndex)) }
-                CreateChip("Clear", false, leading = {
-                    Icon(Icons.Outlined.Delete, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
-                }) {
-                    strokes.clear()
-                    undo.clear()
-                }
-            }
-
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                penColors.forEach { c ->
-                    ColorSwatch(c, selected = !erasing && penColor == c) {
-                        penColor = c
-                        erasing = false
-                    }
-                }
-            }
-
             ScribbleInkPad(
                 modifier = Modifier
                     .weight(1f)
@@ -231,13 +221,71 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 strokes = strokes,
                 livePoints = livePoints,
-                penColor = penColor,
+                penColor = penColor.copy(alpha=opacity),
+                customWidth = if(erasing) eraserSize else brushSize,
                 erasing = erasing,
                 brushStyle = brushStyle,
-                onStrokeCommitted = { undo.clear() }
+                onStrokeCommitted = { undo.clear() },
+                onBegin = { brushOpen=false },
+                brushPanel = {
+                    if(brushOpen) Column(Modifier.fillMaxWidth().padding(10.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF2221D3B)).border(1.dp,Color(0x66F5CB7E),RoundedCornerShape(20.dp)).padding(12.dp)) {
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            Text(if(erasing) "Eraser size" else "Size",color=Color(0xFFF3D7A0),fontSize=12.sp,modifier=Modifier.width(66.dp))
+                            RoundBrushSlider(if(erasing) eraserSize else brushSize,if(erasing) 8f..64f else 2f..28f,Modifier.weight(1f)) { if(erasing) eraserSize=it else brushSize=it }
+                            Box(Modifier.size(34.dp),contentAlignment=Alignment.Center) { Box(Modifier.size((if(erasing) eraserSize else brushSize).coerceAtMost(30f).dp).clip(CircleShape).background(penColor.copy(alpha=opacity))) }
+                        }
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            Text("Opacity",color=Color(0xFFF3D7A0),fontSize=12.sp,modifier=Modifier.width(66.dp))
+                            RoundBrushSlider(opacity,.1f..1f,Modifier.weight(1f)) { opacity=it }
+                            Text("${(opacity*100).toInt()}%",color=Color.White,fontSize=11.sp,modifier=Modifier.width(34.dp))
+                        }
+                    }
+                },
+                controls = {
+                    Row(Modifier.fillMaxWidth().padding(10.dp),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                        ScribbleBoardButton("Undo",Icons.AutoMirrored.Outlined.Undo) { if(strokes.isNotEmpty()) undo.add(strokes.removeAt(strokes.lastIndex)) }
+                        Spacer(Modifier.width(8.dp))
+                        ScribbleBoardButton("Redo",Icons.Outlined.Redo) { if(undo.isNotEmpty()) strokes.add(undo.removeAt(undo.lastIndex)) }
+                        Spacer(Modifier.weight(1f))
+                        ScribbleBoardButton("Clear",Icons.Outlined.Delete) { clearConfirm=true }
+                    }
+                }
             )
 
+            Row(
+                Modifier.padding(horizontal=16.dp,vertical=4.dp).fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha=.06f))
+                    .border(1.dp,Color(0x55F5CB7E),RoundedCornerShape(24.dp)).padding(horizontal=4.dp,vertical=4.dp),
+                verticalAlignment=Alignment.CenterVertically
+            ) {
+                visibleColors.toList().forEach { color ->
+                    Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                        ScribbleToolbarControl(selected=!erasing && penColor==color,onClick={selectColor(color)}) {
+                            Box(Modifier.fillMaxSize().clip(CircleShape).background(color).border(1.dp,Color.White.copy(alpha=.35f),CircleShape))
+                        }
+                    }
+                }
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(selected=customColor,onClick={customColor=true}) {
+                        Box(Modifier.fillMaxSize().clip(CircleShape).background(Brush.sweepGradient(listOf(Color.Red,Color.Yellow,Color.Green,Color.Cyan,Color.Blue,Color.Magenta,Color.Red))))
+                    }
+                }
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(selected=erasing,onClick={erasing=true;brushOpen=true}) {
+                        Icon(CreateIcons.Eraser,"Eraser",tint=if(erasing) Color(0xFF211338) else Color(0xFFF3D7A0),modifier=Modifier.size(19.dp))
+                    }
+                }
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(selected=brushOpen,onClick={brushOpen=!brushOpen}) {
+                        Icon(Icons.Outlined.Tune,"Brush settings",tint=if(brushOpen) Color(0xFF211338) else Color(0xFFF3D7A0),modifier=Modifier.size(19.dp))
+                    }
+                }
+            }
             CreateActionBar(
+                small = true,
+                goldAccent = true,
+                stickerTipKey = "scribble",
+                stickerPreview = miniSticker,
                 onSave = {
                     if (strokes.isNotEmpty()) {
                         coordinator.saveImageToGallery(
@@ -252,13 +300,16 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                         coordinator.addToStickerPack(
                             CreationKind.Scribble,
                             ScribbleExport.render(strokes, brushStyle, ScribbleExportBackground.Transparent, sticker = true),
-                            "A hand-drawn scribble"
+                            "A hand-drawn scribble",
+                            onPackSaved = stickerSaved
                         )
                     }
                 }
             )
         }
 
+        if(clearConfirm) androidx.compose.material3.AlertDialog(onDismissRequest={clearConfirm=false},title={Text("Clear drawing?")},text={Text("This removes all strokes from the board.")},confirmButton={androidx.compose.material3.TextButton(onClick={strokes.clear();undo.clear();livePoints.clear();clearConfirm=false}) {Text("Clear")}},dismissButton={androidx.compose.material3.TextButton(onClick={clearConfirm=false}) {Text("Cancel")}})
+        if(customColor) ScribbleColourWheel(penColor,onDismiss={customColor=false}) { selectColor(it);customColor=false }
         if (showExportSheet) {
             Box(
                 Modifier
@@ -288,7 +339,7 @@ private fun ScribbleScreen(coordinator: SocialCreateCoordinator, onClose: () -> 
                     },
                     onSaveSticker = { bmp -> coordinator.saveStickerToGallery(CreationKind.Scribble, bmp) },
                     onAddToPack = { bmp ->
-                        coordinator.addToStickerPack(CreationKind.Scribble, bmp, "A hand-drawn scribble")
+                        coordinator.addToStickerPack(CreationKind.Scribble, bmp, "A hand-drawn scribble", onPackSaved=stickerSaved)
                     },
                     onDismiss = { showExportSheet = false }
                 )
@@ -303,23 +354,28 @@ private fun ScribbleInkPad(
     strokes: SnapshotStateList<InkStroke>,
     livePoints: SnapshotStateList<Offset>,
     penColor: Color,
+    customWidth: Float,
     erasing: Boolean,
     brushStyle: ScribbleBrushStyle,
-    onStrokeCommitted: () -> Unit
+    onStrokeCommitted: () -> Unit,
+    onBegin: () -> Unit,
+    brushPanel: @Composable () -> Unit,
+    controls: @Composable () -> Unit
 ) {
     val shape = RoundedCornerShape(30.dp)
-    val strokeWidth = ScribbleRenderer.widthFor(brushStyle, erasing)
+    val strokeWidth = customWidth
     val eraseMode = erasing
 
     Box(
         modifier
             .clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0xFF211338), Color(0xFF160C27))))
-            .border(1.dp, Color(0x669D63EE), shape)
+            .border(1.dp, Color(0x66F5CB7E), shape)
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .pointerInput(eraseMode, penColor, brushStyle) {
+            .pointerInput(eraseMode, penColor, brushStyle, strokeWidth) {
                 detectDragGestures(
                     onDragStart = { offset ->
+                        onBegin()
                         livePoints.clear()
                         livePoints.add(offset)
                     },
@@ -329,7 +385,7 @@ private fun ScribbleInkPad(
                     },
                     onDragEnd = {
                         if (livePoints.size >= 2) {
-                            strokes.add(InkStroke(livePoints.toList(), penColor, strokeWidth, eraseMode))
+                            strokes.add(InkStroke(livePoints.toList(), penColor, strokeWidth, eraseMode, brushStyle))
                             onStrokeCommitted()
                         }
                         livePoints.clear()
@@ -343,21 +399,20 @@ private fun ScribbleInkPad(
             if (livePoints.size >= 2) {
                 ScribbleRenderer.drawStroke(
                     this,
-                    InkStroke(livePoints.toList(), penColor, strokeWidth, eraseMode),
+                    InkStroke(livePoints.toList(), penColor, strokeWidth, eraseMode, brushStyle),
                     brushStyle,
                     live = true
                 )
             }
         }
         if (strokes.isEmpty() && livePoints.isEmpty()) {
-            Text(
-                "Draw here",
-                color = Color.White.copy(alpha = 0.25f),
-                fontFamily = Outfit,
-                fontSize = 16.sp,
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Column(Modifier.align(Alignment.Center).padding(bottom=46.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text("Start\nScribbling",color=Color(0xFFF5CB7E),fontFamily=androidx.compose.ui.text.font.FontFamily.Cursive,fontSize=36.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                Text("Ideas start with a simple stroke.",color=Color(0xFFF3D7A0),fontFamily=Outfit,fontSize=12.sp)
+            }
         }
+        Box(Modifier.align(Alignment.TopCenter)) { controls() }
+        Box(Modifier.align(Alignment.BottomCenter)) { brushPanel() }
     }
 }
 
@@ -367,6 +422,7 @@ private enum class QuoteStep { Write, Design }
 
 @Composable
 private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
+    val stickerSaved = rememberStickerSavedPrompt()
     var step by remember { mutableStateOf(QuoteStep.Write) }
     var text by remember { mutableStateOf("") }
     var style by remember { mutableStateOf(QuoteStyle.Bubble) }
@@ -421,14 +477,14 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         coordinator.addToStickerPack(
             CreationKind.Quote,
             render(forSticker = true),
-            "The words ${shown.take(90)} in sticker lettering"
+            "The words ${shown.take(90)} in sticker lettering",
+            onPackSaved = stickerSaved
         )
     }
 
     // Live preview, rendered off the main thread and debounced while typing.
     // Half resolution keeps it smooth while dragging the position / size / rotate bars.
     val preview by produceState<ImageBitmap?>(null, text, style, aspect, background, shape, shapePhoto, transform) {
-        delay(30)
         value = withContext(Dispatchers.Default) {
             QuoteStyleRenderer.renderSized(
                 context = context,
@@ -445,6 +501,15 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         }
     }
 
+    // The producer assigns value below; workaround for the bundled Compose lint detector.
+    @Suppress("ProduceStateDoesNotAssignValue")
+    val miniSticker by produceState<ImageBitmap?>(null,text,style,aspect,shape,shapePhoto,transform) {
+        delay(100)
+        value = withContext(Dispatchers.Default) {
+            com.lumen.launcher.social.StickerMaker.make(render(forSticker=true)).asImageBitmap()
+        }
+    }
+
     when (step) {
         QuoteStep.Write -> QuoteWriteStep(
             text = text,
@@ -458,6 +523,7 @@ private fun QuoteScreen(coordinator: SocialCreateCoordinator, onClose: () -> Uni
         )
         QuoteStep.Design -> QuoteDesignStep(
             text = shown,
+            stickerPreview = miniSticker,
             preview = preview,
             style = style,
             onStyle = { style = it },
@@ -566,6 +632,7 @@ private fun QuoteWriteStep(
 @Composable
 private fun QuoteDesignStep(
     text: String,
+    stickerPreview: ImageBitmap?,
     preview: ImageBitmap?,
     style: QuoteStyle,
     onStyle: (QuoteStyle) -> Unit,
@@ -588,6 +655,8 @@ private fun QuoteDesignStep(
     onSticker: () -> Unit,
     onShare: () -> Unit
 ) {
+    val designContentScroll = rememberScrollState()
+    var adjustOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     // One small thumbnail per design, drawn with the user's own text.
     val thumbs by produceState(emptyMap<QuoteStyle, ImageBitmap>(), text, background, shape, shapePhoto) {
@@ -600,67 +669,49 @@ private fun QuoteDesignStep(
     }
 
     Column(Modifier.fillMaxSize()) {
-        CreateToolHeader("Quote", onClose, onShare, subtitle = "Step 2 of 2 · Design")
-        // Preview with a vertical bar (move up/down) on the right…
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(250.dp)
-                .padding(start = 16.dp, end = 6.dp, top = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            QuotePreviewCard(
-                preview = preview,
-                aspect = aspect,
-                isSticker = isSticker,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            )
-            DragBar(
-                value = transform.offsetY / 0.8f + 0.5f,
-                onValue = { onTransform(transform.copy(offsetY = (it - 0.5f) * 0.8f)) },
-                vertical = true,
-                modifier = Modifier
-                    .width(40.dp)
-                    .fillMaxHeight()
-            )
-        }
-        // …and a horizontal bar (move left/right) underneath.
-        DragBar(
-            value = transform.offsetX / 0.8f + 0.5f,
-            onValue = { onTransform(transform.copy(offsetX = (it - 0.5f) * 0.8f)) },
-            vertical = false,
-            modifier = Modifier
-                .padding(start = 16.dp, end = 46.dp)
-                .fillMaxWidth()
-                .height(40.dp)
+        CreateToolHeader("Quote", onClose, onShare, subtitle = "Make your words shine", showShare = false)
+        QuotePreviewCard(
+            preview=preview, aspect=aspect, isSticker=isSticker,
+            transform=transform, onTransform=onTransform,
+            modifier=Modifier.fillMaxWidth().height(230.dp).padding(horizontal=16.dp,vertical=6.dp)
         )
-        Row(
-            Modifier
-                .align(Alignment.CenterHorizontally)
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onEditText)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.Edit, null, tint = CreatePalette.Accent, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Edit text", color = CreatePalette.Accent, fontFamily = Outfit, fontSize = 14.sp)
+        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text("Edit text",color=Color(0xFFF5CB7E),fontSize=14.sp,modifier=Modifier.clickable(onClick=onEditText).padding(8.dp))
+            Spacer(Modifier.weight(1f))
+            Text("Drag \u00b7 Pinch \u00b7 Rotate",color=Color.White.copy(alpha=.65f),fontSize=12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(if(adjustOpen) "Adjust -" else "Adjust +",color=Color(0xFFF5CB7E),fontSize=14.sp,modifier=Modifier.clickable {adjustOpen=!adjustOpen}.padding(8.dp))
         }
 
         Column(
             Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(designContentScroll)
                 .padding(horizontal = 16.dp)
         ) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                CreateSectionLabel("Design",Modifier.weight(1f))
+                Text("Swipe for more \u2192",color=Color(0xFFF3D7A0),fontSize=12.sp)
+            }
+            val designScroll = rememberScrollState()
+            Row(Modifier.fillMaxWidth().drawWithContent {
+                drawContent()
+                if(designScroll.canScrollForward) drawRect(
+                    Brush.horizontalGradient(listOf(Color.Transparent,Color(0xFF221D4A)),startX=size.width-28.dp.toPx(),endX=size.width)
+                )
+            }.horizontalScroll(designScroll), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuoteStyle.entries.forEach { s ->
+                    DesignThumb(label = s.label, image = thumbs[s], selected = style == s) { onStyle(s) }
+                }
+            }
+
+            if(adjustOpen) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CreateSectionLabel("Adjust text", Modifier.weight(1f))
                 if (!transform.isDefault) {
                     Text(
                         "Reset",
-                        color = CreatePalette.Accent,
+                        color = Color(0xFFF5CB7E),
                         fontFamily = Outfit,
                         fontSize = 14.sp,
                         modifier = Modifier
@@ -670,45 +721,41 @@ private fun QuoteDesignStep(
                     )
                 }
             }
-            LabeledDragBar(
+            QuoteAdjustBar(
                 label = "Size",
                 valueText = "${(transform.scale * 100).roundToInt()}%",
                 value = scaleToBar(transform.scale),
                 onValue = { onTransform(transform.copy(scale = barToScale(it))) }
             )
-            LabeledDragBar(
+            QuoteAdjustBar(
                 label = "Rotate",
                 valueText = "${transform.rotation.roundToInt()}°",
                 value = transform.rotation / 180f + 0.5f,
                 onValue = { onTransform(transform.copy(rotation = (it - 0.5f) * 180f)) }
             )
 
-            CreateSectionLabel("Design")
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteStyle.entries.forEach { s ->
-                    DesignThumb(label = s.label, image = thumbs[s], selected = style == s) { onStyle(s) }
-                }
+                QuoteAdjustBar(label="Left / right",valueText="",value=transform.offsetX/.8f+.5f,onValue={onTransform(transform.copy(offsetX=(it-.5f)*.8f))})
+                QuoteAdjustBar(label="Up / down",valueText="",value=transform.offsetY/.8f+.5f,onValue={onTransform(transform.copy(offsetY=(it-.5f)*.8f))})
             }
-
             CreateSectionLabel("Shape")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuoteShape.entries.forEach { sh ->
                     val sel = shape == sh
-                    CreateChip(sh.label, sel, leading = { ShapeGlyph(sh, chipIconTint(sel)) }) { onShape(sh) }
+                    GoldQuoteChip(sh.label, sel, leading = { ShapeGlyph(sh, chipIconTint(sel)) }) { onShape(sh) }
                 }
             }
             Row(
                 Modifier.padding(top = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                CreateChip(
+                GoldQuoteChip(
                     if (hasPhoto) "Change photo" else "Photo in shape",
                     hasPhoto,
                     leading = { Icon(Icons.Outlined.Image, null, tint = chipIconTint(hasPhoto), modifier = Modifier.size(20.dp)) },
                     onClick = onPickPhoto
                 )
                 if (hasPhoto) {
-                    CreateChip("Remove photo", false, onClick = onClearPhoto)
+                    GoldQuoteChip("Remove photo", false, onClick = onClearPhoto)
                 }
             }
 
@@ -722,7 +769,7 @@ private fun QuoteDesignStep(
                     QuoteBackgroundKind.Transparent to "Clear"
                 ).forEach { (kind, label) ->
                     val sel = background == kind
-                    CreateChip(label, sel, leading = {
+                    GoldQuoteChip(label, sel, leading = {
                         when (kind) {
                             QuoteBackgroundKind.SocialBlue -> SkySwatch()
                             QuoteBackgroundKind.PurpleGradient -> DotSwatch(Color(0xFF9333EA))
@@ -742,7 +789,7 @@ private fun QuoteDesignStep(
                     Triple(QuoteAspect.Landscape, "16:9", 16f to 9f)
                 ).forEach { (a, label, ratio) ->
                     val sel = aspect == a
-                    CreateChip(label, sel, leading = { AspectGlyph(ratio.first, ratio.second, chipIconTint(sel)) }) { onAspect(a) }
+                    GoldQuoteChip(label, sel, leading = { AspectGlyph(ratio.first, ratio.second, chipIconTint(sel)) }) { onAspect(a) }
                 }
             }
             Text(
@@ -754,8 +801,64 @@ private fun QuoteDesignStep(
                 modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
             )
         }
-        CreateActionBar(onSave = onSave, onShare = onShare, onSticker = onSticker)
+        QuoteScrollHint(designContentScroll)
+        CreateActionBar(onSave = onSave, onShare = onShare, onSticker = onSticker, small=true, goldAccent=true, stickerTipKey="quote", stickerPreview=stickerPreview)
     }
+}
+
+@Composable
+private fun QuoteScrollHint(scroll: androidx.compose.foundation.ScrollState) {
+    var dismissed by remember { mutableStateOf(false) }
+    val visible = scroll.canScrollForward && !dismissed
+    val movement = remember { androidx.compose.animation.core.Animatable(0f) }
+    val opacity by androidx.compose.animation.core.animateFloatAsState(
+        if(visible) .7f else 0f,
+        animationSpec=androidx.compose.animation.core.tween(350),label="Quote scroll hint"
+    )
+    LaunchedEffect(scroll.value) {
+        if(scroll.value > 4) dismissed = true
+    }
+    LaunchedEffect(visible) {
+        if(visible) {
+            delay(600)
+            while(true) {
+                movement.animateTo(2f,androidx.compose.animation.core.tween(450))
+                movement.animateTo(0f,androidx.compose.animation.core.tween(450))
+                delay(2100)
+            }
+        } else movement.snapTo(0f)
+    }
+    Box(Modifier.fillMaxWidth().height(16.dp),contentAlignment=Alignment.Center) {
+        Canvas(Modifier.size(18.dp,14.dp).graphicsLayer {
+            alpha=opacity
+            translationY=movement.value.dp.toPx()
+        }) {
+            repeat(2) { index ->
+                val top=index*5.dp.toPx()
+                val path=androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width*.2f,top+2.dp.toPx())
+                    lineTo(size.width*.5f,top+5.dp.toPx())
+                    lineTo(size.width*.8f,top+2.dp.toPx())
+                }
+                drawPath(path,Color(0xFFF5CB7E).copy(alpha=if(index==0) .7f else 1f),
+                    style=Stroke(1.5.dp.toPx(),cap=androidx.compose.ui.graphics.StrokeCap.Round,join=androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuoteAdjustBar(label: String, valueText: String, value: Float, onValue: (Float) -> Unit) {
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+        Text(label,color=Color(0xFFF3D7A0),fontSize=12.sp,modifier=Modifier.width(74.dp))
+        RoundBrushSlider(value,0f..1f,Modifier.weight(1f),onValue)
+        Text(valueText,color=Color.White,fontSize=12.sp,modifier=Modifier.width(44.dp))
+    }
+}
+
+@Composable
+private fun GoldQuoteChip(label: String, selected: Boolean, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+    CreateChip(label,selected,leading=leading,goldAccent=true,onClick=onClick)
 }
 
 /** Size bar: left half = 50%–100%, right half = 100%–180%, middle = 100%. */
@@ -768,18 +871,33 @@ private fun QuotePreviewCard(
     preview: ImageBitmap?,
     aspect: QuoteAspect,
     isSticker: Boolean,
-    modifier: Modifier
+    modifier: Modifier,
+    transform: QuoteTextTransform = QuoteTextTransform(),
+    onTransform: ((QuoteTextTransform) -> Unit)? = null
 ) {
+    val currentTransform by rememberUpdatedState(transform)
+    val updateTransform by rememberUpdatedState(onTransform)
     val ratio = aspect.width.toFloat() / aspect.height
     Box(modifier, contentAlignment = Alignment.Center) {
         val cardShape = RoundedCornerShape(26.dp)
         Box(
             Modifier
                 .aspectRatio(ratio, matchHeightConstraintsFirst = true)
-                .shadow(18.dp, cardShape, spotColor = Color(0xFF6D28D9))
+                .shadow(18.dp, cardShape, spotColor = Color(0xFFF5CB7E))
                 .clip(cardShape)
+                .then(if(onTransform != null) Modifier.pointerInput(aspect) {
+                    detectTransformGestures { _, pan, zoom, rotation ->
+                        val old = currentTransform
+                        updateTransform?.invoke(old.copy(
+                            offsetX=(old.offsetX+pan.x/size.width).coerceIn(-.4f,.4f),
+                            offsetY=(old.offsetY+pan.y/size.height).coerceIn(-.4f,.4f),
+                            scale=(old.scale*zoom).coerceIn(.5f,1.8f),
+                            rotation=(old.rotation+rotation).coerceIn(-90f,90f)
+                        ))
+                    }
+                } else Modifier)
                 .then(if (isSticker) Modifier.drawBehind { checkerboard() } else Modifier.background(Color(0xFF1B1030)))
-                .border(1.dp, Color(0x40B794F4), cardShape)
+                .border(1.dp, Color(0x40F5CB7E), cardShape)
         ) {
             preview?.let {
                 Image(it, "Quote preview", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
@@ -804,7 +922,7 @@ private fun DesignThumb(label: String, image: ImageBitmap?, selected: Boolean, o
                 .size(88.dp)
                 .clip(shape)
                 .background(Color(0xFF1B1030))
-                .border(if (selected) 2.5.dp else 1.dp, if (selected) CreatePalette.Accent else Color(0x2EC7A6F5), shape)
+                .border(if (selected) 2.5.dp else 1.dp, if (selected) Color(0xFFF5CB7E) else Color(0x2EF5CB7E), shape)
         ) {
             image?.let {
                 Image(it, label, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.dp))
@@ -845,7 +963,7 @@ private fun ShapeGlyph(shape: QuoteShape, color: Color) {
 // ───────────────────────────── Photo ─────────────────────────────
 
 /** A mark on the photo, stored in image-relative units (0..1) so it maps exactly on export. */
-private data class PhotoMark(val points: List<Offset>, val color: Color, val widthFraction: Float, val tool: PhotoShape = PhotoShape.Pen)
+private data class PhotoMark(val points: List<Offset>, val color: Color, val widthFraction: Float, val tool: PhotoShape = PhotoShape.Pen, val erasing: Boolean = false)
 
 private val PhotoColors = listOf(
     Color(0xFFFFD56A), Color(0xFF9B5CF6), Color(0xFF3B82F6), Color(0xFFF472B6), Color.White
@@ -860,8 +978,18 @@ private val PhotoBrushSizes = listOf(3f, 6f, 10f, 16f)
 private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () -> Unit) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    var shapeMenu by remember { mutableStateOf(false) }
+    var brushPanel by remember { mutableStateOf(false) }
+    var erasing by remember { mutableStateOf(false) }
+    var brushSize by remember { mutableStateOf(10f) }
+    var eraserSize by remember { mutableStateOf(28f) }
+    val tipPrefs = remember { context.getSharedPreferences("photo_tips",android.content.Context.MODE_PRIVATE) }
+    var showHint by remember { mutableStateOf(!tipPrefs.getBoolean("draw_seen",false)) }
+    fun dismissHint() { showHint=false; tipPrefs.edit().putBoolean("draw_seen",true).apply() }
+
     var uri by remember { mutableStateOf<Uri?>(null) }
     var photo by remember { mutableStateOf<Bitmap?>(null) }
+    var cutoutSource by remember { mutableStateOf<Bitmap?>(null) }
     var cropSource by remember { mutableStateOf<Bitmap?>(null) }
     var beforeCrop by remember { mutableStateOf<Bitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -870,7 +998,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     var moveMode by remember { mutableStateOf(false) }
     var selectedMark by remember { mutableStateOf<Int?>(null) }
     val live = remember { mutableStateListOf<Offset>() }
-    var penColor by remember { mutableStateOf(PhotoColors.first()) }
+    var penColor by remember { mutableStateOf(Color.White) }
     var sizeIdx by remember { mutableIntStateOf(2) }
     var showMoreColors by remember { mutableStateOf(false) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
@@ -880,6 +1008,27 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     var selectedBlur by remember { mutableStateOf<Long?>(null) }
     var blurLevels by remember { mutableStateOf<BlurLevels?>(null) }
     var levelImages by remember { mutableStateOf<List<ImageBitmap>>(emptyList()) }
+    val undoEdits = remember { mutableStateListOf<Pair<List<PhotoMark>,List<BlurBox>>>() }
+    val redoEdits = remember { mutableStateListOf<Pair<List<PhotoMark>,List<BlurBox>>>() }
+    fun checkpoint() {
+        undoEdits.add(marks.toList() to blurBoxes.toList())
+        if(undoEdits.size > 50) undoEdits.removeAt(0)
+        redoEdits.clear()
+    }
+    fun restoreEdit(state: Pair<List<PhotoMark>,List<BlurBox>>) {
+        marks.clear(); marks.addAll(state.first)
+        blurBoxes.clear(); blurBoxes.addAll(state.second)
+        selectedMark=null; selectedBlur=null; live.clear()
+    }
+    val palette = remember { mutableStateListOf(Color.White,Color(0xFFF5CB7E),Color(0xFF9460FF),Color(0xFFFF88C4)) }
+    fun selectColor(color: Color) {
+        if(color != Color.White) {
+            val next=(listOf(Color.White,color)+palette.filter {it!=Color.White && it!=color}).take(4)
+            palette.clear();palette.addAll(next)
+        }
+        penColor=color;erasing=false
+    }
+
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { picked ->
         if (picked != null) uri = picked
@@ -887,7 +1036,12 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
     LaunchedEffect(Unit) { picker.launch("image/*") }
     LaunchedEffect(uri) {
         val u = uri ?: return@LaunchedEffect
+        undoEdits.clear();redoEdits.clear()
         loading = true
+        photo = null
+        cropSource = null
+        selectedMark = null
+        live.clear()
         marks.clear()
         blurBoxes.clear()
         selectedBlur = null
@@ -913,7 +1067,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         return photoShapePath(mark.points.map { Offset(rect.left + it.x * rect.width, rect.top + it.y * rect.height) }, mark.tool).getBounds()
     }
     fun hitMark(point: Offset, rect: Rect): Int? =
-        marks.indices.reversed().firstOrNull { markBounds(it, rect)?.inflate(18f)?.contains(point) == true }
+        marks.indices.reversed().firstOrNull { !marks[it].erasing && markBounds(it, rect)?.inflate(18f)?.contains(point) == true }
 
     fun screenRectOf(b: BlurBox, rect: Rect) = Rect(
         rect.left + b.left * rect.width,
@@ -931,6 +1085,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         val l = (0.5f - w / 2f + shift).coerceIn(0f, 1f - w)
         val t = (0.5f - h / 2f + shift).coerceIn(0f, 1f - h)
         val box = BlurBox(System.nanoTime(), l, t, l + w, t + h)
+        checkpoint()
         blurBoxes.add(box)
         selectedBlur = box.id
         blurMode = true
@@ -951,6 +1106,10 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
 
     fun rendered(): Bitmap? {
         val base = photo ?: return null
+        if (loading || (blurBoxes.isNotEmpty() && blurLevels == null)) {
+            android.widget.Toast.makeText(context, "Please wait for the photo edits to finish.", android.widget.Toast.LENGTH_SHORT).show()
+            return null
+        }
         val out = base.copy(Bitmap.Config.ARGB_8888, true)
         blurLevels?.applyTo(out, blurBoxes.toList())
         val canvas = android.graphics.Canvas(out)
@@ -959,12 +1118,15 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
+        val marksLayer = canvas.saveLayer(0f,0f,out.width.toFloat(),out.height.toFloat(),null)
         marks.forEach { m ->
+            paint.xfermode = if(m.erasing) android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR) else null
             paint.color = m.color.toArgb()
             paint.strokeWidth = m.widthFraction * out.width
             val pts = m.points.map { Offset(it.x * out.width, it.y * out.height) }
             canvas.drawPath(photoShapePath(pts, m.tool).asAndroidPath(), paint)
         }
+        canvas.restoreToCount(marksLayer)
         return out
     }
 
@@ -983,6 +1145,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
 
     cropSource?.let { source ->
         PhotoCropDialog(source, onDismiss = { cropSource = null }, onApply = { cropped ->
+            undoEdits.clear();redoEdits.clear()
             beforeCrop = source
             marks.clear()
             live.clear()
@@ -994,8 +1157,15 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
         })
     }
 
+    cutoutSource?.let { PhotoCutoutDialog(it, coordinator) { cutoutSource = null } }
+
     Column(Modifier.fillMaxSize()) {
-        CreateToolHeader("Photo", onClose, ::share)
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
+            ScribbleBoardButton("Close",Icons.Outlined.Close,onClick=onClose)
+            Text("Photo",color=Color.White,fontSize=22.sp,modifier=Modifier.weight(1f).padding(start=10.dp))
+            androidx.compose.material3.TextButton(onClick={cropSource=rendered()},enabled=photo!=null) { Text("Crop",color=Color(0xFFF5CB7E)) }
+            androidx.compose.material3.TextButton(onClick={picker.launch("image/*")}) { Text("Change",color=Color(0xFFF5CB7E)) }
+        }
 
         if (photo == null) {
             Box(
@@ -1005,7 +1175,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Outlined.Image, null, tint = CreatePalette.Accent, modifier = Modifier.size(44.dp))
+                    Icon(Icons.Outlined.Image, null, tint = Color(0xFFF5CB7E), modifier = Modifier.size(44.dp))
                     Text(
                         if (loading) "Opening photo…" else "Pick a photo or screenshot",
                         color = Color.White,
@@ -1029,9 +1199,9 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             fontWeight = FontWeight.Medium,
                             fontSize = 16.sp,
                             modifier = Modifier
-                                .shadow(14.dp, shape, spotColor = CreatePalette.Accent)
+                                .shadow(14.dp, shape, spotColor = Color(0xFFF5CB7E))
                                 .clip(shape)
-                                .background(CreatePalette.ShareFill)
+                                .background(Brush.horizontalGradient(listOf(Color(0xFFF3D7A0),Color(0xFFF5CB7E))))
                                 .clickable { picker.launch("image/*") }
                                 .padding(horizontal = 28.dp, vertical = 14.dp)
                         )
@@ -1040,50 +1210,8 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
             }
         } else {
 
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(if (blurMode) "Blur areas" else "Draw on photo", color = CreatePalette.Label, fontFamily = Outfit, fontSize = 15.sp, modifier = Modifier.weight(1f))
-            Text("Crop", color = CreatePalette.Accent, modifier = Modifier.clickable { cropSource = rendered() }.padding(8.dp))
-            if (beforeCrop != null) {
-                Text("Undo crop", color = CreatePalette.Accent, modifier = Modifier.clickable {
-                    photo = beforeCrop
-                    beforeCrop = null
-                    marks.clear()
-                    live.clear()
-                    blurBoxes.clear()
-                    selectedBlur = null
-                    selectedMark = null
-                }.padding(8.dp))
-            }
-            if (marks.isNotEmpty()) {
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { marks.removeAt(marks.lastIndex) }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.Undo, "Undo", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Undo", color = Color.White.copy(alpha = 0.8f), fontFamily = Outfit, fontSize = 15.sp)
-                }
-                Spacer(Modifier.width(10.dp))
-            }
-            Text(
-                "Change",
-                color = CreatePalette.Accent,
-                fontFamily = Outfit,
-                fontSize = 15.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { picker.launch("image/*") }
-                    .padding(horizontal = 4.dp, vertical = 4.dp)
-            )
-        }
+        androidx.compose.material3.TextButton(onClick = { cutoutSource = rendered() }, enabled = !loading,
+            modifier = Modifier.fillMaxWidth()) { Text("Remove background \u00B7 Make sticker", color = Color(0xFFF5CB7E), fontFamily = Outfit) }
 
         // Photo card
         val cardShape = RoundedCornerShape(30.dp)
@@ -1093,9 +1221,8 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp)
                 .clip(cardShape)
-                .background(Color(0x14FFFFFF))
-                .border(1.dp, Color(0x559D63EE), cardShape)
-                .padding(14.dp)
+                .background(Color(0xFF160F26))
+                .padding(4.dp)
         ) {
             val bmp = photo!!
             val image = remember(bmp) { bmp.asImageBitmap() }
@@ -1116,12 +1243,12 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             selectedBlur = blurBoxes.lastOrNull { screenRectOf(it, rect).contains(o) }?.id
                         }
                     }
-                    .pointerInput(bmp, penColor, sizeIdx, imageRect, blurMode, shapeTool, moveMode) {
+                    .pointerInput(bmp, penColor, brushSize, eraserSize, erasing, imageRect, blurMode, shapeTool, moveMode) {
                         val rect = imageRect ?: return@pointerInput
                         if (moveMode) {
                             var moving: Int? = null
                             detectDragGestures(
-                                onDragStart = { o -> moving = hitMark(o, rect); selectedMark = moving },
+                                onDragStart = { o -> checkpoint(); brushPanel=false; dismissHint(); moving = hitMark(o, rect); selectedMark = moving },
                                 onDrag = { change, delta ->
                                     moving?.let { index ->
                                         marks.getOrNull(index)?.let { mark ->
@@ -1146,6 +1273,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             var corner = -1
                             detectDragGestures(
                                 onDragStart = { o ->
+                                    checkpoint(); brushPanel=false; dismissHint()
                                     activeId = null
                                     corner = -1
                                     blurBoxes.firstOrNull { it.id == selectedBlur }?.let { sel ->
@@ -1182,6 +1310,7 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                         fun norm(p: Offset) = Offset((p.x - rect.left) / rect.width, (p.y - rect.top) / rect.height)
                         detectDragGestures(
                             onDragStart = { o ->
+                                checkpoint(); brushPanel=false; shapeMenu=false; dismissHint()
                                 live.clear()
                                 live.add(norm(o))
                             },
@@ -1191,8 +1320,8 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             },
                             onDragEnd = {
                                 if (live.size >= 2) {
-                                    val px = with(density) { PhotoBrushSizes[sizeIdx].dp.toPx() }
-                                    marks.add(PhotoMark(live.toList(), penColor, px / rect.width, shapeTool))
+                                    val px = with(density) { (if(erasing) eraserSize else brushSize).dp.toPx() }
+                                    marks.add(PhotoMark(live.toList(), penColor, px / rect.width, if(erasing) PhotoShape.Pen else shapeTool, erasing))
                                 }
                                 live.clear()
                             },
@@ -1229,20 +1358,24 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                                 }
                             }
                         }
+                        drawContext.canvas.saveLayer(Rect(0f,0f,size.width,size.height),androidx.compose.ui.graphics.Paint())
                         marks.forEach { m ->
                             drawPath(
                                 photoShapePath(m.points.map(::toScreen), m.tool),
                                 m.color,
+                                blendMode=if(m.erasing) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver,
                                 style = Stroke(m.widthFraction * rect.width, cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
                         }
                         if (live.size >= 2) {
                             drawPath(
-                                photoShapePath(live.map(::toScreen), shapeTool),
+                                photoShapePath(live.map(::toScreen), if(erasing) PhotoShape.Pen else shapeTool),
                                 penColor,
-                                style = Stroke(PhotoBrushSizes[sizeIdx].dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                blendMode=if(erasing) androidx.compose.ui.graphics.BlendMode.Clear else androidx.compose.ui.graphics.BlendMode.SrcOver,
+                                style = Stroke((if(erasing) eraserSize else brushSize).dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
                         }
+                        drawContext.canvas.restore()
                     }
                     if (moveMode) selectedMark?.let { index ->
                         markBounds(index, rect)?.inflate(6.dp.toPx())?.let { bounds ->
@@ -1265,181 +1398,113 @@ private fun PhotoMarkupScreen(coordinator: SocialCreateCoordinator, onClose: () 
                             if (sel) {
                                 listOf(r.topLeft, r.topRight, r.bottomRight, r.bottomLeft).forEach { c ->
                                     drawCircle(Color.White, radius = 9.dp.toPx(), center = c)
-                                    drawCircle(CreatePalette.Accent, radius = 9.dp.toPx(), center = c, style = Stroke(2.dp.toPx()))
+                                    drawCircle(Color(0xFFF5CB7E), radius = 9.dp.toPx(), center = c, style = Stroke(2.dp.toPx()))
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            CreateChip("Draw", !blurMode && !moveMode, leading = {
-                Icon(Icons.Outlined.Edit, null, tint = chipIconTint(!blurMode), modifier = Modifier.size(20.dp))
-            }) {
-                blurMode = false
-                moveMode = false
-                selectedBlur = null
-            }
-            CreateChip("Select", moveMode) { moveMode = true; blurMode = false; live.clear() }
-            CreateChip("Blur", blurMode, leading = {
-                Icon(Icons.Outlined.BlurOn, null, tint = chipIconTint(blurMode), modifier = Modifier.size(20.dp))
-            }) {
-                moveMode = false
-                if (blurBoxes.isEmpty()) addBlurBox() else blurMode = true
-            }
-        }
-        if (!blurMode) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PhotoShape.entries.forEach { tool ->
-                    CreateChip(tool.name, shapeTool == tool && !moveMode) { shapeTool = tool; moveMode = false }
+            Row(Modifier.align(Alignment.TopStart).padding(10.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                ScribbleBoardButton("Undo",Icons.AutoMirrored.Outlined.Undo,darkGlass=true) {
+                    if(undoEdits.isNotEmpty()) {redoEdits.add(marks.toList() to blurBoxes.toList());restoreEdit(undoEdits.removeAt(undoEdits.lastIndex))}
+                }
+                ScribbleBoardButton("Redo",Icons.Outlined.Redo,darkGlass=true) {
+                    if(redoEdits.isNotEmpty()) {undoEdits.add(marks.toList() to blurBoxes.toList());restoreEdit(redoEdits.removeAt(redoEdits.lastIndex))}
                 }
             }
-            Text(if (moveMode) "Tap a mark to select it. Drag to move it." else "Choose a tool, then drag on the photo.", color = CreatePalette.Label,
-                fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            if(beforeCrop!=null) Text("Undo crop",color=Color(0xFFF5CB7E),fontSize=12.sp,modifier=Modifier.align(Alignment.TopEnd).padding(12.dp).clickable {
+                photo=beforeCrop;beforeCrop=null;marks.clear();blurBoxes.clear();live.clear();undoEdits.clear();redoEdits.clear();selectedMark=null;selectedBlur=null
+            })
+            if(brushPanel) Row(Modifier.align(Alignment.BottomCenter).padding(10.dp).fillMaxWidth().background(Color(0xF2221D3B),RoundedCornerShape(18.dp)).padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                Text(if(erasing) "Eraser size" else "Brush size",color=Color(0xFFF3D7A0),fontSize=12.sp)
+                RoundBrushSlider(if(erasing) eraserSize else brushSize,if(erasing) 8f..64f else 2f..28f,Modifier.weight(1f)) {if(erasing) eraserSize=it else brushSize=it}
+                Box(Modifier.size(30.dp),contentAlignment=Alignment.Center) {Box(Modifier.size((if(erasing) eraserSize else brushSize).coerceAtMost(28f).dp).background(Color.White,CircleShape))}
+            }
+            if(showHint && !brushPanel) Text("Choose a tool, then drag on the photo.  Got it",color=Color(0xFFF3D7A0),fontSize=12.sp,
+                modifier=Modifier.align(Alignment.BottomCenter).padding(8.dp).background(Color(0xDD191624),RoundedCornerShape(12.dp)).clickable {dismissHint()}.padding(10.dp))
         }
-        if (blurMode) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    CreateChip("Add box", false, leading = {
-                        Icon(Icons.Outlined.Add, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
-                    }) { addBlurBox() }
-                    if (selectedBlur != null) {
-                        CreateChip("Remove", false, leading = {
-                            Icon(Icons.Outlined.Delete, null, tint = chipIconTint(false), modifier = Modifier.size(20.dp))
-                        }) {
-                            blurBoxes.removeAll { it.id == selectedBlur }
-                            selectedBlur = null
+
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp).horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Box {
+                GoldQuoteChip("Draw",!blurMode && !moveMode && !erasing,leading={PhotoToolGlyph(shapeTool,if(!blurMode && !moveMode && !erasing) Color(0xFF211B13) else Color.White)}) {
+                    if(!blurMode && !moveMode && !erasing) shapeMenu=!shapeMenu
+                    blurMode=false;moveMode=false;erasing=false;selectedBlur=null
+                }
+                androidx.compose.material3.DropdownMenu(expanded=shapeMenu,onDismissRequest={shapeMenu=false}) {
+                    PhotoShape.entries.forEach {tool ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text={Text(tool.name,color=if(tool==shapeTool) Color(0xFFF5CB7E) else Color.White)},
+                            leadingIcon={PhotoToolGlyph(tool,Color(0xFFF5CB7E))},
+                            onClick={shapeTool=tool;shapeMenu=false;erasing=false})
+                    }
+                }
+            }
+            GoldQuoteChip("Select",moveMode) {moveMode=true;blurMode=false;erasing=false;brushPanel=false;shapeMenu=false;live.clear()}
+            GoldQuoteChip("Blur",blurMode) {moveMode=false;erasing=false;brushPanel=false;shapeMenu=false;if(blurBoxes.isEmpty()) addBlurBox() else blurMode=true}
+        }
+        Row(Modifier.padding(horizontal=16.dp,vertical=4.dp).fillMaxWidth()
+            .background(Color.White.copy(alpha=.06f),RoundedCornerShape(24.dp))
+            .border(1.dp,Color(0x55F5CB7E),RoundedCornerShape(24.dp)).padding(4.dp),
+            verticalAlignment=Alignment.CenterVertically) {
+            if(blurMode) {
+                androidx.compose.material3.TextButton(onClick={addBlurBox()}) {Text("Add box",color=Color(0xFFF5CB7E),fontSize=12.sp)}
+                val sel=blurBoxes.firstOrNull {it.id==selectedBlur}
+                Text("Strength",color=Color(0xFFF3D7A0),fontSize=11.sp)
+                RoundBrushSlider(sel?.strength ?: 1f,0f..1f,Modifier.weight(1f)) {v ->
+                    val i=blurBoxes.indexOfFirst {it.id==selectedBlur}
+                    if(i>=0) {checkpoint();blurBoxes[i]=blurBoxes[i].copy(strength=v)}
+                }
+                ScribbleBoardButton("Remove blur",Icons.Outlined.Delete) {
+                    if(selectedBlur!=null) {checkpoint();blurBoxes.removeAll {it.id==selectedBlur};selectedBlur=null}
+                }
+            } else {
+                palette.toList().forEach {color ->
+                    Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                        ScribbleToolbarControl(!erasing && penColor==color,{selectColor(color)}) {
+                            Box(Modifier.fillMaxSize().background(color,CircleShape))
                         }
                     }
                 }
-                val selIndex = blurBoxes.indexOfFirst { it.id == selectedBlur }
-                if (selIndex >= 0) {
-                    val sel = blurBoxes[selIndex]
-                    LabeledDragBar(
-                        label = "Blur",
-                        valueText = "${(sel.strength * 100).roundToInt()}",
-                        value = sel.strength,
-                        snapTo = null,
-                        onValue = { v ->
-                            val i = blurBoxes.indexOfFirst { it.id == selectedBlur }
-                            if (i >= 0) blurBoxes[i] = blurBoxes[i].copy(strength = v)
-                        },
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                } else {
-                    Text(
-                        "Tap a box to select it, or add one. Drag to move, pull a corner to resize.",
-                        color = CreatePalette.Label,
-                        fontFamily = Outfit,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
-                    )
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(showMoreColors,{showMoreColors=true}) {
+                        Box(Modifier.fillMaxSize().clip(CircleShape).background(Brush.sweepGradient(listOf(Color.Red,Color.Yellow,Color.Green,Color.Cyan,Color.Blue,Color.Magenta,Color.Red))))
+                    }
                 }
-            }
-        } else {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ToolPill(Modifier.weight(1f)) {
-                PhotoColors.forEach { c ->
-                    ColorSwatch(c, selected = penColor == c, size = 26.dp) { penColor = c }
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(erasing,{erasing=true;moveMode=false;brushPanel=true}) {
+                        Icon(CreateIcons.Eraser,"Eraser",tint=if(erasing) Color(0xFF211B13) else Color(0xFFF3D7A0),modifier=Modifier.size(19.dp))
+                    }
                 }
-                // Rainbow: opens more colors
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .then(
-                            if (penColor in ExtraPhotoColors) Modifier.border(2.dp, CreatePalette.Accent, CircleShape)
-                            else Modifier
-                        )
-                        .clickable { showMoreColors = !showMoreColors },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.sweepGradient(
-                                    listOf(
-                                        Color(0xFFEF4444), Color(0xFFF59E0B), Color(0xFF22C55E),
-                                        Color(0xFF3B82F6), Color(0xFFA855F7), Color(0xFFEF4444)
-                                    )
-                                )
-                            )
-                    )
-                }
-            }
-            Box(
-                Modifier
-                    .padding(horizontal = 8.dp)
-                    .width(1.dp)
-                    .height(30.dp)
-                    .background(Color.White.copy(alpha = 0.15f))
-            )
-            ToolPill {
-                PhotoBrushSizes.forEachIndexed { i, dpSize ->
-                    val sel = sizeIdx == i
-                    Box(
-                        Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .then(
-                                if (sel) Modifier
-                                    .background(Color(0x339D63EE))
-                                    .border(2.dp, CreatePalette.Accent, CircleShape)
-                                else Modifier
-                            )
-                            .clickable { sizeIdx = i },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            Modifier
-                                .size((5f + dpSize * 0.8f).dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = if (sel) 1f else 0.8f))
-                        )
+                Box(Modifier.weight(1f),contentAlignment=Alignment.Center) {
+                    ScribbleToolbarControl(brushPanel,{brushPanel=!brushPanel}) {
+                        Icon(Icons.Outlined.Tune,"Brush size",tint=if(brushPanel) Color(0xFF211B13) else Color(0xFFF3D7A0),modifier=Modifier.size(19.dp))
                     }
                 }
             }
         }
-        if (showMoreColors) {
-            Row(
-                Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ExtraPhotoColors.forEach { c ->
-                    ColorSwatch(c, selected = penColor == c, size = 26.dp) {
-                        penColor = c
-                        showMoreColors = false
-                    }
-                }
-            }
-        }
-        }
+        if(showMoreColors) ScribbleColourWheel(penColor,onDismiss={showMoreColors=false}) {selectColor(it);showMoreColors=false}
 
         CreateActionBar(
+            small=true,goldAccent=true,
             onSave = ::save,
-            onShare = ::share,
-            onSticker = {
-                rendered()?.let { coordinator.addToStickerPack(CreationKind.Photo, it, "A photo with drawn marks") }
-            }
+            onShare = ::share
         )
         }
+    }
+}
+
+@Composable
+private fun PhotoToolGlyph(tool: PhotoShape, color: Color) {
+    Canvas(Modifier.size(22.dp)) {
+        val path = when(tool) {
+            PhotoShape.Circle -> Path().apply {addOval(Rect(size.width*.16f,size.height*.16f,size.width*.84f,size.height*.84f))}
+            PhotoShape.Square -> Path().apply {addRect(Rect(size.width*.16f,size.height*.16f,size.width*.84f,size.height*.84f))}
+            PhotoShape.Rectangle -> Path().apply {addRect(Rect(size.width*.1f,size.height*.26f,size.width*.9f,size.height*.74f))}
+            PhotoShape.Pen -> photoShapePath(listOf(Offset(size.width*.15f,size.height*.8f),Offset(size.width*.45f,size.height*.2f),Offset(size.width*.65f,size.height*.65f),Offset(size.width*.85f,size.height*.2f)),tool)
+            else -> photoShapePath(listOf(Offset(size.width*.18f,size.height*.82f),Offset(size.width*.82f,size.height*.18f)),tool)
+        }
+        drawPath(path,color,style=Stroke(2.dp.toPx(),cap=StrokeCap.Round,join=StrokeJoin.Round))
     }
 }
 
@@ -1482,3 +1547,53 @@ private fun decodeForMarkup(context: Context, uri: Uri, maxSide: Int = 2560): Bi
         context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
     }
 }.getOrNull()
+
+@Composable
+private fun ScribbleStyleChip(style: ScribbleBrushStyle, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.clip(RoundedCornerShape(20.dp))
+            .background(if(selected) Color(0xFFF5CB7E) else CreatePalette.ChipFill)
+            .border(1.dp,if(selected) Color(0xFFF3D7A0) else Color(0x55F5CB7E),RoundedCornerShape(20.dp))
+            .clickable(onClick=onClick).padding(horizontal=12.dp,vertical=7.dp),
+        verticalAlignment=Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(18.dp),contentAlignment=Alignment.Center) { BrushStyleIcon(style,selected) }
+        Spacer(Modifier.width(6.dp))
+        Text(style.name,color=if(selected) Color(0xFF211B13) else Color.White,fontSize=14.sp,fontWeight=FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ScribbleToolbarControl(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).clickable(onClick=onClick)
+            .then(if(selected) Modifier.border(2.dp,Color(0xFFF5CB7E),CircleShape) else Modifier)
+            .padding(4.dp),
+        contentAlignment=Alignment.Center
+    ) {
+        Box(
+            Modifier.fillMaxSize().clip(CircleShape)
+                .background(if(selected) Color(0xFFF5CB7E) else Color(0x441A1733))
+                .border(1.dp,Color(0x55F5CB7E),CircleShape),
+            contentAlignment=Alignment.Center
+        ) { content() }
+    }
+}
+
+@Composable
+private fun ScribbleBoardButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean = false, darkGlass: Boolean = false, onClick: () -> Unit) {
+    androidx.compose.material3.IconButton(onClick=onClick,modifier=Modifier.size(40.dp).clip(CircleShape)
+        .background(if(selected) Color(0xFFF5CB7E) else if(darkGlass) Color(0xE6191C24) else Color(0x441A1733))
+        .border(1.dp,Color(0x55F5CB7E),CircleShape)) {
+        Icon(icon,label,tint=if(selected) Color(0xFF211338) else Color(0xFFF3D7A0),modifier=Modifier.size(19.dp))
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun RoundBrushSlider(value: Float, range: ClosedFloatingPointRange<Float>, modifier: Modifier, onChange: (Float) -> Unit) {
+    androidx.compose.material3.Slider(value=value,onValueChange=onChange,valueRange=range,modifier=modifier,
+        colors=androidx.compose.material3.SliderDefaults.colors(activeTrackColor=Color(0xFFF5CB7E),inactiveTrackColor=Color(0x44F5CB7E)),
+        thumb={Box(Modifier.size(24.dp).clip(CircleShape).background(Color.White).border(3.dp,Color(0xFFF5CB7E),CircleShape))},
+        track={ slider -> androidx.compose.material3.SliderDefaults.Track(sliderState=slider,drawStopIndicator=null,thumbTrackGapSize=0.dp) })
+}

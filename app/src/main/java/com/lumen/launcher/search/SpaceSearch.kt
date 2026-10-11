@@ -7,10 +7,10 @@ import com.lumen.launcher.vm.LauncherUiState
 object SpaceSearch {
     fun hint(space: SpaceKind) = when (space) {
         SpaceKind.Work -> "Search work…"
-        SpaceKind.Personal -> "Search people, apps, create…"
+        SpaceKind.Personal -> "Search your world\u2026"
         SpaceKind.Focus -> "Search what you need…"
         SpaceKind.Travel -> "Search this trip…"
-        else -> "Search apps, people, anything…"
+        else -> "Search anything…"
     }
 
     fun results(s: LauncherUiState, people: List<SearchHit.Action> = emptyList()): List<SearchHit> {
@@ -32,7 +32,7 @@ object SpaceSearch {
         } else {
             SearchInterpreter.interpret(q, s.visibleApps, s.recents, s.aliases, limit = s.visibleApps.size).forEach { hit ->
                 val score = when (hit) {
-                    is SearchHit.App -> hit.score + boost(hit.app)
+                    is SearchHit.App -> if (FuzzySearch.normalize(q) == FuzzySearch.normalize(hit.app.label)) 1500 else hit.score + boost(hit.app)
                     is SearchHit.Math -> 1300
                     is SearchHit.Action -> 900
                     is SearchHit.IntentGroup, is SearchHit.Discovery -> 750

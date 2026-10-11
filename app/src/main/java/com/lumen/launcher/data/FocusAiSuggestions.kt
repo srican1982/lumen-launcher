@@ -16,12 +16,12 @@ object FocusAiSuggestions {
             Task: ${JSONObject.quote(task)}
             Catalog: $catalog""".trimIndent()
         val reply = if (LlmClient.kind(key) == LlmClient.Kind.OpenRouter) {
-            LlmClient.postOpenRouter(key, "google/gemini-2.5-flash", prompt, true, 512)
+            LlmClient.postOpenRouter(key, AiModels.openRouter, prompt, true, 512)
         } else {
             val body = JSONObject().put("contents", JSONArray().put(JSONObject().put("parts",
                 JSONArray().put(JSONObject().put("text", prompt)))))
                 .put("generationConfig", JSONObject().put("responseMimeType", "application/json").put("temperature", 0.1))
-            LlmClient.postGemini(key, "gemini-2.5-flash", body.toString())
+            LlmClient.postGemini(key, AiModels.gemini, body.toString())
         } ?: return null
         if (reply.code !in 200..299) return null
         return parse(LlmClient.extractText(reply.body).orEmpty(), apps.map { it.key }.toSet())

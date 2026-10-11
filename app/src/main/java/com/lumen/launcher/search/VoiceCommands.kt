@@ -241,6 +241,10 @@ object VoiceCommands {
         if (mer.startsWith("a") && hour == 12) hour = 0
         if (hour == 24) hour = 0
         if (mer.isBlank() && hour in 1..12) {
+            val morning = text.contains("morning") || (text.contains("wake") && !text.contains("evening") && !text.contains("night"))
+            val evening = text.contains("evening") || text.contains("afternoon") || text.contains("tonight")
+            if (morning) return (if (hour == 12) 0 else hour) to minute
+            if (evening) return (if (hour == 12) 12 else hour + 12) to minute
             return soonestHour(hour, minute)
         }
         return hour to minute

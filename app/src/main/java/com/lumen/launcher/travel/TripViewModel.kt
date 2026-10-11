@@ -217,6 +217,22 @@ class TripViewModel(app: Application) : AndroidViewModel(app) {
         onTripModeToggled(false)
     }
 
+    fun deleteAlbum(tripId: Long, onDeleted: () -> Unit) {
+        if (loading.value) return
+        loading.value = true
+        viewModelScope.launch {
+            try {
+                repo.deleteAlbum(tripId)
+                if (completed.value?.id == tripId) completed.value = null
+                onDeleted()
+            } catch (failure: Exception) {
+                reportError(failure.message ?: "Could not delete the album.")
+            } finally {
+                loading.value = false
+            }
+        }
+    }
+
     fun reportError(message: String) { error.value = message }
 
     fun removeFromTrip(photoIds: List<Long>) {

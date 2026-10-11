@@ -61,7 +61,6 @@ class AlarmActivity : ComponentActivity() {
         val minute = intent.getIntExtra(AlarmIntents.EXTRA_MINUTE, 0)
         val label = intent.getStringExtra(AlarmIntents.EXTRA_LABEL).orEmpty()
         val tone = intent.getStringExtra(AlarmIntents.EXTRA_TONE) ?: AlarmTones.AURA
-        AlarmTonePlayer.start(this, tone, loop = true)
         setContent {
             LumenTheme {
                 AlarmRingScreen(
@@ -82,7 +81,6 @@ class AlarmActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isFinishing) AlarmTonePlayer.stop()
     }
 }
 

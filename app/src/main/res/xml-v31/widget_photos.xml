@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android" android:minWidth="140dp" android:minHeight="132dp" android:minResizeWidth="140dp" android:minResizeHeight="96dp" android:targetCellWidth="2" android:targetCellHeight="2" android:initialLayout="@layout/lumen_widget_content" android:previewLayout="@layout/widget_preview_photos" android:previewImage="@drawable/widget_preview" android:resizeMode="horizontal|vertical" android:updatePeriodMillis="1800000" android:widgetCategory="home_screen" />

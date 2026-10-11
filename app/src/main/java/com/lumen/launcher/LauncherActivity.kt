@@ -36,13 +36,21 @@ import com.lumen.launcher.voice.LumenVoiceSession
 import com.lumen.launcher.voice.SpeechRecognizers
 import com.lumen.launcher.voice.VoiceEngine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class LauncherActivity : FragmentActivity() {
 
     private val viewModel: LauncherViewModel by viewModels()
+    private val alarmViewModel: com.lumen.launcher.alarm.AlarmViewModel by viewModels()
+    private val voiceViewModel: com.lumen.launcher.vm.VoiceViewModel by viewModels {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                com.lumen.launcher.vm.VoiceViewModel(application, viewModel.homeActions, viewModel.taskActions, viewModel.alarmActions) as T
+        }
+    }
     private var authenticating = false
     private var pendingMicForVoice = false
-    private var overLockscreen = false
     private var askedWakeMic = false
     private var promptInFlight = false
     private var lastSheet: Sheet? = null
@@ -50,7 +58,7 @@ class LauncherActivity : FragmentActivity() {
     private val promptWatchdog = Runnable {
         if (!promptInFlight) return@Runnable
         promptInFlight = false
-        if (viewModel.state.value.sheet == Sheet.Voice) viewModel.onVoiceEngineStuck()
+        if (viewModel.state.value.sheet == Sheet.Voice) voiceViewModel.onVoiceEngineStuck()
     }
 
     private val speechPrompt = registerForActivityResult(
@@ -63,9 +71,9 @@ class LauncherActivity : FragmentActivity() {
             ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             .orEmpty()
         if (result.resultCode == Activity.RESULT_OK && texts.any { it.isNotBlank() }) {
-            viewModel.onVoiceResults(texts)
+            voiceViewModel.onVoiceResults(texts)
         } else {
-            viewModel.onVoiceNoSpeech()
+            voiceViewModel.onVoiceNoSpeech()
         }
     }
 
@@ -75,9 +83,16 @@ class LauncherActivity : FragmentActivity() {
         viewModel.refreshApps()
     }
 
+    private var pendingCallLogAccess = false
+
     private val assistantRoleLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { }
+    ) {
+        if (pendingCallLogAccess) {
+            pendingCallLogAccess = false
+            if (AssistantRole.isHeld(this)) requestPhoneHistoryPermission()
+        }
+    }
 
     private val contactsPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -95,6 +110,8 @@ class LauncherActivity : FragmentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         viewModel.onCallLogPermission(granted)
+        if (!granted) android.widget.Toast.makeText(this,
+            "Call history was not allowed. Enable Call logs in Lumen app permissions.", android.widget.Toast.LENGTH_LONG).show()
     }
 
     private val notificationPermission = registerForActivityResult(
@@ -104,8 +121,23 @@ class LauncherActivity : FragmentActivity() {
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (pendingMicForVoice) viewModel.onMicPermission(granted)
+        if (pendingMicForVoice) voiceViewModel.onMicPermission(granted)
         else if (!granted) viewModel.setHeyLumen(false)
+    }
+
+    private fun requestPhoneHistoryPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED) {
+            viewModel.onCallLogPermission(true)
+        } else {
+            val prefs = getSharedPreferences("permission_requests", MODE_PRIVATE)
+            if (prefs.getBoolean("call_history", false) && !shouldShowRequestPermissionRationale(Manifest.permission.READ_CALL_LOG)) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse("package:$packageName")))
+            } else {
+                prefs.edit().putBoolean("call_history", true).apply()
+                callLogPermission.launch(Manifest.permission.READ_CALL_LOG)
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,55 +149,16 @@ class LauncherActivity : FragmentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         clearNavScrim()
+        viewModel.bindVoice(voiceViewModel)
+        viewModel.bindAlarms(alarmViewModel)
         voiceEngine = VoiceEngine(applicationContext, voiceCallbacks)
-        viewModel.onAuthenticate = { onSuccess, onFail -> authenticate(onSuccess, onFail) }
-        viewModel.onRequestContacts = {
-            contactsPermission.launch(Manifest.permission.READ_CONTACTS)
-        }
-        viewModel.onRequestCalendar = {
-            val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR) ==
-                PackageManager.PERMISSION_GRANTED
-            if (ok) viewModel.onCalendarPermission(true)
-            else calendarPermission.launch(Manifest.permission.READ_CALENDAR)
-        }
-        viewModel.onRequestCallLog = {
-            if (!AssistantRole.isHeld(this)) {
-                AssistantRole.request(this, assistantRoleLauncher)
-            } else {
-                val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
-                    PackageManager.PERMISSION_GRANTED
-                if (ok) viewModel.onCallLogPermission(true)
-                else callLogPermission.launch(Manifest.permission.READ_CALL_LOG)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                viewModel.events.collect { event -> handleEvent(event) }
             }
-        }
-        viewModel.onRequestNotifications = {
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-        viewModel.onOpenConversation = { item ->
-            com.lumen.launcher.inbox.InboxHub.openConversation(this, item)
-        }
-        viewModel.onStartActivity = { intent ->
-            runCatching { startActivity(intent) }.isSuccess
-        }
-        viewModel.onRequestMic = {
-            requestMic(forVoice = true)
-        }
-        viewModel.onRequestMicQuiet = {
-            requestMic(forVoice = false)
-        }
-        viewModel.onSpeak = { text, listen -> voiceEngine.speak(text, listen) }
-        viewModel.onListen = { startListen() }
-        viewModel.onStopVoice = { stopVoice() }
-        viewModel.onRequestAssistant = {
-            AssistantRole.request(this, assistantRoleLauncher)
         }
         setContent {
-            val state by viewModel.state.collectAsStateWithLifecycle()
+            val state by viewModel.chromeState.collectAsStateWithLifecycle()
             // Always handle Back on the home screen. If nothing is open, do nothing: letting
             // Android finish the launcher made it restart and replay the icon animation.
             BackHandler(enabled = true) {
@@ -201,9 +194,12 @@ class LauncherActivity : FragmentActivity() {
                         val want = state.heyLumen &&
                             mic &&
                             state.sheet == Sheet.None &&
-                            !state.privatePageActive
-                        if (::voiceEngine.isInitialized) voiceEngine.setWakeWanted(want)
-                        if (state.sheet != Sheet.Voice) hideOverLockscreen()
+                            !state.privatePageActive &&
+                            !getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
+                        if (::voiceEngine.isInitialized) {
+                            voiceEngine.updateContext(state.voiceLanguage, voiceViewModel.speechHints())
+                            voiceEngine.setWakeWanted(want)
+                        }
                     }
                 } finally {
                     if (::voiceEngine.isInitialized) voiceEngine.setWakeWanted(false)
@@ -211,10 +207,13 @@ class LauncherActivity : FragmentActivity() {
             }
         }
         handleVoiceIntent(intent)
+        handleWidgetIntent(intent)
     }
 
     override fun onResume() {
         super.onResume()
+        viewModel.onCallLogPermission(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED)
+        voiceViewModel.onVoiceHomeResume()
         viewModel.resumeFocusSetup()
         clearNavScrim()
         viewModel.refreshApps()
@@ -233,14 +232,19 @@ class LauncherActivity : FragmentActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked && ::voiceEngine.isInitialized) {
+            voiceEngine.stopCommand()
+            viewModel.closeSheet()
+        }
         if (!authenticating) viewModel.lockPrivate()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        viewModel.onHomeVisible()
+        if (!com.lumen.launcher.widgets.WidgetActions.isWidgetIntent(intent)) viewModel.onHomeVisible()
         handleVoiceIntent(intent)
+        handleWidgetIntent(intent)
     }
 
     override fun onDestroy() {
@@ -249,46 +253,94 @@ class LauncherActivity : FragmentActivity() {
         super.onDestroy()
     }
 
+    private fun handleEvent(event: com.lumen.launcher.vm.LauncherEvent) {
+        val locked = getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked
+        if (locked) {
+            voiceEngine.stopCommand()
+            if (event is com.lumen.launcher.vm.LauncherEvent.Authenticate) event.failure()
+            return
+        }
+        when (event) {
+            is com.lumen.launcher.vm.LauncherEvent.Authenticate -> authenticate(event.success, event.failure)
+            is com.lumen.launcher.vm.LauncherEvent.Open -> runCatching { startActivity(event.intent) }
+            is com.lumen.launcher.vm.LauncherEvent.Conversation -> {
+                if (!com.lumen.launcher.inbox.InboxHub.openConversation(this, event.item))
+                    android.widget.Toast.makeText(this, "This conversation link has expired. Open a newer notification.", android.widget.Toast.LENGTH_LONG).show()
+            }
+            is com.lumen.launcher.vm.LauncherEvent.Missed -> {
+                val pending = com.lumen.launcher.inbox.WhatsAppMissedHub.contentIntent(event.call.key)
+                if (pending == null || (Build.VERSION.SDK_INT >= 31 && !pending.isActivity) || !com.lumen.launcher.inbox.InboxHub.sendFromTap(this, pending)) event.fallback()
+            }
+            is com.lumen.launcher.vm.LauncherEvent.Speak -> voiceEngine.speak(event.text, event.listen)
+            com.lumen.launcher.vm.LauncherEvent.Listen -> startListen()
+            com.lumen.launcher.vm.LauncherEvent.StopVoice -> stopVoice()
+            is com.lumen.launcher.vm.LauncherEvent.Confirm -> android.app.AlertDialog.Builder(this)
+                .setTitle(event.title).setMessage(event.message).setNegativeButton("Cancel", null)
+                .setPositiveButton("Open settings") { _, _ -> event.action() }.show()
+            is com.lumen.launcher.vm.LauncherEvent.Permission -> when (event) {
+                com.lumen.launcher.vm.LauncherEvent.Permission.Contacts -> contactsPermission.launch(Manifest.permission.READ_CONTACTS)
+                com.lumen.launcher.vm.LauncherEvent.Permission.Calendar -> {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED)
+                        viewModel.onCalendarPermission(true)
+                    else calendarPermission.launch(Manifest.permission.READ_CALENDAR)
+                }
+                com.lumen.launcher.vm.LauncherEvent.Permission.CallLog -> requestPhoneHistoryPermission()
+                com.lumen.launcher.vm.LauncherEvent.Permission.Notifications -> {
+                    if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                com.lumen.launcher.vm.LauncherEvent.Permission.Mic -> requestMic(true)
+                com.lumen.launcher.vm.LauncherEvent.Permission.MicQuiet -> requestMic(false)
+                com.lumen.launcher.vm.LauncherEvent.Permission.Assistant -> AssistantRole.request(this, assistantRoleLauncher)
+            }
+        }
+    }
+
     private fun requestMic(forVoice: Boolean) {
         pendingMicForVoice = forVoice
         val ok = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (ok) {
-            if (forVoice) viewModel.onMicPermission(true)
+            if (forVoice) voiceViewModel.onMicPermission(true)
         } else {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
     private fun handleVoiceIntent(intent: Intent?) {
-        val action = intent?.action ?: return
-        if (action == LumenVoiceSession.ACTION_HEY_LUMEN ||
-            action == Intent.ACTION_ASSIST ||
-            action == Intent.ACTION_VOICE_COMMAND
-        ) {
-            showOverLockscreen()
-            viewModel.openVoice(fromWake = true)
-        }
+        if (intent == null || !LumenVoiceSession.isTrusted(intent)) return
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        if (keyguard.isKeyguardLocked) {
+            keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+                override fun onDismissSucceeded() {
+                    if (Build.VERSION.SDK_INT >= 27) setShowWhenLocked(false)
+                    voiceViewModel.openVoice(fromWake = true)
+                }
+                override fun onDismissCancelled() { if (Build.VERSION.SDK_INT >= 27) setShowWhenLocked(false) }
+                override fun onDismissError() { if (Build.VERSION.SDK_INT >= 27) setShowWhenLocked(false) }
+            })
+        } else voiceViewModel.openVoice(fromWake = true)
     }
 
-    private fun showOverLockscreen() {
-        overLockscreen = true
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(true)
+    private fun handleWidgetIntent(intent: Intent?) {
+        val action = com.lumen.launcher.widgets.WidgetActions.read(this, intent) ?: return
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        fun open() {
+            lifecycleScope.launch {
+                val ready = kotlinx.coroutines.withTimeoutOrNull(5_000) {
+                    viewModel.state.first { it.homePreferencesReady }
+                }
+                if (ready != null && !keyguard.isKeyguardLocked) viewModel.openWidgetDestination(action.first, action.second)
+            }
         }
-    }
-
-    private fun hideOverLockscreen() {
-        if (!overLockscreen) return
-        overLockscreen = false
-        if (Build.VERSION.SDK_INT >= 27) {
-            setShowWhenLocked(false)
-            setTurnScreenOn(false)
-        }
+        if (keyguard.isKeyguardLocked) keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() { open() }
+        }) else open()
     }
 
     private fun startListen() {
+        if (voiceViewModel.voiceTyping) return
+        if (getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) return
         if (promptInFlight) return
         if (!voiceEngine.hasRecognizer()) {
             listenViaPrompt()
@@ -298,19 +350,21 @@ class LauncherActivity : FragmentActivity() {
     }
 
     private fun listenViaPrompt() {
+        if (voiceViewModel.voiceTyping) return
+        if (getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) return
         if (promptInFlight) return
-        val intent = SpeechRecognizers.promptIntent(this)
+        val intent = SpeechRecognizers.promptIntent(this, viewModel.state.value.voiceLanguage, voiceViewModel.speechHints())
         if (intent == null) {
-            viewModel.onVoiceEngineStuck()
+            voiceViewModel.onVoiceEngineStuck()
             return
         }
         promptInFlight = true
         window.decorView.removeCallbacks(promptWatchdog)
         window.decorView.postDelayed(promptWatchdog, 45_000L)
-        viewModel.onVoiceListening()
+        voiceViewModel.onVoiceListening()
         runCatching { speechPrompt.launch(intent) }.onFailure {
             promptInFlight = false
-            viewModel.onVoiceEngineStuck()
+            voiceViewModel.onVoiceEngineStuck()
         }
     }
 
@@ -321,24 +375,23 @@ class LauncherActivity : FragmentActivity() {
     }
 
     private val voiceCallbacks = object : VoiceEngine.Callbacks {
-        override fun onStarting() = viewModel.onVoiceStarting()
-        override fun onListening() = viewModel.onVoiceListening()
-        override fun onPartial(text: String) = viewModel.onVoicePartial(text)
-        override fun onResults(texts: List<String>) = viewModel.onVoiceResults(texts)
+        override fun onStarting() = voiceViewModel.onVoiceStarting()
+        override fun onListening() = voiceViewModel.onVoiceListening()
+        override fun onPartial(text: String) = voiceViewModel.onVoicePartial(text)
+        override fun onResults(texts: List<String>) = voiceViewModel.onVoiceResults(texts)
         override fun onWake(remainder: String) {
-            showOverLockscreen()
-            viewModel.onWakeWord(remainder)
+            if (!getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) voiceViewModel.onWakeWord(remainder)
         }
-        override fun onLevel(level: Float) = viewModel.onVoiceLevel(level)
-        override fun onHardError(message: String) = viewModel.onVoiceHardError(message)
-        override fun onSoftMiss() = viewModel.onVoiceNoSpeech()
+        override fun onLevel(level: Float) = voiceViewModel.onVoiceLevel(level)
+        override fun onHardError(message: String) = voiceViewModel.onVoiceHardError(message)
+        override fun onSoftMiss() = voiceViewModel.onVoiceNoSpeech()
         override fun onSpeakFinished(listenAfter: Boolean) {
             if (listenAfter) {
                 window.decorView.postDelayed({
                     if (viewModel.state.value.sheet == Sheet.Voice) startListen()
                 }, 280L)
             } else {
-                viewModel.onSpeakFinished()
+                voiceViewModel.onSpeakFinished()
             }
         }
         override fun onNeedPrompt() = listenViaPrompt()

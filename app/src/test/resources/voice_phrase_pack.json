@@ -1,0 +1,2338 @@
+{
+  "apps": [
+    "ChatGPT",
+    "Chrome",
+    "Chase",
+    "Calendar",
+    "Camera",
+    "Gmail",
+    "WhatsApp",
+    "YouTube",
+    "Maps",
+    "Messages",
+    "Phone",
+    "Settings",
+    "Spotify",
+    "Instagram",
+    "Facebook",
+    "Claude",
+    "Gemini",
+    "Google",
+    "Photos",
+    "Clock",
+    "Calculator",
+    "Contacts",
+    "Drive",
+    "Docs",
+    "Netflix",
+    "Uber",
+    "Outlook",
+    "Teams",
+    "Zoom",
+    "Slack",
+    "PickMe",
+    "Perplexity",
+    "Copilot",
+    "Threads",
+    "X",
+    "Telegram",
+    "Viber",
+    "Snapchat",
+    "TikTok",
+    "Play Store"
+  ],
+  "folders": [
+    "Work",
+    "music"
+  ],
+  "cases": [
+    {
+      "candidates": [
+        "open WhatsApp app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "open the YouTube app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "open my Gmail app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "gmail"
+    },
+    {
+      "candidates": [
+        "open the Chrome browser"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chrome"
+    },
+    {
+      "candidates": [
+        "open chatgpt app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open the chat GPT app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "hey open chat GPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "show me ChatGPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open ChatGPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open chat GPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open chat G P T"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open chat GBT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open Chad GPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "go to chat GPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open up chat GPT"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open you tube"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "open whats app"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "open G mail"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "gmail"
+    },
+    {
+      "candidates": [
+        "open play store"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "play store"
+    },
+    {
+      "candidates": [
+        "could you open WhatsApp for me"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "I want to open YouTube"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "take me to WhatsApp"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "bring up Spotify"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "pull up YouTube"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "open Docs",
+        "open dock",
+        "open docks"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "docs"
+    },
+    {
+      "candidates": [
+        "call mom"
+      ],
+      "action": "CALL",
+      "core": true,
+      "recipient": "mom"
+    },
+    {
+      "candidates": [
+        "text John I'm running late"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": true,
+      "text": "I'm running late",
+      "recipient": "john"
+    },
+    {
+      "candidates": [
+        "set a timer for 10 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "int": 10
+    },
+    {
+      "candidates": [
+        "turn on the flashlight"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": true,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "play some music on Spotify"
+      ],
+      "action": "PLAY_MEDIA",
+      "core": true,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "what's on my calendar today"
+      ],
+      "action": "NEXT_EVENT",
+      "core": true
+    },
+    {
+      "candidates": [
+        "add milk to my shopping list"
+      ],
+      "action": "SET_REMINDER",
+      "core": true,
+      "text": "milk"
+    },
+    {
+      "candidates": [
+        "remind me to call mom tomorrow at 5"
+      ],
+      "action": "SET_REMINDER",
+      "core": true,
+      "text": "call mom"
+    },
+    {
+      "candidates": [
+        "set an alarm for 6:30 tomorrow morning"
+      ],
+      "action": "SET_ALARM",
+      "core": true,
+      "hour": 6,
+      "minute": 30
+    },
+    {
+      "candidates": [
+        "wake me up at 6"
+      ],
+      "action": "SET_ALARM",
+      "core": true,
+      "hour": 6
+    },
+    {
+      "candidates": [
+        "what's the weather like"
+      ],
+      "action": "WEATHER",
+      "core": true
+    },
+    {
+      "candidates": [
+        "open ChatGPT"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "please open the ChatGPT app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "switch to ChatGPT"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chatgpt"
+    },
+    {
+      "candidates": [
+        "open Chrome"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chrome"
+    },
+    {
+      "candidates": [
+        "please open the Chrome app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chrome"
+    },
+    {
+      "candidates": [
+        "get me Chrome"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chrome"
+    },
+    {
+      "candidates": [
+        "open Chase"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chase"
+    },
+    {
+      "candidates": [
+        "please open the Chase app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chase"
+    },
+    {
+      "candidates": [
+        "run Chase"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chase"
+    },
+    {
+      "candidates": [
+        "open Calendar"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calendar"
+    },
+    {
+      "candidates": [
+        "please open the Calendar app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calendar"
+    },
+    {
+      "candidates": [
+        "fire up Calendar"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calendar"
+    },
+    {
+      "candidates": [
+        "open Camera"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "camera"
+    },
+    {
+      "candidates": [
+        "please open the Camera app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "camera"
+    },
+    {
+      "candidates": [
+        "show me Camera"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "camera"
+    },
+    {
+      "candidates": [
+        "open Gmail"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gmail"
+    },
+    {
+      "candidates": [
+        "please open the Gmail app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gmail"
+    },
+    {
+      "candidates": [
+        "switch to Gmail"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gmail"
+    },
+    {
+      "candidates": [
+        "open WhatsApp"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "please open the WhatsApp app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "get me WhatsApp"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "open YouTube"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "please open the YouTube app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "run YouTube"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "open Maps"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "maps"
+    },
+    {
+      "candidates": [
+        "please open the Maps app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "maps"
+    },
+    {
+      "candidates": [
+        "fire up Maps"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "maps"
+    },
+    {
+      "candidates": [
+        "open Messages"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "messages"
+    },
+    {
+      "candidates": [
+        "please open the Messages app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "messages"
+    },
+    {
+      "candidates": [
+        "show me Messages"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "messages"
+    },
+    {
+      "candidates": [
+        "open Phone"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "phone"
+    },
+    {
+      "candidates": [
+        "please open the Phone app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "phone"
+    },
+    {
+      "candidates": [
+        "switch to Phone"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "phone"
+    },
+    {
+      "candidates": [
+        "open Settings"
+      ],
+      "action": "OPEN_SETTINGS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "please open the Settings app"
+      ],
+      "action": "OPEN_SETTINGS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "get me Settings"
+      ],
+      "action": "OPEN_SETTINGS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open Spotify"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "please open the Spotify app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "run Spotify"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "open Instagram"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "instagram"
+    },
+    {
+      "candidates": [
+        "please open the Instagram app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "instagram"
+    },
+    {
+      "candidates": [
+        "fire up Instagram"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "instagram"
+    },
+    {
+      "candidates": [
+        "open Facebook"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "facebook"
+    },
+    {
+      "candidates": [
+        "please open the Facebook app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "facebook"
+    },
+    {
+      "candidates": [
+        "show me Facebook"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "facebook"
+    },
+    {
+      "candidates": [
+        "open Claude"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "claude"
+    },
+    {
+      "candidates": [
+        "please open the Claude app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "claude"
+    },
+    {
+      "candidates": [
+        "switch to Claude"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "claude"
+    },
+    {
+      "candidates": [
+        "open Gemini"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gemini"
+    },
+    {
+      "candidates": [
+        "please open the Gemini app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gemini"
+    },
+    {
+      "candidates": [
+        "get me Gemini"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "gemini"
+    },
+    {
+      "candidates": [
+        "open Google"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "google"
+    },
+    {
+      "candidates": [
+        "please open the Google app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "google"
+    },
+    {
+      "candidates": [
+        "run Google"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "google"
+    },
+    {
+      "candidates": [
+        "open Photos"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "photos"
+    },
+    {
+      "candidates": [
+        "please open the Photos app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "photos"
+    },
+    {
+      "candidates": [
+        "fire up Photos"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "photos"
+    },
+    {
+      "candidates": [
+        "open Clock"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "clock"
+    },
+    {
+      "candidates": [
+        "please open the Clock app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "clock"
+    },
+    {
+      "candidates": [
+        "show me Clock"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "clock"
+    },
+    {
+      "candidates": [
+        "open Calculator"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calculator"
+    },
+    {
+      "candidates": [
+        "please open the Calculator app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calculator"
+    },
+    {
+      "candidates": [
+        "switch to Calculator"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "calculator"
+    },
+    {
+      "candidates": [
+        "open Contacts"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "contacts"
+    },
+    {
+      "candidates": [
+        "please open the Contacts app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "contacts"
+    },
+    {
+      "candidates": [
+        "get me Contacts"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "contacts"
+    },
+    {
+      "candidates": [
+        "open Drive"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "drive"
+    },
+    {
+      "candidates": [
+        "please open the Drive app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "drive"
+    },
+    {
+      "candidates": [
+        "run Drive"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "drive"
+    },
+    {
+      "candidates": [
+        "open Docs"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "docs"
+    },
+    {
+      "candidates": [
+        "please open the Docs app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "docs"
+    },
+    {
+      "candidates": [
+        "fire up Docs"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "docs"
+    },
+    {
+      "candidates": [
+        "open Netflix"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "netflix"
+    },
+    {
+      "candidates": [
+        "please open the Netflix app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "netflix"
+    },
+    {
+      "candidates": [
+        "show me Netflix"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "netflix"
+    },
+    {
+      "candidates": [
+        "open Uber"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "uber"
+    },
+    {
+      "candidates": [
+        "please open the Uber app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "uber"
+    },
+    {
+      "candidates": [
+        "switch to Uber"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "uber"
+    },
+    {
+      "candidates": [
+        "open Outlook"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "outlook"
+    },
+    {
+      "candidates": [
+        "please open the Outlook app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "outlook"
+    },
+    {
+      "candidates": [
+        "get me Outlook"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "outlook"
+    },
+    {
+      "candidates": [
+        "open Teams"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "teams"
+    },
+    {
+      "candidates": [
+        "please open the Teams app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "teams"
+    },
+    {
+      "candidates": [
+        "run Teams"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "teams"
+    },
+    {
+      "candidates": [
+        "open Zoom"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "zoom"
+    },
+    {
+      "candidates": [
+        "please open the Zoom app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "zoom"
+    },
+    {
+      "candidates": [
+        "fire up Zoom"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "zoom"
+    },
+    {
+      "candidates": [
+        "open Slack"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "slack"
+    },
+    {
+      "candidates": [
+        "please open the Slack app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "slack"
+    },
+    {
+      "candidates": [
+        "show me Slack"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "slack"
+    },
+    {
+      "candidates": [
+        "open PickMe"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "pickme"
+    },
+    {
+      "candidates": [
+        "please open the PickMe app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "pickme"
+    },
+    {
+      "candidates": [
+        "switch to PickMe"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "pickme"
+    },
+    {
+      "candidates": [
+        "open Perplexity"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "perplexity"
+    },
+    {
+      "candidates": [
+        "please open the Perplexity app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "perplexity"
+    },
+    {
+      "candidates": [
+        "get me Perplexity"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "perplexity"
+    },
+    {
+      "candidates": [
+        "open Copilot"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "copilot"
+    },
+    {
+      "candidates": [
+        "please open the Copilot app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "copilot"
+    },
+    {
+      "candidates": [
+        "run Copilot"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "copilot"
+    },
+    {
+      "candidates": [
+        "open Threads"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "threads"
+    },
+    {
+      "candidates": [
+        "please open the Threads app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "threads"
+    },
+    {
+      "candidates": [
+        "fire up Threads"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "threads"
+    },
+    {
+      "candidates": [
+        "open X"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "x"
+    },
+    {
+      "candidates": [
+        "please open the X app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "x"
+    },
+    {
+      "candidates": [
+        "show me X"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "x"
+    },
+    {
+      "candidates": [
+        "open Telegram"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "telegram"
+    },
+    {
+      "candidates": [
+        "please open the Telegram app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "telegram"
+    },
+    {
+      "candidates": [
+        "switch to Telegram"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "telegram"
+    },
+    {
+      "candidates": [
+        "open Viber"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "viber"
+    },
+    {
+      "candidates": [
+        "please open the Viber app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "viber"
+    },
+    {
+      "candidates": [
+        "get me Viber"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "viber"
+    },
+    {
+      "candidates": [
+        "open Snapchat"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "snapchat"
+    },
+    {
+      "candidates": [
+        "please open the Snapchat app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "snapchat"
+    },
+    {
+      "candidates": [
+        "run Snapchat"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "snapchat"
+    },
+    {
+      "candidates": [
+        "open TikTok"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "tiktok"
+    },
+    {
+      "candidates": [
+        "please open the TikTok app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "tiktok"
+    },
+    {
+      "candidates": [
+        "fire up TikTok"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "tiktok"
+    },
+    {
+      "candidates": [
+        "open Play Store"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "play store"
+    },
+    {
+      "candidates": [
+        "please open the Play Store app"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "play store"
+    },
+    {
+      "candidates": [
+        "show me Play Store"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "play store"
+    },
+    {
+      "candidates": [
+        "call Dad"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "dad"
+    },
+    {
+      "candidates": [
+        "phone Alice"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "alice"
+    },
+    {
+      "candidates": [
+        "dial Steve"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "steve"
+    },
+    {
+      "candidates": [
+        "please call Jane Smith"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "jane smith"
+    },
+    {
+      "candidates": [
+        "call my brother"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "my brother"
+    },
+    {
+      "candidates": [
+        "call 5551234567"
+      ],
+      "action": "CALL",
+      "core": false,
+      "recipient": "5551234567"
+    },
+    {
+      "candidates": [
+        "text Steve saying See you at 6"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "See you at 6",
+      "recipient": "steve"
+    },
+    {
+      "candidates": [
+        "message Steve saying See you at 6"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "See you at 6",
+      "recipient": "steve"
+    },
+    {
+      "candidates": [
+        "send a message to Steve saying See you at 6"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "See you at 6",
+      "recipient": "steve"
+    },
+    {
+      "candidates": [
+        "text Jane Smith saying Please bring milk"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Please bring milk",
+      "recipient": "jane smith"
+    },
+    {
+      "candidates": [
+        "message Jane Smith saying Please bring milk"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Please bring milk",
+      "recipient": "jane smith"
+    },
+    {
+      "candidates": [
+        "send a message to Jane Smith saying Please bring milk"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Please bring milk",
+      "recipient": "jane smith"
+    },
+    {
+      "candidates": [
+        "text Mom saying I'm home"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "I'm home",
+      "recipient": "mom"
+    },
+    {
+      "candidates": [
+        "message Mom saying I'm home"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "I'm home",
+      "recipient": "mom"
+    },
+    {
+      "candidates": [
+        "send a message to Mom saying I'm home"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "I'm home",
+      "recipient": "mom"
+    },
+    {
+      "candidates": [
+        "text Alice saying The app is ready"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "The app is ready",
+      "recipient": "alice"
+    },
+    {
+      "candidates": [
+        "message Alice saying The app is ready"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "The app is ready",
+      "recipient": "alice"
+    },
+    {
+      "candidates": [
+        "send a message to Alice saying The app is ready"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "The app is ready",
+      "recipient": "alice"
+    },
+    {
+      "candidates": [
+        "text Dad saying Call me when you can"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Call me when you can",
+      "recipient": "dad"
+    },
+    {
+      "candidates": [
+        "message Dad saying Call me when you can"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Call me when you can",
+      "recipient": "dad"
+    },
+    {
+      "candidates": [
+        "send a message to Dad saying Call me when you can"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": false,
+      "text": "Call me when you can",
+      "recipient": "dad"
+    },
+    {
+      "candidates": [
+        "start a timer for 1 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 1
+    },
+    {
+      "candidates": [
+        "start a timer for 2 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 2
+    },
+    {
+      "candidates": [
+        "start a timer for 5 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 5
+    },
+    {
+      "candidates": [
+        "start a timer for 15 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 15
+    },
+    {
+      "candidates": [
+        "start a timer for 25 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 25
+    },
+    {
+      "candidates": [
+        "start a timer for 45 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 45
+    },
+    {
+      "candidates": [
+        "start a timer for 60 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 60
+    },
+    {
+      "candidates": [
+        "start a timer for 90 minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": false,
+      "int": 90
+    },
+    {
+      "candidates": [
+        "flashlight on"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "flashlight off"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": false
+    },
+    {
+      "candidates": [
+        "turn the torch on"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "turn off the torch"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": false
+    },
+    {
+      "candidates": [
+        "switch on the flashlight"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "switch off the flashlight"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": false,
+      "enabled": false
+    },
+    {
+      "candidates": [
+        "my calendar"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "show me my schedule"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "what's on my calendar today"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "show my calendar today"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "next meeting"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "next event"
+      ],
+      "action": "NEXT_EVENT",
+      "core": false
+    },
+    {
+      "candidates": [
+        "play music on Spotify"
+      ],
+      "action": "PLAY_MEDIA",
+      "core": false,
+      "app": "spotify"
+    },
+    {
+      "candidates": [
+        "play music on YouTube"
+      ],
+      "action": "PLAY_MEDIA",
+      "core": false,
+      "app": "youtube"
+    },
+    {
+      "candidates": [
+        "play music on Netflix"
+      ],
+      "action": "PLAY_MEDIA",
+      "core": false,
+      "app": "netflix"
+    },
+    {
+      "candidates": [
+        "add eggs to my list"
+      ],
+      "action": "SET_REMINDER",
+      "core": false,
+      "text": "eggs"
+    },
+    {
+      "candidates": [
+        "add bread to my shopping list"
+      ],
+      "action": "SET_REMINDER",
+      "core": false,
+      "text": "bread"
+    },
+    {
+      "candidates": [
+        "put bananas on my shopping list"
+      ],
+      "action": "SET_REMINDER",
+      "core": false,
+      "text": "bananas"
+    },
+    {
+      "candidates": [
+        "open flow"
+      ],
+      "action": "OPEN_FLOW",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open home"
+      ],
+      "action": "OPEN_HOME",
+      "core": false
+    },
+    {
+      "candidates": [
+        "show all apps"
+      ],
+      "action": "OPEN_DRAWER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open search"
+      ],
+      "action": "OPEN_SEARCH",
+      "core": false
+    },
+    {
+      "candidates": [
+        "show recents panel"
+      ],
+      "action": "OPEN_RECENTS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open settings"
+      ],
+      "action": "OPEN_SETTINGS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open personalize"
+      ],
+      "action": "OPEN_PERSONALIZE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open locked space"
+      ],
+      "action": "OPEN_PRIVATE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "add Outlook to dock"
+      ],
+      "action": "ADD_TO_DOCK",
+      "core": false
+    },
+    {
+      "candidates": [
+        "remove from dock Chrome"
+      ],
+      "action": "REMOVE_FROM_DOCK",
+      "core": false
+    },
+    {
+      "candidates": [
+        "pin Spotify"
+      ],
+      "action": "PIN_APP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "unpin Spotify"
+      ],
+      "action": "UNPIN_APP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "hide Chrome"
+      ],
+      "action": "HIDE_APP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "unhide Chrome"
+      ],
+      "action": "UNHIDE_APP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "move Chrome to locked space"
+      ],
+      "action": "MOVE_TO_PRIVATE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "remove Chrome from locked space"
+      ],
+      "action": "REMOVE_FROM_PRIVATE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "where is Gmail"
+      ],
+      "action": "WHERE_APP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "remember mail as Gmail"
+      ],
+      "action": "LEARN_ALIAS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "create a folder called music"
+      ],
+      "action": "CREATE_FOLDER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "add Spotify to music folder"
+      ],
+      "action": "ADD_TO_FOLDER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "grid to 5"
+      ],
+      "action": "SET_GRID",
+      "core": false
+    },
+    {
+      "candidates": [
+        "make icons smaller"
+      ],
+      "action": "SET_ICON_SIZE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "hide app labels"
+      ],
+      "action": "SET_LABELS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "dock size 5"
+      ],
+      "action": "SET_DOCK_CAPACITY",
+      "core": false
+    },
+    {
+      "candidates": [
+        "hide news from flow"
+      ],
+      "action": "SET_FLOW_MODULE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "move weather above news"
+      ],
+      "action": "MOVE_FLOW_MODULE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "switch to work"
+      ],
+      "action": "SET_SPACE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "set alarm for 7"
+      ],
+      "action": "SET_ALARM",
+      "core": false
+    },
+    {
+      "candidates": [
+        "cancel my alarm"
+      ],
+      "action": "CANCEL_ALARM",
+      "core": false
+    },
+    {
+      "candidates": [
+        "list alarms"
+      ],
+      "action": "LIST_ALARMS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "complete task buy milk"
+      ],
+      "action": "COMPLETE_TASK",
+      "core": false
+    },
+    {
+      "candidates": [
+        "delete task buy milk"
+      ],
+      "action": "DELETE_TASK",
+      "core": false
+    },
+    {
+      "candidates": [
+        "remind me to buy milk"
+      ],
+      "action": "SET_REMINDER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "my tasks"
+      ],
+      "action": "SHOW_TASKS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "note buy milk"
+      ],
+      "action": "SAVE_NOTE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "save for later"
+      ],
+      "action": "SAVE_LATER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "focus for 30 minutes"
+      ],
+      "action": "START_FOCUS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "end focus"
+      ],
+      "action": "END_FOCUS",
+      "core": false
+    },
+    {
+      "candidates": [
+        "daily review"
+      ],
+      "action": "DAILY_REVIEW",
+      "core": false
+    },
+    {
+      "candidates": [
+        "what is 18 percent of 86"
+      ],
+      "action": "CALCULATE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "weather today"
+      ],
+      "action": "WEATHER",
+      "core": false
+    },
+    {
+      "candidates": [
+        "what did i miss"
+      ],
+      "action": "INBOX_DIGEST",
+      "core": false
+    },
+    {
+      "candidates": [
+        "what do i normally use now"
+      ],
+      "action": "NEED_NOW",
+      "core": false
+    },
+    {
+      "candidates": [
+        "apps i used yesterday"
+      ],
+      "action": "USED_YESTERDAY",
+      "core": false
+    },
+    {
+      "candidates": [
+        "banking apps"
+      ],
+      "action": "PURPOSE",
+      "core": false
+    },
+    {
+      "candidates": [
+        "help"
+      ],
+      "action": "HELP",
+      "core": false
+    },
+    {
+      "candidates": [
+        "goodbye"
+      ],
+      "action": "END_TALK",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open Chrome",
+        "open Chase"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chrome"
+    },
+    {
+      "candidates": [
+        "show app labels",
+        "hide app labels"
+      ],
+      "action": "SET_LABELS",
+      "core": false,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "open chatty PT"
+      ],
+      "action": "CLARIFY",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open chat cheap tea"
+      ],
+      "action": "CLARIFY",
+      "core": false
+    },
+    {
+      "candidates": [
+        "open cloud"
+      ],
+      "action": "CLARIFY",
+      "core": false
+    },
+    {
+      "candidates": [
+        ""
+      ],
+      "action": "UNKNOWN",
+      "core": false
+    },
+    {
+      "candidates": [
+        "tell me a bedtime story"
+      ],
+      "action": "UNKNOWN",
+      "core": false
+    },
+    {
+      "candidates": [
+        "what is the capital of France"
+      ],
+      "action": "UNKNOWN",
+      "core": false
+    },
+    {
+      "candidates": [
+        "take me home"
+      ],
+      "action": "UNKNOWN",
+      "core": false
+    },
+    {
+      "candidates": [
+        "ask chat GPT what the capital of France is"
+      ],
+      "action": "OPEN_APP",
+      "core": false,
+      "app": "chatgpt",
+      "text": "what the capital of France is"
+    },
+    {
+      "candidates": [
+        "message Amma on WhatsApp saying I'll be home soon"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": true,
+      "recipient": "Amma",
+      "channel": "WhatsApp",
+      "text": "I'll be home soon"
+    },
+    {
+      "candidates": [
+        "call Nimal on WhatsApp"
+      ],
+      "action": "CALL",
+      "core": true,
+      "recipient": "Nimal",
+      "channel": "WhatsApp"
+    },
+    {
+      "candidates": [
+        "text John on Telegram I'm late"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": true,
+      "recipient": "John",
+      "channel": "Telegram",
+      "text": "I'm late"
+    },
+    {
+      "candidates": [
+        "message Jane Doe through Viber saying Wait on WhatsApp for me"
+      ],
+      "action": "SEND_MESSAGE",
+      "core": true,
+      "recipient": "Jane Doe",
+      "channel": "Viber",
+      "text": "Wait on WhatsApp for me"
+    },
+    {
+      "candidates": [
+        "call to Amma"
+      ],
+      "action": "CALL",
+      "core": true,
+      "recipient": "Amma"
+    },
+    {
+      "candidates": [
+        "set timer 90 seconds"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 90
+    },
+    {
+      "candidates": [
+        "timer for 1 minute 30 seconds"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 90
+    },
+    {
+      "candidates": [
+        "set a timer for half an hour"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 1800
+    },
+    {
+      "candidates": [
+        "timer for two and a half hours"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 9000
+    },
+    {
+      "candidates": [
+        "set a timer for forty five seconds"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 45
+    },
+    {
+      "candidates": [
+        "start a timer for two hours and five minutes"
+      ],
+      "action": "SET_TIMER",
+      "core": true,
+      "seconds": 7500
+    },
+    {
+      "candidates": [
+        "navigate to Colombo Fort"
+      ],
+      "action": "NAVIGATE",
+      "core": true,
+      "text": "Colombo Fort"
+    },
+    {
+      "candidates": [
+        "directions to Kandy"
+      ],
+      "action": "NAVIGATE",
+      "core": true,
+      "text": "Kandy"
+    },
+    {
+      "candidates": [
+        "take me to the airport"
+      ],
+      "action": "NAVIGATE",
+      "core": true,
+      "text": "the airport"
+    },
+    {
+      "candidates": [
+        "please take me to WhatsApp"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "whatsapp"
+    },
+    {
+      "candidates": [
+        "what time is it"
+      ],
+      "action": "ANSWER",
+      "core": true,
+      "clock": "TIME"
+    },
+    {
+      "candidates": [
+        "what's the date today"
+      ],
+      "action": "ANSWER",
+      "core": true,
+      "clock": "DATE"
+    },
+    {
+      "candidates": [
+        "what day is it"
+      ],
+      "action": "ANSWER",
+      "core": true,
+      "clock": "DAY"
+    },
+    {
+      "candidates": [
+        "call"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "CONTACT"
+    },
+    {
+      "candidates": [
+        "text"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "CONTACT"
+    },
+    {
+      "candidates": [
+        "message"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "CONTACT"
+    },
+    {
+      "candidates": [
+        "set a timer"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "DURATION"
+    },
+    {
+      "candidates": [
+        "set an alarm"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "ALARM_TIME"
+    },
+    {
+      "candidates": [
+        "open"
+      ],
+      "action": "ASK_USER",
+      "core": true,
+      "slot": "APP"
+    },
+    {
+      "candidates": [
+        "could you ask chat GPT what the capital of France is"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt",
+      "text": "what the capital of France is"
+    },
+    {
+      "candidates": [
+        "open chat GPT and ask about dinner ideas"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "chatgpt",
+      "text": "about dinner ideas"
+    },
+    {
+      "candidates": [
+        "ask Gemini explain gravity"
+      ],
+      "action": "OPEN_APP",
+      "core": true,
+      "app": "gemini",
+      "text": "explain gravity"
+    },
+    {
+      "candidates": [
+        "put alarm for 6"
+      ],
+      "action": "SET_ALARM",
+      "core": true,
+      "hours": [6, 18],
+      "minute": 0
+    },
+    {
+      "candidates": [
+        "on the torch"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": true,
+      "enabled": true
+    },
+    {
+      "candidates": [
+        "off the torch"
+      ],
+      "action": "TOGGLE_TORCH",
+      "core": true,
+      "enabled": false
+    }
+  ]
+}

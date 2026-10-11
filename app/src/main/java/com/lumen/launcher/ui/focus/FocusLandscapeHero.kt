@@ -65,7 +65,7 @@ internal fun FocusLandscapeHero(
                 Column(Modifier.widthIn(max = 142.dp).padding(start = 8.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         "A quieter you\nA brighter tomorrow.",
-                        color = FocusAccent.copy(alpha = 0.9f),
+                        color = androidx.compose.ui.graphics.Color.White,
                         fontFamily = Outfit,
                         fontStyle = FontStyle.Italic,
                         fontSize = 11.sp,

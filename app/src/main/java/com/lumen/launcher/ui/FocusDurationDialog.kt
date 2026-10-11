@@ -128,7 +128,7 @@ fun FocusDurationDialog(
             )
             Text(
                 ":",
-                color = FocusAccent,
+                color = androidx.compose.ui.graphics.Color.White,
                 fontFamily = Outfit,
                 fontWeight = FontWeight.Bold,
                 fontSize = 34.sp,
@@ -185,7 +185,7 @@ fun FocusDurationDialog(
         if (!valid) {
             Text(
                 "Choose at least 1 minute.",
-                color = Color(0xFFFF8FA3),
+                color = androidx.compose.ui.graphics.Color.White,
                 fontFamily = Outfit,
                 fontSize = 12.sp
             )
@@ -430,7 +430,7 @@ private fun SuggestionChip(
         if (icon != null) Icon(icon, null, tint = FocusAccent, modifier = Modifier.size(15.dp))
         Text(
             label,
-            color = if (selected) Color.White else FocusAccent,
+            color = androidx.compose.ui.graphics.Color.White,
             fontFamily = Outfit,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium

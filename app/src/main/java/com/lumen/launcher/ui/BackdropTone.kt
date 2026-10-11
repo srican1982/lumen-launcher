@@ -167,15 +167,8 @@ private fun spaceWallpaperBackdrop(path: String?): Backdrop? {
 
 private fun systemWallpaperBackdrop(context: Context): Backdrop? {
     val manager = runCatching { WallpaperManager.getInstance(context) }.getOrNull() ?: return null
-    systemWallpaperBitmap(manager)?.let { return it }
     return systemWallpaperColors(manager)
 }
-
-private fun systemWallpaperBitmap(manager: WallpaperManager): Backdrop? = runCatching {
-    val bitmap = (manager.drawable as? BitmapDrawable)?.bitmap ?: return@runCatching null
-    val small = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
-    sample(small).also { if (small != bitmap) small.recycle() }
-}.getOrNull()
 
 private fun systemWallpaperColors(manager: WallpaperManager): Backdrop? = runCatching {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return@runCatching null

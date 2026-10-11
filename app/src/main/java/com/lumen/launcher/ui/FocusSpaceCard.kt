@@ -1,11 +1,12 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -30,7 +31,8 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
     val context = LocalContext.current
     val peopleRepo = remember { FocusAllowedPeopleRepository.get(context) }
     val manager = remember { com.lumen.launcher.focus.FocusSessionManager.get(context) }
-    val session by manager.snapshot.collectAsState()
+    val session by manager.snapshot.collectAsStateWithLifecycle()
+    val completion by manager.completion.collectAsStateWithLifecycle()
     val policy = remember { FocusPolicyController(context) }
 
     val guideStore = remember { com.lumen.launcher.focus.FocusOnboardingStore(context) }
@@ -43,9 +45,9 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
         editStep = null
     }
 
-    val people by peopleRepo.people.collectAsState()
-    val settings by peopleRepo.settings.collectAsState()
-    val groups by peopleRepo.groups.collectAsState()
+    val people by peopleRepo.people.collectAsStateWithLifecycle()
+    val settings by peopleRepo.settings.collectAsStateWithLifecycle()
+    val groups by peopleRepo.groups.collectAsStateWithLifecycle()
 
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var showPeople by remember { mutableStateOf(false) }
@@ -100,7 +102,7 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (session.error.isNotBlank()) {
-            androidx.compose.material3.Text(session.error, color = androidx.compose.ui.graphics.Color(0xFFFDA4AF))
+            androidx.compose.material3.Text(session.error, color = androidx.compose.ui.graphics.Color.White)
         }
         when {
             state.focusing -> FocusActiveScreen(
@@ -113,12 +115,19 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 doneEntries = doneEntries,
                 onPause = vm::pauseFocus,
                 onResume = vm::resumeFocus,
-                onExtend = { vm.extendFocus(15) },
+                onExtend = { vm.extendFocus(5) },
                 onEnd = vm::endFocus,
                 onAddSomeone = { showPeople = true },
                 onLaunchApp = vm::launch
             )
+            completion != null -> com.lumen.launcher.ui.focus.FocusCompletionScreen(
+                completion = completion!!,
+                onRestart = { manager.dismissCompletion(); editStep = 0 },
+                onDismiss = manager::dismissCompletion
+            )
             showGuide -> com.lumen.launcher.ui.focus.FocusOnboardingScreen(
+                taskLabel = focusTaskLabel,
+                onPickTask = { pickTask = true },
                 step = guideStep,
                 minutes = settings.lastDurationMinutes,
                 dismissSignal = homePulse,
@@ -132,6 +141,8 @@ fun FocusSpaceCard(state: LauncherUiState, vm: LauncherViewModel) {
                 }
             )
             editStep != null -> com.lumen.launcher.ui.focus.FocusOnboardingScreen(
+                taskLabel = focusTaskLabel,
+                onPickTask = { pickTask = true },
                 step = editStep!!,
                 minutes = settings.lastDurationMinutes,
                 dismissSignal = homePulse,

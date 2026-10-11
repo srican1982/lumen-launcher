@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui.focus
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -77,14 +80,17 @@ internal fun FocusOnboardingScreen(
     onCustom: () -> Unit,
     onFinish: () -> Unit,
     onStart: () -> Unit,
-    singleStep: Boolean = false
+    singleStep: Boolean = false,
+    taskLabel: String? = null,
+    onPickTask: () -> Unit
 ) {
+    var showAllGroups by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val repo = remember { FocusAllowedPeopleRepository.get(context) }
-    val selected by repo.selectedGroups.collectAsState()
-    val groups by repo.groups.collectAsState()
-    val revision by repo.listsRevision.collectAsState()
-    val people by repo.people.collectAsState()
+    val selected by repo.selectedGroups.collectAsStateWithLifecycle()
+    val groups by repo.groups.collectAsStateWithLifecycle()
+    val revision by repo.listsRevision.collectAsStateWithLifecycle()
+    val people by repo.people.collectAsStateWithLifecycle()
     val sound = remember(dismissSignal, step) { FocusSoundPrefs.sound(context) }
     val appCount = remember(dismissSignal, step) { FocusAppAccess.selected(context).size }
     val groupTitles = groups.filter { it.id in selected }.joinToString { it.title }.ifBlank { "No one" }
@@ -100,7 +106,7 @@ internal fun FocusOnboardingScreen(
 
     Column(
         Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(if (step == 0 && !singleStep) 8.dp else 10.dp)
+        verticalArrangement = Arrangement.spacedBy(if ((step == 0 || step == 3) && !singleStep) 4.dp else 10.dp)
     ) {
         if (!singleStep) {
             FocusGuideStepper(step = step, onJump = { if (it < step) onStep(it) })
@@ -123,20 +129,22 @@ internal fun FocusOnboardingScreen(
             0 -> DurationStep(
                 minutes = minutes,
                 onDuration = onDuration,
-                onCustom = onCustom
+                onCustom = onCustom,
+                taskLabel = taskLabel,
+                onPickTask = onPickTask
             )
             1 -> {
                 if (!singleStep) FocusSummaryStack(
                     items = listOf("Duration · $minutes min")
                 )
                 Text(
-                    "Select who can still contact you. Calls, messages and important alerts.",
+                    "Choose who can still call you. Tap a card to manage contacts.",
                     color = FocusMuted,
                     fontFamily = Outfit,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
-                FocusGuideGroupGrid(dismissSignal)
+                FocusGuideGroupGrid(dismissSignal, showAllGroups) { showAllGroups = true }
             }
             2 -> {
                 if (!singleStep) FocusSummaryStack(
@@ -164,24 +172,27 @@ internal fun FocusOnboardingScreen(
                     )
                     FocusSoundsSection(dismissSignal, heading = "Focus sound")
                 } else {
-                    FocusSoundsSection(dismissSignal, heading = "Focus sound")
-                    ReadyStep(
-                        minutes = minutes,
-                        peopleLabel = groupTitles,
-                        appCount = appCount,
-                        sound = FocusSoundPrefs.sound(context),
-                        editable = true,
-                        onEdit = { target -> onStep(target) }
-                    )
+                    // The producer assigns value below; workaround for the bundled Compose lint detector.
+                    @Suppress("ProduceStateDoesNotAssignValue")
+                    val endTime by androidx.compose.runtime.produceState(initialValue = "", minutes) {
+                        while (true) {
+                            val end = System.currentTimeMillis() + minutes * 60_000L
+                            value = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(end))
+                            kotlinx.coroutines.delay(1000)
+                        }
+                    }
+                    FocusDurationReferenceRing(minutes, subtitle = "Ready to focus\nuntil $endTime", compactReady = true)
+                    FocusSoundsSection(dismissSignal, heading = "Focus sound", compact = true)
                 }
             }
         }
 
         val primaryLabel = when {
             singleStep -> "Save"
-            step < 3 -> "Continue →"
+            step < 3 -> "Continue"
             else -> "Start Focus · $minutes min"
         }
+        if (step == 0 || (step == 3 && !singleStep)) Spacer(Modifier.height(8.dp))
         FocusContinueButton(
             label = primaryLabel,
             onClick = {
@@ -195,7 +206,7 @@ internal fun FocusOnboardingScreen(
 
         when {
             !singleStep && step == 0 -> Text(
-                "You can change these later.",
+                "You can change this later.",
                 color = FocusMuted,
                 fontFamily = Outfit,
                 fontSize = 11.sp,
@@ -208,10 +219,10 @@ internal fun FocusOnboardingScreen(
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("Start now · $minutes min", color = FocusAccent, fontFamily = Outfit, fontWeight = FontWeight.SemiBold)
+                Text("Start now · $minutes min", color = androidx.compose.ui.graphics.Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold)
             }
             step >= 3 && !singleStep -> Text(
-                "You can change these later.",
+                "You can change this later.",
                 color = FocusMuted,
                 fontFamily = Outfit,
                 fontSize = 12.sp,
@@ -234,11 +245,9 @@ private fun FocusGuideStepper(step: Int, onJump: (Int) -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, bottom = 2.dp)
-            .clip(strip)
-            .background(Color(0x66101828))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), strip)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(top = 4.dp, bottom = 0.dp)
+
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
@@ -287,7 +296,7 @@ private fun FocusGuideStepper(step: Int, onJump: (Int) -> Unit) {
                                 .clip(CircleShape)
                                 .then(
                                     if (done || active) Modifier.background(
-                                        Brush.horizontalGradient(listOf(Color(0xFF5B8CFF), Color(0xFF2F62F0)))
+                                        FocusGradient
                                     )
                                     else Modifier.background(Color(0x88101828))
                                 )
@@ -333,7 +342,7 @@ private fun FocusGuideStepper(step: Int, onJump: (Int) -> Unit) {
                     Text(
                         title,
                         modifier = Modifier.padding(top = 5.dp),
-                        color = if (active) Color.White else Color(0xFFD5DCEB),
+                        color = androidx.compose.ui.graphics.Color.White,
                         fontSize = 12.sp,
                         fontFamily = Outfit,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
@@ -352,13 +361,11 @@ private fun FocusContinueButton(label: String, onClick: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(48.dp)
             .shadow(18.dp, shape, ambientColor = Color(0xAA3D6FF0), spotColor = Color(0xCC5B8CFF))
             .clip(shape)
             .background(
-                Brush.horizontalGradient(
-                    listOf(Color(0xFF6EA0FF), Color(0xFF3D6FF0), Color(0xFF2456E0))
-                )
+                FocusGradient
             )
             .border(1.dp, Color.White.copy(alpha = 0.28f), shape)
             .clickable(onClick = onClick),
@@ -378,13 +385,11 @@ private fun FocusContinueButton(label: String, onClick: () -> Unit) {
 private fun ColumnScope.DurationStep(
     minutes: Int,
     onDuration: (Int) -> Unit,
-    onCustom: () -> Unit
+    onCustom: () -> Unit,
+    taskLabel: String?,
+    onPickTask: () -> Unit
 ) {
-    FocusGuideRing(
-        primary = "$minutes min",
-        secondary = "Choose your time",
-        compact = true
-    )
+    FocusDurationReferenceRing(minutes, taskLabel = taskLabel, onPickTask = onPickTask)
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -392,7 +397,7 @@ private fun ColumnScope.DurationStep(
         listOf(15, 30, 45, 60, 90).forEach { value ->
             DurationChip(
                 top = "$value",
-                bottom = "min",
+                bottom = "",
                 active = minutes == value,
                 modifier = Modifier.weight(1f),
                 onClick = { onDuration(value) }
@@ -404,13 +409,69 @@ private fun ColumnScope.DurationStep(
             active = minutes !in listOf(15, 30, 45, 60, 90),
             modifier = Modifier.weight(1f),
             onClick = onCustom,
-            icon = true
+            icon = false
         )
+    }
+
+}
+
+@Composable
+internal fun FocusDurationReferenceRing(minutes: Int, subtitle: String = "Choose your time", compactReady: Boolean = false, taskLabel: String? = null, onPickTask: (() -> Unit)? = null, onStart: (() -> Unit)? = null) {
+    val durationSweep = (minutes / 60f).coerceIn(0f, 1f) * 360f
+    val configuration = LocalConfiguration.current
+    val ringDp = minOf((configuration.screenHeightDp * 0.25f).coerceIn(156f, 224f), (configuration.screenWidthDp - 64f).coerceAtLeast(120f))
+    val displayRingDp = if (compactReady) (ringDp - 32f).coerceAtLeast(150f) * 1.05f else ringDp
+    val ringSize = displayRingDp.dp
+    val textScale = (displayRingDp / 224f).coerceIn(0.65f, 1f)
+    val fontAdjustment = configuration.fontScale.coerceAtLeast(1f)
+    Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val radius = size.minDimension / 2 - 14.dp.toPx()
+                drawCircle(Brush.radialGradient(listOf(Color(0xF0051020), Color(0xD0051020), Color(0x66051020))), radius)
+                for (width in listOf(24f, 16f, 10f, 6f)) {
+                    drawCircle(Color(0xFFFFA52B).copy(alpha = 0.045f + 0.12f / width), radius, style = Stroke(width.dp.toPx()))
+                }
+                drawCircle(Color(0xFFFFBC5E), radius, style = Stroke(3.dp.toPx()))
+                drawCircle(Color(0xFFFFF5DE), radius, style = Stroke(1.4.dp.toPx()))
+                val inset = size.width / 2 - radius + 9.dp.toPx()
+                val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                for (width in listOf(12f, 7f, 3f)) {
+                    drawArc(Color(0xFFAA77FF).copy(alpha = if (width == 3f) 1f else 0.15f), -90f, durationSweep, false,
+                        Offset(inset, inset), arcSize, style = Stroke(width.dp.toPx(), cap = StrokeCap.Round))
+                }
+                drawArc(Color(0xFFF2DDFF), -90f, durationSweep, false, Offset(inset, inset), arcSize, style = Stroke(1.dp.toPx(), cap = StrokeCap.Round))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if(onStart != null) 4.dp else 8.dp)) {
+                if(onStart == null) Icon(androidx.compose.ui.res.painterResource(com.lumen.launcher.R.drawable.ic_lumen_mark), null,
+                    tint = Color(0xFFAB8AFF), modifier = Modifier.size(26.dp))
+                Text("$minutes min", color = Color.White, maxLines = 1, fontSize = (34f * textScale / fontAdjustment).sp, fontFamily = Outfit, fontWeight = FontWeight.Normal)
+                if (onPickTask != null) {
+                    Box(Modifier.offset(y = if(onStart != null) 4.dp else 2.dp).width(ringSize * .56f).height(30.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(FocusGradient)
+                        .border(1.dp, Color.White.copy(alpha = .3f), RoundedCornerShape(50))
+                        .clickable(onClick = onPickTask)
+                        .padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                        Text(taskLabel?.takeIf { it.isNotBlank() } ?: "Pick task · Optional",
+                            color = Color.White, maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            fontSize = (11f * textScale / fontAdjustment).sp, fontFamily = Outfit,
+                            fontWeight = FontWeight.Medium)
+                    }
+                } else {
+                Text(subtitle, color = Color.White, maxLines = 2, textAlign = TextAlign.Center, fontSize = ((if (compactReady) 15f else 12f) * textScale / fontAdjustment).sp, lineHeight = ((if (compactReady) 19f else 16f) * textScale / fontAdjustment).sp, fontWeight = FontWeight.Medium, fontFamily = Outfit)
+                }
+                if(onStart != null) TextButton(onClick=onStart) {
+                    Text("▶ Start Focus",color=Color.White,fontFamily=Outfit,fontSize=12.sp)
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun DurationChip(
+internal fun DurationChip(
     top: String?,
     bottom: String,
     active: Boolean,
@@ -432,12 +493,12 @@ private fun DurationChip(
             )
             .clip(shape)
             .background(
-                if (active) Brush.verticalGradient(listOf(Color(0xCC2A3F78), Color(0xBB152448)))
+                if (active) FocusGradient
                 else Brush.verticalGradient(listOf(Color(0x99101828), Color(0x88101828)))
             )
             .border(
                 width = if (active) 1.5.dp else 1.dp,
-                color = if (active) Color(0xFF7AA0FF) else Color.White.copy(alpha = 0.14f),
+                color = if (active) Color(0xFF7AA0FF) else Color(0xFF7E8DB3).copy(alpha = 0.65f),
                 shape = shape
             )
             .clickable(onClick = onClick),
@@ -449,50 +510,13 @@ private fun DurationChip(
         } else if (top != null) {
             Text(top, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, fontFamily = Outfit)
         }
-        Text(
+        if (bottom.isNotEmpty()) Text(
             bottom,
-            color = if (active) Color.White.copy(alpha = 0.92f) else FocusMuted,
+            color = Color.White.copy(alpha = 0.95f),
             fontSize = 11.sp,
             fontFamily = Outfit
         )
     }
-}
-
-@Composable
-private fun ReadyStep(
-    minutes: Int,
-    peopleLabel: String,
-    appCount: Int,
-    sound: FocusSound,
-    editable: Boolean,
-    onEdit: (Int) -> Unit
-) {
-    FocusSummaryStack(
-        items = listOf(
-            "Duration · $minutes min",
-            "People · $peopleLabel",
-            "Apps · $appCount selected",
-            "Sound · ${if (sound == FocusSound.Off) "Off" else sound.title}"
-        ),
-        onTap = if (editable) onEdit else null
-    )
-    val endHint = remember(minutes) {
-        val cal = Calendar.getInstance().apply { add(Calendar.MINUTE, minutes) }
-        val hour = cal.get(Calendar.HOUR)
-        val displayHour = if (hour == 0) 12 else hour
-        val min = cal.get(Calendar.MINUTE)
-        val amPm = if (cal.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
-        String.format(Locale.US, "until %d:%02d %s", displayHour, min, amPm)
-    }
-    val calm = when {
-        minutes >= 60 -> "An hour of calm, $endHint."
-        minutes >= 30 -> "A stretch of calm, $endHint."
-        else -> "A quiet window, $endHint."
-    }
-    FocusGuideRing(
-        primary = "%d:%02d".format(minutes, 0),
-        secondary = calm
-    )
 }
 
 @Composable
@@ -724,18 +748,18 @@ private fun FocusSummaryStack(items: List<String>, onTap: ((Int) -> Unit)? = nul
 }
 
 @Composable
-private fun FocusGuideGroupGrid(dismissSignal: Int) {
+private fun FocusGuideGroupGrid(dismissSignal: Int, showAll: Boolean, onManaged: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { FocusAllowedPeopleRepository.get(context) }
-    val groups by repo.groups.collectAsState()
-    val selected by repo.selectedGroups.collectAsState()
-    val revision by repo.listsRevision.collectAsState()
-    var manage by remember { mutableStateOf(false) }
-    LaunchedEffect(dismissSignal) { manage = false }
+    val groups by repo.groups.collectAsStateWithLifecycle()
+    val selected by repo.selectedGroups.collectAsStateWithLifecycle()
+    val revision by repo.listsRevision.collectAsStateWithLifecycle()
+    var openGroup by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(dismissSignal) { openGroup = null }
     val members = remember(groups, revision) { groups.associate { it.id to repo.peopleForGroup(it.id) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val rows = groups.chunked(2)
+        val rows = (if (showAll) groups.filter { members[it.id].orEmpty().isNotEmpty() } else groups.take(2)).chunked(2)
         rows.forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { group ->
@@ -744,19 +768,19 @@ private fun FocusGuideGroupGrid(dismissSignal: Int) {
                         members = members[group.id].orEmpty(),
                         selected = group.id in selected,
                         onToggle = { repo.selectGroup(group.id, group.id !in selected) },
-                        onOpen = { manage = true },
+                        onOpen = { openGroup = group.id },
                         modifier = Modifier.weight(1f)
                     )
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
-        TextButton(onClick = { manage = true }, modifier = Modifier.align(Alignment.Start)) {
-            Text("Manage groups →", color = FocusAccent, fontFamily = Outfit, fontWeight = FontWeight.SemiBold)
+        TextButton(onClick = { openGroup = groups.firstOrNull()?.id }, modifier = Modifier.align(Alignment.Start)) {
+            Text("Manage contacts", color = androidx.compose.ui.graphics.Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold)
         }
     }
-    if (manage) {
-        FocusListsDialog(onDismiss = { manage = false }, dismissSignal = dismissSignal)
+    openGroup?.let { id ->
+        FocusGroupContactPicker(id, onDismiss = { openGroup = null; onManaged() }, dismissSignal = dismissSignal)
     }
 }
 
@@ -772,13 +796,13 @@ private fun FocusGuideGroupCard(
     val shape = RoundedCornerShape(20.dp)
     Column(
         modifier
-            .aspectRatio(1.15f)
+            .heightIn(min = 108.dp)
             .clip(shape)
             .background(if (selected) FocusCardSelected else Color(0xCC121C30))
             .border(1.dp, if (selected) FocusAccent else Color.White.copy(alpha = 0.12f), shape)
-            .clickable(onClick = onToggle)
+            .clickable(onClick = onOpen)
             .padding(12.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Box(Modifier.clickable(onClick = onOpen)) {
@@ -794,14 +818,15 @@ private fun FocusGuideGroupCard(
                     .size(24.dp)
                     .clip(CircleShape)
                     .background(if (selected) FocusAccent else Color.Transparent)
-                    .border(1.5.dp, if (selected) FocusAccent else FocusMuted, CircleShape),
+                    .border(1.5.dp, if (selected) FocusAccent else FocusMuted, CircleShape)
+                    .clickable(onClick = onToggle),
                 contentAlignment = Alignment.Center
             ) {
                 if (selected) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
             }
         }
         Column {
-            Text(group.title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1)
+            Text(group.title, color = Color.White, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 if (members.isEmpty()) "Tap to add" else "${members.size} contacts",
                 color = FocusMuted,

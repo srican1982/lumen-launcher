@@ -25,7 +25,7 @@ internal fun FocusRingCheck() {
         report = FocusRingDiagnostics.read(context) + "\n\n" + outcome +
             if (last == 0L) "" else "\n\nAt the time of that call:\n" + prefs.getString("sound", "")
     }
-    TextButton(onClick = { refresh(); open = true }) { Text("Check ringing", color = FocusAccent) }
+    TextButton(onClick = { refresh(); open = true }) { Text("Check ringing", color = androidx.compose.ui.graphics.Color.White) }
     if (open) AlertDialog(onDismissRequest = { open = false }, title = { Text("Call ringing check") },
         text = { androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) { Text(report) } },
         confirmButton = { TextButton(onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_SOUND_SETTINGS)) }; open = false }) { Text("Sound settings") } },

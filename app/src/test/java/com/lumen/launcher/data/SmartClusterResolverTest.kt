@@ -78,9 +78,9 @@ class SmartClusterResolverTest {
     }
 
     @Test
-    fun matchSpaceUsesMonoWhileFocusing() {
+    fun matchSpaceKeepsOriginalIconsWhileFocusing() {
         val treatment = IconSkin.treatment(IconSkin.MatchSpace, SpaceKind.Personal, focusing = true)
-        assertThat(treatment).isEqualTo(IconTreatment.Mono)
+        assertThat(treatment).isEqualTo(IconTreatment.Original)
     }
 
     private fun app(label: String, pkg: String, category: AppCategory) =

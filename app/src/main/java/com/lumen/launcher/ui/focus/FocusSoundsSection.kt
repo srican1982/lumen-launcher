@@ -60,7 +60,7 @@ import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Focus sound") {
+internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Focus sound", compact: Boolean = false) {
     val context = LocalContext.current
     val player = remember { FocusSoundPlayer.get(context) }
     var sound by remember { mutableStateOf(FocusSoundPrefs.sound(context)) }
@@ -85,7 +85,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Fo
         previewing = false
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 heading,
@@ -108,6 +108,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Fo
         ) {
             item(key = "off") {
                 SoundCard(
+                    compact = compact,
                     title = "Off",
                     selected = sound == FocusSound.Off,
                     art = { OffArt() },
@@ -120,6 +121,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Fo
             }
             items(FocusSound.selectable, key = { it.id }) { item ->
                 SoundCard(
+                    compact = compact,
                     title = when (item) {
                         FocusSound.Flute -> "Flute"
                         FocusSound.BrownNoise -> "Brown"
@@ -179,7 +181,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Fo
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(Icons.Filled.PlayArrow, null, tint = FocusAccent, modifier = Modifier.size(16.dp))
-                        Text("Play preview", color = FocusAccent, fontFamily = Outfit, fontSize = 12.sp)
+                        Text("Play preview", color = androidx.compose.ui.graphics.Color.White, fontFamily = Outfit, fontSize = 12.sp)
                     }
                 }
             }
@@ -189,6 +191,7 @@ internal fun FocusSoundsSection(dismissSignal: Int = 0, heading: String = "4. Fo
 
 @Composable
 private fun SoundCard(
+    compact: Boolean = false,
     title: String,
     selected: Boolean,
     art: @Composable () -> Unit,
@@ -211,7 +214,7 @@ private fun SoundCard(
             )
             .clickable(onClick = onClick)
     ) {
-        Box(Modifier.height(46.dp).fillMaxWidth()) {
+        Box(Modifier.height(if (compact) 32.dp else 46.dp).fillMaxWidth()) {
             art()
             if (selected) {
                 Box(

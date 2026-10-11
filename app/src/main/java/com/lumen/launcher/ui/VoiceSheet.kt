@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +13,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.horizontalScroll
@@ -76,13 +85,32 @@ private val GoldHi = Color(0xFFF8E7C4)
 private val Panel = RoundedCornerShape(36.dp)
 
 @Composable
+fun VoiceRoute(viewModel: com.lumen.launcher.vm.LauncherViewModel) {
+    val state by viewModel.voice.state.collectAsStateWithLifecycle()
+    VoiceSheet(state, viewModel::closeSheet, viewModel.voice::submitVoiceText, viewModel.voice::retryVoice, viewModel.voice::editVoiceTranscript, viewModel.voice::chooseVoiceOption, viewModel.voice::cancelVoiceChoice)
+}
+
+@Composable
 fun VoiceSheet(
-    state: LauncherUiState,
+    state: com.lumen.launcher.vm.VoiceUiState,
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onEdit: () -> Unit = {},
+    onChoice: (Int, Boolean) -> Unit = { _, _ -> },
+    onCancel: () -> Unit = {}
 ) {
     var draft by remember { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val pending = state.voicePending
+    var rememberWording by remember(pending) { mutableStateOf(false) }
+    val edit: (String) -> Unit = { text ->
+        onEdit()
+        draft = text
+        focus.requestFocus()
+        keyboard?.show()
+    }
     val submit = {
         val text = draft.trim()
         if (text.isNotBlank()) {
@@ -183,7 +211,7 @@ fun VoiceSheet(
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {
-                Text("Lumen assistant", color = GoldHi, fontFamily = Outfit, fontSize = 16.sp)
+                Text("Lumen Voice \u00B7 Beta", color = GoldHi, fontFamily = Outfit, fontSize = 16.sp)
                 TextButton(onClick = onDismiss) { Text("Close", color = Color.White.copy(alpha = 0.75f)) }
             }
             Box(
@@ -310,8 +338,50 @@ fun VoiceSheet(
                 fontFamily = Outfit,
                 fontWeight = FontWeight.Normal,
                 fontSize = 15.sp,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.clickable(enabled = state.voiceHeard.isNotBlank()) { edit(state.voiceHeard) }
             )
+            if (state.voiceHeard.isNotBlank()) {
+                TextButton(onClick = { edit(state.voiceHeard) }) {
+                    Text("Edit what I heard", color = GoldHi, fontFamily = Outfit)
+                }
+            }
+            if (state.voiceAlternatives.isNotEmpty()) {
+                Text("Other guesses", color = Color.White.copy(alpha = .6f), fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.voiceAlternatives.forEach { guess ->
+                        TextButton(onClick = { edit(guess) }, modifier = Modifier.border(1.dp, Gold.copy(alpha = .3f), RoundedCornerShape(20.dp))) {
+                            Text(guess, color = GoldHi)
+                        }
+                    }
+                }
+            }
+            if (pending != null && pending.alternatives.isNotEmpty()) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (pending.missingSlot != null || (pending.alternatives.size == 1 && pending.clarify.firstOrNull()?.startsWith("tell me") == true)) {
+                        Text(pending.textValue.takeIf { pending.missingSlot != null }.orEmpty().ifBlank { "Say the name, or type it below." }, color = GoldHi)
+                        TextButton(onClick = onCancel) { Text("Cancel", color = Color.White) }
+                    } else if (pending.alternatives.size == 1) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            TextButton(onClick = { onChoice(0, false) }) { Text("Yes", color = GoldHi) }
+                            TextButton(onClick = onCancel) { Text("No", color = Color.White) }
+                        }
+                    } else {
+                        pending.alternatives.forEachIndexed { index, choice ->
+                            TextButton(onClick = { onChoice(index, rememberWording) }, modifier = Modifier.fillMaxWidth()) {
+                                Text(pending.clarify.getOrNull(index) ?: com.lumen.launcher.voice.intent.VoiceQueryRouter.describe(choice), color = GoldHi)
+                            }
+                        }
+                        if (pending.alternatives.all { it.action == com.lumen.launcher.voice.intent.VoiceAction.OPEN_APP }) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = rememberWording, onCheckedChange = { rememberWording = it })
+                                Text("Remember this wording", color = Color.White, fontSize = 14.sp)
+                            }
+                        }
+                        TextButton(onClick = onCancel) { Text("Cancel", color = Color.White) }
+                    }
+                }
+            }
             if (!state.voiceListening) {
                 TextButton(onClick = onRetry) { Text(if (state.voiceCanRetry) "Try microphone again" else "Interrupt and speak", color = GoldHi) }
             }
@@ -358,7 +428,7 @@ fun VoiceSheet(
                     cursorBrush = SolidColor(GoldHi),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { submit() }),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).focusRequester(focus).onFocusChanged { if (it.isFocused) onEdit() },
                     decorationBox = { inner ->
                         Box {
                             if (draft.isEmpty()) {
@@ -374,6 +444,9 @@ fun VoiceSheet(
                         }
                     }
                 )
+                IconButton(onClick = { edit(draft) }) {
+                    Icon(Icons.Default.Keyboard, contentDescription = "Type a command", tint = GoldHi)
+                }
                 val ready = draft.isNotBlank()
                 Box(
                     modifier = Modifier
@@ -402,6 +475,20 @@ fun VoiceSheet(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun VoiceReturnHint(viewModel: com.lumen.launcher.vm.LauncherViewModel, modifier: Modifier = Modifier) {
+    val state by viewModel.voice.state.collectAsStateWithLifecycle()
+    if (!state.returnVisible) return
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xF0182027)).padding(12.dp)) {
+        Text("Opened ${state.openedApp}", color = Color.White)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = viewModel.voice::correctVoiceApp) { Text("Wrong app?", color = GoldHi) }
+            if (state.questionToCopy.isNotBlank()) TextButton(onClick = viewModel.voice::copyVoiceQuestion) { Text("Copy question", color = GoldHi) }
+            TextButton(onClick = viewModel.voice::dismissVoiceReturn) { Text("Dismiss", color = Color.White) }
         }
     }
 }

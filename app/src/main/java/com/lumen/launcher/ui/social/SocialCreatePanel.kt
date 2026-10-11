@@ -1,6 +1,9 @@
 package com.lumen.launcher.ui.social
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,7 +48,6 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -97,13 +99,14 @@ fun SocialCreatePanel(
 ) {
     val visibility = remember { MutableTransitionState(false) }
     visibility.targetState = open
-    val dim by animateFloatAsState(if (open) 0.48f else 0f, tween(280), label = "panel-dim")
+    val dim by animateFloatAsState(if (open) 0.48f else 0f, tween(380, easing = FastOutSlowInEasing), label = "panel-dim")
     if (!visibility.currentState && visibility.isIdle && !open) return
     var dragX by remember { mutableFloatStateOf(0f) }
     var showAll by remember { mutableStateOf(false) }
     var showStickers by remember { mutableStateOf(false) }
-    val stickerPacks by StickerLibrary.packs.collectAsState()
+    val stickerPacks by StickerLibrary.packs.collectAsStateWithLifecycle()
     val stickerCount = stickerPacks.sumOf { it.stickers.size }
+    val hasOwnStickers = stickerPacks.any { pack -> pack.stickers.any { !it.isStarter } }
     val view = LocalView.current
     val blockTouches = remember { MutableInteractionSource() }
 
@@ -128,8 +131,8 @@ fun SocialCreatePanel(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .fillMaxWidth(0.546f)
-                .widthIn(max = 238.dp)
+                .fillMaxWidth(0.60f)
+                .widthIn(max = 360.dp)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -139,8 +142,8 @@ fun SocialCreatePanel(
                         onHorizontalDrag = { _, delta -> dragX += delta }
                     )
                 },
-            enter = fadeIn(tween(220)) + slideInHorizontally(tween(220)) { -it },
-            exit = fadeOut(tween(300)) + slideOutHorizontally(tween(300)) { -it }
+            enter = fadeIn(tween(380, easing = FastOutSlowInEasing)) + slideInHorizontally(tween(380, easing = FastOutSlowInEasing)) { -it },
+            exit = fadeOut(tween(380, easing = FastOutSlowInEasing)) + slideOutHorizontally(tween(380, easing = FastOutSlowInEasing)) { -it }
         ) {
             Column(
                 modifier = Modifier
@@ -176,53 +179,51 @@ fun SocialCreatePanel(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
             ) {
-                val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+                val greeting = when(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
                     in 5..11 -> "Good Morning,"
                     in 12..16 -> "Good Afternoon,"
                     else -> "Good Evening,"
                 }
-                Text(greeting, color = PanelGold, fontFamily = Outfit, fontWeight = FontWeight.SemiBold,
-                    fontSize = 23.sp, modifier = Modifier.padding(top = 22.dp))
-                Text("Create something today.", color = PanelGold.copy(alpha = .72f), fontFamily = Outfit, fontSize = 12.sp)
-                Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(greeting,color=PanelGold,fontFamily=Outfit,fontWeight=FontWeight.SemiBold,
+                    fontSize=22.sp,lineHeight=26.sp,textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(top=20.dp))
+                Column(Modifier.fillMaxWidth().padding(top=18.dp,bottom=20.dp),
+                    horizontalAlignment=Alignment.CenterHorizontally) {
                     Canvas(Modifier.size(48.dp)) {
-                        val gold = Color(0xFFE7D294)
-                        drawCircle(gold.copy(alpha = .5f), radius = size.minDimension * .45f, style = Stroke(1.2.dp.toPx()))
-                        drawCircle(gold, radius = size.minDimension * .36f, style = Stroke(1.8.dp.toPx()))
-                        drawCircle(gold, radius = 3.dp.toPx(), center = Offset(size.width * .79f, size.height * .23f))
+                        drawCircle(PanelGold.copy(alpha=.5f),radius=size.minDimension*.45f,style=Stroke(1.2.dp.toPx()))
+                        drawCircle(PanelGold,radius=size.minDimension*.36f,style=Stroke(1.8.dp.toPx()))
+                        drawCircle(PanelGold,radius=3.dp.toPx(),center=Offset(size.width*.79f,size.height*.23f))
                     }
-                    Spacer(Modifier.height(9.dp))
-                    Text("Lumen Panel", color = Color.White, fontFamily = Outfit,
-                        fontWeight = FontWeight.SemiBold, fontSize = 21.sp, textAlign = TextAlign.Center)
-                    Text("Create & share", color = Color.White.copy(.72f), fontFamily = Outfit, fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text("Lumen Panel",color=Color.White,fontFamily=Outfit,fontWeight=FontWeight.SemiBold,fontSize=21.sp)
+                    Text("Create & share",color=Color.White.copy(alpha=.72f),fontFamily=Outfit,fontSize=13.sp,
+                        modifier=Modifier.padding(top=2.dp))
                 }
 
                 if (!showAll) {
                     CreateToolCard(
                         title = "Scribble",
-                        subtitle = "Turn your ideas into something.",
+                        subtitle = "Draw & share",
                         icon = CreateIcons.Squiggle,
                         gradient = listOf(Color(0xFF7C4DDF), Color(0xFF9A7FE3), Color(0xFF6F6FD8))
                     ) { onOpenTool(SocialCreateTool.Scribble) }
                     Spacer(Modifier.height(9.dp))
                     CreateToolCard(
                         title = "Quote",
-                        subtitle = "Capture thoughts that matter.",
+                        subtitle = "Text to sticker",
                         icon = Icons.Filled.FormatQuote,
                         gradient = listOf(Color(0xFF2563EB), Color(0xFF3B82D6), Color(0xFF56B5E0))
                     ) { onOpenTool(SocialCreateTool.Quote) }
                     Spacer(Modifier.height(9.dp))
                     CreateToolCard(
                         title = "Photo",
-                        subtitle = "Add a personal touch.",
+                        subtitle = "Mark up photos",
                         icon = Icons.Outlined.Image,
                         gradient = listOf(Color(0xFFC98B3A), Color(0xFFA77356), Color(0xFF7E6A8A))
                     ) { onOpenTool(SocialCreateTool.Photo) }
                     Spacer(Modifier.height(9.dp))
                     CreateToolCard(
-                        title = "Lumen Stickers",
-                        subtitle = if (stickerCount == 1) "1 sticker" else "$stickerCount stickers",
+                        title = "Stickers",
+                        subtitle = if (!hasOwnStickers) "Starter pack ready" else if (stickerCount == 1) "1 sticker" else "$stickerCount stickers",
                         icon = CreateIcons.Sticker,
                         gradient = listOf(Color(0x33FFFFFF), Color(0x1FFFFFFF), Color(0x26FFFFFF))
                     ) { showStickers = true }
@@ -274,10 +275,11 @@ fun SocialCreatePanel(
                 ) {
                     if (creations.isEmpty()) {
                         Text(
-                            "Your scribbles, quotes and photos will show up here.",
-                            color = Color.White.copy(alpha = 0.55f),
+                            "Make your first sticker →",
+                            color = PanelGold,
                             fontFamily = Outfit,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            modifier=Modifier.clip(RoundedCornerShape(12.dp)).clickable {onOpenTool(SocialCreateTool.Scribble)}.padding(vertical=12.dp,horizontal=4.dp)
                         )
                     }
                     val shown = if (showAll) creations else creations.take(4)
@@ -333,20 +335,21 @@ private fun CreateToolCard(
                 CardShape
             )
             .clickable(onClick = onClick)
-            .padding(start = 14.dp, end = 8.dp),
+            .padding(start = 10.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, tint = PanelGold, modifier = Modifier.size(28.dp))
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = PanelGold, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 2, lineHeight = 19.sp)
+            Text(title, color = PanelGold, fontFamily = Outfit, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, lineHeight = 19.sp)
             Text(
                 subtitle,
                 color = Color.White.copy(alpha = 0.78f),
                 fontFamily = Outfit,
                 fontSize = 12.5.sp,
                 lineHeight = 16.sp,
-                maxLines = 2,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp)
             )
         }
