@@ -5,11 +5,11 @@
     <ImageView android:id="@+id/widget_canvas" android:layout_width="match_parent" android:layout_height="match_parent"
         android:scaleType="fitCenter" android:contentDescription="@null" android:visibility="gone" />
     <TextView android:id="@+id/widget_content" android:layout_width="match_parent" android:layout_height="match_parent"
-        android:gravity="center" android:textColor="#FFF8F1" android:textSize="16sp"
+        android:gravity="center" android:textColor="#F8F1FF" android:textSize="16sp"
         android:autoSizeTextType="uniform" android:autoSizeMinTextSize="10sp" android:autoSizeMaxTextSize="20sp" android:autoSizeStepGranularity="1sp"
         android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
     <TextView android:id="@+id/widget_content_action" android:layout_width="32dp" android:layout_height="32dp"
         android:layout_gravity="bottom|end" android:gravity="center" android:text="+" android:textSize="20sp"
-        android:textColor="#E4CB91" android:background="@drawable/widget_control" android:visibility="gone"
+        android:textColor="#E4C6FF" android:background="@drawable/widget_control" android:visibility="gone"
         android:includeFontPadding="false" />
 </FrameLayout>

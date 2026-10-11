@@ -29,4 +29,26 @@ object WidgetHostStore {
         ids.removeAt(index); ids.add(destination, id)
         prefs(context).edit().putString("ids", ids.joinToString(",")).apply()
     }
+
+    /** Absolute reorder used by drag-and-drop on the widgets page. */
+    @Synchronized fun moveTo(context: Context, id: Int, toIndex: Int) {
+        val ids = ids(context).toMutableList()
+        val from = ids.indexOf(id)
+        if (from < 0 || ids.isEmpty()) return
+        val destination = toIndex.coerceIn(0, ids.lastIndex)
+        if (from == destination) return
+        ids.removeAt(from)
+        // After removal, indices above `from` shift down by one.
+        val dest = if (from < destination) destination - 1 else destination
+        ids.add(dest.coerceIn(0, ids.size), id)
+        prefs(context).edit().putString("ids", ids.joinToString(",")).apply()
+    }
+
+    /** Replace the full order after a gesture drag finishes. */
+    @Synchronized fun setOrder(context: Context, ordered: List<Int>) {
+        val current = ids(context).toSet()
+        val next = ordered.filter { it in current }.distinct()
+        if (next.isEmpty() || next.toSet() != current) return
+        prefs(context).edit().putString("ids", next.joinToString(",")).apply()
+    }
 }

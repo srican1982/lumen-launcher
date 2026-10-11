@@ -238,7 +238,7 @@ object WidgetRenderer {
             }
             WidgetKind.Battery -> {
                 text(data.battery?.let { "$it%" } ?: "Battery unavailable", if (data.charging) "Charging \u00b7 Phone" else "Phone battery")
-                view.setTextColor(R.id.widget_detail, 0xFF71D7B0.toInt())
+                view.setTextColor(R.id.widget_detail, 0xFFE4C6FF.toInt())
                 view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, 28f)
                 data.battery?.let { level ->
                     view.setViewVisibility(R.id.widget_meter, View.VISIBLE)
@@ -345,7 +345,7 @@ object WidgetRenderer {
         } else paint.color = 0xFF36535D.toInt()
         canvas.drawCircle(48f, 48f, 42f, paint)
         if (source == null) {
-            paint.apply { color = 0xFFE4CB91.toInt(); textSize = 32f; textAlign = Paint.Align.CENTER }
+            paint.apply { color = 0xFFE4C6FF.toInt(); textSize = 32f; textAlign = Paint.Align.CENTER }
             canvas.drawText(WidgetContentRules.initials(name), 48f, 48f - (paint.ascent() + paint.descent()) / 2, paint)
         }
         paint.shader = null
