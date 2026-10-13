@@ -40,9 +40,9 @@ object Lumen {
     val Night: Color get() = if (w) Color(0xFF14171C) else Color(0xFF14061F)
     val Dusk: Color get() = if (w) Color(0xFF2A2F37) else Color(0xFF3B1568)
     val Bloom: Color get() = if (w) Color(0xFF4A5260) else Color(0xFF6D3AA0)
-    val Accent: Color get() = if (w) Color(0xFFFFFFFF) else Color(0xFFE4C6FF)
-    val AccentDeep: Color get() = if (w) Color(0xFFE6EBF2) else Color(0xFFC084FC)
-    val Pink: Color get() = if (w) Color(0xFFF3F4F6) else Color(0xFFF0ABFC)
+    val Accent: Color get() = BrandGold
+    val AccentDeep: Color get() = Color(0xFFE7C27A)
+    val Pink: Color get() = BrandGold
     val Text = Color(0xFFF8F1FF)
     val Muted = Color(0xC4F8F1FF)
     val Faint = Color(0x8AF8F1FF)
@@ -53,7 +53,7 @@ object Lumen {
     val StrokeLo: Color get() = if (w) Color(0x26FFFFFF) else Color(0x18FFFFFF)
     val Ripple = Color(0x33FFFFFF)
     val Scrim: Color get() = if (w) Color(0x99101216) else Color(0x9911061C)
-    val OnAccent: Color get() = if (w) Color(0xFF1F2430) else Color(0xFF2A1048)
+    val OnAccent: Color get() = OnBrandGold
     val IconCorner = 32
     val DockRadius = 40.dp
     val PillRadius = 28.dp
@@ -70,15 +70,15 @@ object Lumen {
         0.42f to Color(0xFF252A31),
         1f to Color(0xFF14171C)
     )
-    private val violetFill = Brush.linearGradient(
-        listOf(Color(0xFFE9D5FF), Color(0xFFD8B4FE), Color(0xFFF0ABFC))
+    private val goldFill = Brush.linearGradient(
+        listOf(Color(0xFFF3D7A0), BrandGold, Color(0xFFE7C27A))
     )
     private val whiteFill = Brush.linearGradient(
         listOf(Color(0xFFFFFFFF), Color(0xFFF1F4F8), Color(0xFFE3E8EF))
     )
 
     val Mesh: Brush get() = if (w) whiteMesh else violetMesh
-    val AccentFill: Brush get() = if (w) whiteFill else violetFill
+    val AccentFill: Brush get() = goldFill
 }
 
 @Composable

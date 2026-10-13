@@ -10,6 +10,21 @@ data class CityCountRow(val city: String?, val count: Int)
 
 @Dao
 interface TripDao {
+    @Query("SELECT * FROM trips ORDER BY startTime")
+    fun observeAllTrips(): Flow<List<TripEntity>>
+
+    @Query("SELECT * FROM trip_photos ORDER BY id")
+    fun observeAllPhotos(): Flow<List<TripPhotoEntity>>
+
+    @Query("SELECT * FROM trips ORDER BY startTime")
+    suspend fun allTrips(): List<TripEntity>
+
+    @Query("SELECT * FROM trip_photos ORDER BY id")
+    suspend fun allPhotos(): List<TripPhotoEntity>
+
+    @Query("UPDATE trip_photos SET mediaStoreId = :mediaId, contentUri = :uri WHERE id = :id")
+    suspend fun reconnectPhoto(id: Long, mediaId: Long, uri: String)
+
     @Query("SELECT * FROM trips WHERE isActive = 1 LIMIT 1")
     suspend fun getActiveTrip(): TripEntity?
 

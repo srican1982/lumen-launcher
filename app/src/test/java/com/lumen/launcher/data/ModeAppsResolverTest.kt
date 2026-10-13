@@ -58,4 +58,10 @@ class ModeAppsResolverTest {
         assertThat(resolve(SpaceKind.Work, listOf(chat.key))).containsExactly(chat)
         assertThat(resolve(SpaceKind.Travel)).containsExactly(maps)
     }
+    @Test fun savedModeCannotShowMoreThanTwelveApps() {
+        val apps = (1..18).map { AppInfo("App $it", "app$it", "Main", 0, AppCategory.Work) }
+        val result = ModeAppsResolver.resolve(SpaceKind.Work, apps, apps.map { it.key }, emptyList(), emptyList())
+        assertThat(result).hasSize(12)
+        assertThat(result).containsExactlyElementsIn(apps.take(12)).inOrder()
+    }
 }

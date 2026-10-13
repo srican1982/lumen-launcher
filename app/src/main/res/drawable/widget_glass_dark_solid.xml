@@ -1,24 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Solid Lumen violet glass — deeper frost for busy wallpapers. -->
+<!-- Same neutral frost as GlassColors; wallpaper supplies the color. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#E03B1568"
-                android:centerColor="#E82E1060"
-                android:endColor="#F014061F" />
-        </shape>
-    </item>
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#33FFFFFF"
-                android:centerColor="#14E4C6FF"
-                android:endColor="#00FFFFFF" />
-        </shape>
-    </item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="270" android:startColor="#70000000" android:endColor="#5C000000" />
+    <stroke android:width="0.8dp" android:color="#33FFFFFF" />
+</shape></item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="315" android:startColor="#04FFFFFF" android:endColor="#00FFFFFF" />
+  </shape></item>
 </layer-list>

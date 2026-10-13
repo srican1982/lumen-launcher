@@ -143,6 +143,8 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    var modeEditing by remember { mutableStateOf(false) }
+    if (modeEditing) AppEditPage(state, viewModel, onDismiss = { modeEditing = false })
     val completedFocus by com.lumen.launcher.focus.FocusSessionManager.get(androidx.compose.ui.platform.LocalContext.current).completion.collectAsStateWithLifecycle()
     val focusCompleted = state.activeSpace == SpaceKind.Focus && !state.focusing && completedFocus != null
     BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(if (LumenPalette.whiteGlass) listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14)) else listOf(Color(0xFF081522), Color(0xFF071017), Color(0xFF09101A))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
@@ -367,9 +369,11 @@ fun HomeScreen(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .padding(horizontal = 24.dp)
-                    .emptySpaceLongPress(
+                    .homeEmptyTaps(
                         enabled = !recentsOpen && !editing,
-                        onLongPress = viewModel::openMenu
+                        onTap = viewModel::openMenu,
+                        onDoubleTap = {}, onTripleTap = {},
+                        onLongPress = { modeEditing = true }
                     )
             ) {
             Spacer(Modifier.height(6.dp))
@@ -402,17 +406,6 @@ fun HomeScreen(
                     onOpen = viewModel::openPackageInfo
                 )
             }
-            if (!focusCompleted && (state.activeSpace != SpaceKind.Focus || !state.focusing)) {
-                Spacer(Modifier.height(12.dp))
-                ActionBar(
-                    hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
-                    onClick = viewModel::openModeSearch,
-                    onLongClick = { viewModel.openCapture() },
-                    modifier = restBlur
-                )
-            } else {
-                Spacer(Modifier.height(4.dp))
-            }
             Spacer(Modifier.height(if (state.activeSpace == SpaceKind.Focus) 0.dp else 4.dp))
             Box(
                 modifier = Modifier
@@ -427,7 +420,13 @@ fun HomeScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(state.gridColumns),
                     state = gridState,
-                    modifier = Modifier.fillMaxSize().drawerAtGridEnd(!editing && !recentsOpen, gridState, viewModel::openDrawer),
+                    modifier = Modifier.fillMaxSize().gridEdgeGestures(
+                        enabled = !editing && !recentsOpen,
+                        gridState = gridState,
+                        scrollEnabled = gridNeedsScroll,
+                        onOpenSearch = viewModel::openModeSearch,
+                        onOpenDrawer = viewModel::openDrawer
+                    ),
                     contentPadding = PaddingValues(
                         top = if (state.activeSpace == SpaceKind.Focus) 4.dp else 12.dp,
                         bottom = if (gridNeedsScroll) 28.dp else 0.dp
@@ -514,6 +513,9 @@ fun HomeScreen(
                 }
             }
             DockScrollHint(gridState, state.activeSpace, enabled = gridNeedsScroll && !editing && !recentsOpen && !state.focusing)
+            if (!focusCompleted && !recentsOpen && !state.focusing) {
+                Spacer(Modifier.height(48.dp))
+            }
             DockBar(
                 apps = state.dock,
                 slotCount = state.dockCapacity,
@@ -630,7 +632,7 @@ private fun HomeGreeting(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 12.dp, end = 8.dp)
+                .padding(start = 12.dp, end = 20.dp)
         ) {
             FittingGreeting(greeting)
             Text(
@@ -913,13 +915,7 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
             val active = space == selected
             val white = LumenPalette.whiteGlass
             val chipShape = RoundedCornerShape(16.dp)
-            val content = when {
-                active && selected == SpaceKind.Travel -> Color.White
-                selected == SpaceKind.Focus && !white -> if (active) Color.White else Color(0xFFB8C7E6)
-                active && white -> Color(0xFF5B21B6)
-                active -> Lumen.OnAccent
-                else -> Color.White.copy(alpha = 0.88f)
-            }
+            val content = if (active) Lumen.OnBrandGold else Color.White.copy(alpha = 0.88f)
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -948,22 +944,14 @@ fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> U
                                 lineTo(x - 2*unit, y - 3*unit)
                                 close()
                             }
-                            drawPath(plane, Color(0xFFFFCDDE))
+                            drawPath(plane, Lumen.BrandGold)
                         }
                     }
                     .clip(chipShape)
                     .then(
                         when {
-                            active && selected == SpaceKind.Travel -> Modifier.background(Brush.verticalGradient(listOf(Color(0xFFAC1749), Color(0xFF780D32)))).border(1.dp, Color(0xFFC55B7D), chipShape)
-                            active && selected == SpaceKind.Focus && !white -> Modifier
-                                .background(com.lumen.launcher.ui.focus.FocusGradient)
-                                .border(1.dp, Color(0xFF7AA0FF), chipShape)
-                            selected == SpaceKind.Focus && !white -> Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color(0xFF7384AD).copy(alpha = 0.10f)))).border(0.8.dp, Color.White.copy(alpha = 0.32f), chipShape)
-                            active && selected == SpaceKind.Focus && white -> Modifier.background(com.lumen.launcher.ui.focus.FocusGradient)
-                            active && white -> Modifier.background(
-                                Brush.verticalGradient(listOf(Color(0xFFF6F1FF), Color(0xFFE4D8FB)))
-                            )
                             active -> Modifier.background(Lumen.AccentFill)
+                                .border(1.dp, Lumen.BrandGold, chipShape)
                             else -> Modifier
                                 .background(Color.White.copy(alpha = if (white) 0.14f else 0.08f))
                                 .border(0.8.dp, Color.White.copy(alpha = if (white) 0.35f else 0.12f), chipShape)
@@ -1348,7 +1336,7 @@ fun IconSlot(
     ) {
         AppIcon(packageName, activityName, iconSize, icons, phase = phase)
         if (showLabel) {
-            Text(
+            FittingAppLabel(
                 label,
                 style = TextStyle(
                     color = Color.White.copy(alpha = if (lifted) 0.4f else 1f),

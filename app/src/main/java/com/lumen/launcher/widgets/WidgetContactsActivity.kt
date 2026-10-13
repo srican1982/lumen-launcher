@@ -65,7 +65,7 @@ class WidgetContactsActivity : ComponentActivity() {
         widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
         slot = savedInstanceState?.getInt("slot") ?: intent.getIntExtra("slot", -1)
         waitingForPicker = savedInstanceState?.getBoolean("waiting") ?: false
-        if (widgetId !in AppWidgetManager.getInstance(this).getAppWidgetIds(LumenWidgetProvider.component(this, WidgetKind.Contacts))) { finish(); return }
+        if (WidgetKind.entries.filter { it.isContact }.none { widgetId in AppWidgetManager.getInstance(this).getAppWidgetIds(LumenWidgetProvider.component(this, it)) }) { finish(); return }
         if (!waitingForPicker) {
             if (savedInstanceState == null && slot in 0..3) choose(slot) else showSlots()
         }

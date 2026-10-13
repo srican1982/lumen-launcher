@@ -1,24 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Soft White Glass frost — cool gray airy film, borderless. -->
+<!-- Same neutral frost as GlassColors; wallpaper supplies the color. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#664A5260"
-                android:centerColor="#702A2F37"
-                android:endColor="#7A14171C" />
-        </shape>
-    </item>
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#40FFFFFF"
-                android:centerColor="#14FFFFFF"
-                android:endColor="#00FFFFFF" />
-        </shape>
-    </item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="270" android:startColor="#3EFFFFFF" android:endColor="#20FFFFFF" />
+    <stroke android:width="0.8dp" android:color="#66FFFFFF" />
+</shape></item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="315" android:startColor="#04FFFFFF" android:endColor="#00FFFFFF" />
+  </shape></item>
 </layer-list>

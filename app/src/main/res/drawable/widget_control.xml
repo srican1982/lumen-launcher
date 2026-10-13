@@ -1,6 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Soft frosted control — no hard border. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <corners android:radius="16dp" />
-    <solid android:color="#28FFFFFF" />
-</shape>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#00000000" /></shape>

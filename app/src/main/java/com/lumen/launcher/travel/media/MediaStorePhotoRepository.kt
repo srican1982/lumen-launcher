@@ -63,7 +63,7 @@ object MediaStorePhotoRepository {
     fun isLikelyCameraPhoto(relativePath: String?, displayName: String?): Boolean =
         isCameraPhoto(relativePath, displayName, null)
 
-    suspend fun queryPhotosSince(context: Context, sinceEpochMs: Long): List<MediaStorePhoto> =
+    suspend fun queryPhotosSince(context: Context, sinceEpochMs: Long, cameraOnly: Boolean = true): List<MediaStorePhoto> =
         withContext(Dispatchers.IO) {
             val collection = if (Build.VERSION.SDK_INT >= 29) {
                 MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -114,7 +114,7 @@ object MediaStorePhotoRepository {
                     }
                     val mime = c.getString(mimeIdx)
                     val cameraOwned = ownerIdx >= 0 && c.getString(ownerIdx) in cameraPackages
-                    if (!isCameraPhoto(path, name, mime, cameraOwned)) continue
+                    if (cameraOnly && !isCameraPhoto(path, name, mime, cameraOwned)) continue
                     out += MediaStorePhoto(
                         mediaStoreId = id,
                         contentUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id),

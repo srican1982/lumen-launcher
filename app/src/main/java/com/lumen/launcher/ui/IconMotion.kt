@@ -33,7 +33,8 @@ fun Modifier.iconContact(
     onLongPress: () -> Unit,
     onLift: () -> Unit = {},
     onDrag: (Offset) -> Unit = {},
-    onDragEnd: () -> Unit = {}
+    onDragEnd: () -> Unit = {},
+    onDragCancel: () -> Unit = {}
 ): Modifier {
     val latestPhase by rememberUpdatedState(onPhase)
     val latestLaunch by rememberUpdatedState(onLaunch)
@@ -41,6 +42,7 @@ fun Modifier.iconContact(
     val latestLift by rememberUpdatedState(onLift)
     val latestDrag by rememberUpdatedState(onDrag)
     val latestEnd by rememberUpdatedState(onDragEnd)
+    val latestCancel by rememberUpdatedState(onDragCancel)
     val enabledState by rememberUpdatedState(enabled)
     val allowDragState by rememberUpdatedState(allowDrag)
     return pointerInput(key) {
@@ -101,7 +103,13 @@ fun Modifier.iconContact(
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id }
-                if (change == null || !change.pressed || change.changedToUpIgnoreConsumed()) {
+                if (change == null) {
+                    latestCancel()
+                    latestPhase(IconPhase.Rest)
+                    break
+                }
+                change.consume()
+                if (!change.pressed || change.changedToUpIgnoreConsumed()) {
                     if (dragging) latestEnd() else latestLong()
                     latestPhase(IconPhase.Rest)
                     break

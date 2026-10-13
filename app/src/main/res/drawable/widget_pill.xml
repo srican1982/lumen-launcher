@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Soft Lumen accent pill — matches Home space tab fill. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <corners android:radius="22dp" />
-    <gradient
-        android:angle="0"
-        android:startColor="#E9D5FF"
-        android:centerColor="#D8B4FE"
-        android:endColor="#F0ABFC" />
+    <gradient android:angle="270" android:startColor="#EAD8AD" android:endColor="#DBC18A" />
+    <stroke android:width="0.7dp" android:color="#50FFFFFF" />
 </shape>

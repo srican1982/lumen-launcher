@@ -1,24 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Soft Lumen violet frost — airy, borderless, matches in-app glass. -->
+<!-- Same neutral frost as GlassColors; wallpaper supplies the color. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#663B1568"
-                android:centerColor="#702E1060"
-                android:endColor="#7A14061F" />
-        </shape>
-    </item>
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#38FFFFFF"
-                android:centerColor="#14E4C6FF"
-                android:endColor="#00FFFFFF" />
-        </shape>
-    </item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="270" android:startColor="#33000000" android:endColor="#1F000000" />
+    <stroke android:width="0.8dp" android:color="#33FFFFFF" />
+</shape></item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="315" android:startColor="#04FFFFFF" android:endColor="#00FFFFFF" />
+  </shape></item>
 </layer-list>

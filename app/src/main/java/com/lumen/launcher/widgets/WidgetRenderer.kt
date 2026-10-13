@@ -18,14 +18,14 @@ import com.lumen.launcher.data.LumenThemeMode
 
 object WidgetRenderer {
     fun icon(kind: WidgetKind): Int = when (kind) {
-        WidgetKind.Trip -> R.drawable.widget_ic_trip
+        WidgetKind.Trip, WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> R.drawable.widget_ic_trip
         WidgetKind.Scribble -> R.drawable.widget_ic_scribble
         WidgetKind.Quote -> R.drawable.widget_ic_quote
         WidgetKind.Photos -> R.drawable.widget_ic_photos
         WidgetKind.Social -> R.drawable.widget_ic_social
-        WidgetKind.Tasks -> R.drawable.widget_ic_tasks
+        WidgetKind.Tasks, WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> R.drawable.widget_ic_tasks
         WidgetKind.Focus -> R.drawable.widget_ic_focus
-        WidgetKind.Contacts -> R.drawable.widget_ic_contacts
+        WidgetKind.Contacts, WidgetKind.ContactsRecent, WidgetKind.ContactsSingle, WidgetKind.ContactsRow, WidgetKind.ContactsQuick, WidgetKind.ContactsFamily -> R.drawable.widget_ic_contacts
         WidgetKind.Hush -> R.drawable.widget_ic_hush
         WidgetKind.TravelDocs -> R.drawable.widget_ic_traveldocs
         WidgetKind.Battery -> R.drawable.widget_ic_battery
@@ -45,6 +45,9 @@ object WidgetRenderer {
         manager.updateAppWidget(id, views(context, id, kind, WidgetSnapshot(locked = true)))
     }
     fun views(context: Context, id: Int, kind: WidgetKind, data: WidgetSnapshot): RemoteViews {
+        if (kind.isContact) return ContactWidgetViews.views(context, id, kind, data)
+        if (kind.isTask) return TaskWidgetViews.views(context, id, kind, data)
+        if (kind.isTrip) return TripWidgetViews.views(context, id, kind, data)
         if (kind in setOf(WidgetKind.Quote, WidgetKind.Photos, WidgetKind.Scribble)) return contentViews(context, id, kind, data)
         val options = if (id > 0) AppWidgetManager.getInstance(context).getAppWidgetOptions(id) else android.os.Bundle()
         val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, if (kind.wide) 280 else 140)
@@ -107,6 +110,9 @@ object WidgetRenderer {
             return view
         }
         when (kind) {
+            WidgetKind.ContactsRecent, WidgetKind.ContactsSingle, WidgetKind.ContactsRow, WidgetKind.ContactsQuick, WidgetKind.ContactsFamily -> Unit
+            WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> Unit
+            WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> Unit
             WidgetKind.Trip -> {
                 val shown = data.trip ?: data.lastTrip
                 text(shown?.displayTitle ?: "Your next adventure", if (shown == null) "Start collecting memories" else "${shown.photoCount} ${if (shown.photoCount == 1) "photo" else "photos"} \u00b7 ${if (data.trip != null) "Collecting" else "Saved album"}")
@@ -238,7 +244,7 @@ object WidgetRenderer {
             }
             WidgetKind.Battery -> {
                 text(data.battery?.let { "$it%" } ?: "Battery unavailable", if (data.charging) "Charging \u00b7 Phone" else "Phone battery")
-                view.setTextColor(R.id.widget_detail, 0xFFE4C6FF.toInt())
+                view.setTextColor(R.id.widget_detail, 0xFFE4CB91.toInt())
                 view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, 28f)
                 data.battery?.let { level ->
                     view.setViewVisibility(R.id.widget_meter, View.VISIBLE)
@@ -301,7 +307,7 @@ object WidgetRenderer {
     }
 
     /** Decode at thumbnail size, so multiple widgets stay well below RemoteViews' bitmap limit. */
-    private fun thumbnail(context: Context, source: String?, maxSize: Int = 256): Bitmap? {
+    internal fun thumbnail(context: Context, source: String?, maxSize: Int = 256): Bitmap? {
         if (source.isNullOrBlank()) return null
         return runCatching {
             val uri = if (source.startsWith('/')) Uri.fromFile(java.io.File(source)) else Uri.parse(source)
@@ -331,7 +337,7 @@ object WidgetRenderer {
         return output
     }
 
-    private fun contactAvatar(source: Bitmap?, name: String): Bitmap {
+    internal fun contactAvatar(source: Bitmap?, name: String): Bitmap {
         val result = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -345,7 +351,7 @@ object WidgetRenderer {
         } else paint.color = 0xFF36535D.toInt()
         canvas.drawCircle(48f, 48f, 42f, paint)
         if (source == null) {
-            paint.apply { color = 0xFFE4C6FF.toInt(); textSize = 32f; textAlign = Paint.Align.CENTER }
+            paint.apply { color = 0xFFF8F1FF.toInt(); textSize = 32f; textAlign = Paint.Align.CENTER }
             canvas.drawText(WidgetContentRules.initials(name), 48f, 48f - (paint.ascent() + paint.descent()) / 2, paint)
         }
         paint.shader = null

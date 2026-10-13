@@ -2,10 +2,12 @@ package com.lumen.launcher.data
 
 /** Explicit selections win; Focus never fills its allowlist with inferred apps. */
 object ModeAppsResolver {
-    fun resolve(space: SpaceKind, visible: List<AppInfo>, selected: List<String>?, favorites: List<AppInfo>, recents: List<AppInfo>, frequent: List<AppInfo> = emptyList(), dockPackages: Set<String> = emptySet(), homeCapacity: Int = 12): List<AppInfo> {
+    const val MAX_APPS = 12
+
+    fun resolve(space: SpaceKind, visible: List<AppInfo>, selected: List<String>?, favorites: List<AppInfo>, recents: List<AppInfo>, frequent: List<AppInfo> = emptyList(), dockPackages: Set<String> = emptySet(), homeCapacity: Int = MAX_APPS): List<AppInfo> {
         val eligible = if (space == SpaceKind.Home) visible.filterNot { it.packageName in dockPackages } else visible
         val byKey = eligible.associateBy { it.key }
-        if (selected != null) return selected.distinct().mapNotNull(byKey::get)
+        if (selected != null) return selected.distinct().mapNotNull(byKey::get).take(homeCapacity)
         if (space == SpaceKind.Focus) return emptyList()
         if (space == SpaceKind.Home) {
             // Cold-start suggestions alternate categories rather than filling with one alphabetic cluster.
@@ -22,6 +24,6 @@ object ModeAppsResolver {
             else -> emptySet()
         }
         val ranked = (favorites + recents + visible).distinctBy { it.key }.filter { it.key in byKey }
-        return (if (preferred.isEmpty()) ranked else ranked.filter { it.category in preferred }).take(24)
+        return (if (preferred.isEmpty()) ranked else ranked.filter { it.category in preferred }).take(homeCapacity)
     }
 }

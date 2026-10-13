@@ -59,4 +59,12 @@ class SpaceSearchTest {
         val s = state(SpaceKind.Work, "Teams").copy(todos = listOf(TodoItem("t", "Ask teams about lunch", space = SpaceKind.Work)))
         assertEquals(teams, (SpaceSearch.results(s).first() as SearchHit.App).app)
     }
+    @Test fun deviceContactsAndPhotosJoinTheSameSearchResults() {
+        val device = listOf(
+            SearchHit.Action("contact:42", "Steve", "Contact", "Steve"),
+            SearchHit.Action("photo:content://media/example", "Steve.jpg", "Photo", "Steve")
+        )
+        val hits = SpaceSearch.results(state(SpaceKind.Home, "Steve"), device = device)
+        assertTrue(hits.containsAll(device))
+    }
 }

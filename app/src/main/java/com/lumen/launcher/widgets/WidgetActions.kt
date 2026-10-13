@@ -23,11 +23,24 @@ object WidgetActions {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-    fun tripToggle(context: Context, id: Int, tripId: Long?): PendingIntent {
+    fun message(context: Context, id: Int, slot: Int, numbers: List<String>): PendingIntent = PendingIntent.getActivity(context, id,
+        Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", numbers.distinct().joinToString(";"), null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    fun contactEmail(context: Context, id: Int, address: String): PendingIntent = PendingIntent.getActivity(context, id,
+        Intent(Intent.ACTION_SENDTO, Uri.fromParts("mailto", address, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    fun contactVideo(context: Context, id: Int, number: String): PendingIntent = PendingIntent.getActivity(context, id,
+        Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
+            .putExtra(android.telecom.TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, android.telecom.VideoProfile.STATE_BIDIRECTIONAL)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    fun tripToggle(context: Context, id: Int, tripId: Long?, kind: WidgetKind = WidgetKind.Trip): PendingIntent {
         val repo = com.lumen.launcher.travel.data.TripRepository.get(context)
         val ready = repo.hasLocationPermission() && repo.isLocationServicesEnabled() &&
             com.lumen.launcher.travel.TripViewModel.hasMediaPermission(context)
-        return if (tripId != null || ready) WidgetCommandReceiver.pending(context, id, WidgetKind.Trip,
+        return if (tripId != null || ready) WidgetCommandReceiver.pending(context, id, kind,
             if (tripId == null) "StartTrip" else "EndTrip", tripId?.toString().orEmpty())
         else pending(context, id, "TripToggle")
     }
@@ -60,7 +73,7 @@ object WidgetActions {
     fun read(context: Context, intent: Intent?): Pair<String, String>? {
         if (intent?.action != ACTION || intent.getStringExtra("widget_token") != token(context)) return null
         val destination = intent.getStringExtra("widget_destination") ?: return null
-        if (WidgetKind.parse(destination) == null && destination !in setOf("AddTask", "CompleteTask", "StartFocus", "Person", "Photo", "TripToggle", "TripAlbums", "FocusSetup", "UsageAccess")) return null
+        if (WidgetKind.parse(destination) == null && destination !in setOf("AddTask", "CompleteTask", "StartFocus", "Person", "Photo", "TripToggle", "TripAlbums", "FocusSetup", "UsageAccess", "TripPlan", "TripCamera", "TripNote", "TripShare", "TaskList")) return null
         val item = intent.getStringExtra("widget_item").orEmpty()
         intent.removeExtra("widget_token") // do not replay on resume / configuration change
         return destination to item

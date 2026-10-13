@@ -118,6 +118,7 @@ fun TripGalleryScreen(onClose: () -> Unit, tripVm: TripViewModel = viewModel(), 
                     }
                 }
 
+                TripBackupControls()
                 if (trips.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

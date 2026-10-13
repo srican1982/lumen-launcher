@@ -1,0 +1,117 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/contact_card_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="14dp" android:background="@drawable/widget_contact_dark_glass" android:clipToOutline="true" android:baselineAligned="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="28dp" android:gravity="center_vertical" android:baselineAligned="false">
+        <TextView android:id="@+id/contact_card_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:textColor="#FFFFFF" android:textSize="18sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end" />
+        <ImageView android:id="@+id/contact_card_add" android:layout_width="30dp" android:layout_height="match_parent" android:background="@drawable/widget_contact_button" android:contentDescription="Choose contacts" android:src="@drawable/widget_contact_plus" android:padding="7dp" android:scaleType="fitCenter" />
+    </LinearLayout>
+    <TextView android:id="@+id/contact_card_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="11sp" android:maxLines="2" android:ellipsize="end" android:layout_marginTop="3dp" />
+    <TextView android:id="@+id/contact_card_search" android:layout_width="match_parent" android:layout_height="32dp" android:text="⌕  Search contacts…" android:textSize="12sp" android:textColor="#E4E9F5" android:background="@drawable/widget_contact_control" android:gravity="center_vertical" android:paddingHorizontal="12dp" android:visibility="gone" android:layout_marginTop="8dp" />
+    <LinearLayout android:id="@+id/contact_card_people" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:layout_marginTop="8dp" android:baselineAligned="false">
+        <LinearLayout android:id="@+id/contact_card_top" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:baselineAligned="false">
+            <LinearLayout android:id="@+id/contact_card_person1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="3dp" android:baselineAligned="false">
+                <ImageView android:id="@+id/contact_card_photo1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:contentDescription="Contact" />
+                <TextView android:id="@+id/contact_card_name1" android:layout_width="match_parent" android:layout_height="20dp" android:textColor="#FFFFFF" android:textSize="10sp" android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+                <LinearLayout android:id="@+id/contact_card_actions1" android:layout_width="match_parent" android:layout_height="28dp" android:baselineAligned="false">
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_call1" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_message1" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/contact_card_person2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="3dp" android:baselineAligned="false">
+                <ImageView android:id="@+id/contact_card_photo2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:contentDescription="Contact" />
+                <TextView android:id="@+id/contact_card_name2" android:layout_width="match_parent" android:layout_height="20dp" android:textColor="#FFFFFF" android:textSize="10sp" android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+                <LinearLayout android:id="@+id/contact_card_actions2" android:layout_width="match_parent" android:layout_height="28dp" android:baselineAligned="false">
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_call2" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_message2" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/contact_card_person3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="3dp" android:baselineAligned="false">
+                <ImageView android:id="@+id/contact_card_photo3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:contentDescription="Contact" />
+                <TextView android:id="@+id/contact_card_name3" android:layout_width="match_parent" android:layout_height="20dp" android:textColor="#FFFFFF" android:textSize="10sp" android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+                <LinearLayout android:id="@+id/contact_card_actions3" android:layout_width="match_parent" android:layout_height="28dp" android:baselineAligned="false">
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_call3" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_message3" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                </LinearLayout>
+            </LinearLayout>
+            <LinearLayout android:id="@+id/contact_card_person4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="3dp" android:baselineAligned="false">
+                <ImageView android:id="@+id/contact_card_photo4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:contentDescription="Contact" />
+                <TextView android:id="@+id/contact_card_name4" android:layout_width="match_parent" android:layout_height="20dp" android:textColor="#FFFFFF" android:textSize="10sp" android:gravity="center" android:maxLines="1" android:ellipsize="end" />
+                <LinearLayout android:id="@+id/contact_card_actions4" android:layout_width="match_parent" android:layout_height="28dp" android:baselineAligned="false">
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_call4" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                        <ImageView android:id="@+id/contact_card_message4" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+                    </FrameLayout>
+                </LinearLayout>
+            </LinearLayout>
+            <TextView android:id="@+id/contact_card_note" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:layout_marginStart="6dp" android:text="Good people. A brighter day." android:textColor="#526174" android:textSize="12sp" android:fontFamily="@font/outfit_light" android:gravity="center" android:background="@drawable/widget_task_leaf" android:visibility="gone" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/contact_card_bottom" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:baselineAligned="false" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/contact_card_recent" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="vertical" android:visibility="gone" android:baselineAligned="false">
+        <LinearLayout android:id="@+id/contact_card_recent_row1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:baselineAligned="false">
+            <ImageView android:id="@+id/contact_card_recent_photo1" android:layout_width="34dp" android:layout_height="34dp" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_recent_name1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/contact_card_recent_time1" android:layout_width="62dp" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" />
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_call1" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_message1" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/contact_card_recent_row2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:baselineAligned="false">
+            <ImageView android:id="@+id/contact_card_recent_photo2" android:layout_width="34dp" android:layout_height="34dp" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_recent_name2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/contact_card_recent_time2" android:layout_width="62dp" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" />
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_call2" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_message2" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/contact_card_recent_row3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:baselineAligned="false">
+            <ImageView android:id="@+id/contact_card_recent_photo3" android:layout_width="34dp" android:layout_height="34dp" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_recent_name3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/contact_card_recent_time3" android:layout_width="62dp" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" />
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_call3" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_message3" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/contact_card_recent_row4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:baselineAligned="false">
+            <ImageView android:id="@+id/contact_card_recent_photo4" android:layout_width="34dp" android:layout_height="34dp" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_recent_name4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+            <TextView android:id="@+id/contact_card_recent_time4" android:layout_width="62dp" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" />
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_call4" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Call" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="36dp" android:layout_height="32dp">
+                <ImageView android:id="@+id/contact_card_recent_message4" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Message" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:id="@+id/contact_card_extra" android:layout_width="match_parent" android:layout_height="30dp" android:visibility="gone" android:baselineAligned="false">
+        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+            <ImageView android:id="@+id/contact_card_video" android:src="@drawable/widget_contact_video" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Video call options" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+        </FrameLayout>
+        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+            <ImageView android:id="@+id/contact_card_email" android:src="@drawable/widget_contact_email" android:background="@drawable/widget_contact_button" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Email" android:layout_width="28dp" android:layout_height="28dp" android:layout_gravity="center" />
+        </FrameLayout>
+    </LinearLayout>
+    <ImageView android:id="@+id/contact_card_group" android:layout_width="match_parent" android:layout_height="32dp" android:layout_marginTop="7dp" android:background="@drawable/widget_contact_group_button" android:visibility="gone" android:src="@drawable/widget_contact_message" android:padding="6dp" android:scaleType="fitCenter" android:contentDescription="Group message" />
+</LinearLayout>

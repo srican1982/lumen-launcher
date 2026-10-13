@@ -117,8 +117,8 @@ class TripRepository private constructor(context: Context) {
         val destinations = organized.sections.filterNot { it.isOther }
         return e.toModel(
             photoCount = photos.size,
-            coverUri = photos.firstOrNull()?.contentUri,
-            previewUris = photos.take(4).map { it.contentUri },
+            coverUri = photos.firstOrNull { it.contentUri.isNotBlank() }?.contentUri,
+            previewUris = photos.filter { it.contentUri.isNotBlank() }.take(4).map { it.contentUri },
             citiesLabel = destinations.take(3).joinToString(" · ") { it.label }
                 .ifBlank { null }
         )
@@ -134,6 +134,8 @@ class TripRepository private constructor(context: Context) {
             return@withContext enrichTrip(existing)
         }
         val now = System.currentTimeMillis()
+        // A newly created local trip establishes that its MediaStore references belong to this install.
+        java.io.File(app.noBackupFilesDir, "trip_photo_links_v1").writeText("validated")
         val id = dao.insertTrip(
             TripEntity(
                 startTime = now,
@@ -193,6 +195,18 @@ class TripRepository private constructor(context: Context) {
 
     /** Call on app start if an active trip exists. */
     suspend fun restoreIfNeeded() = lifecycleMutex.withLock {
+        val marker = java.io.File(app.noBackupFilesDir, "trip_photo_links_v1")
+        val permission = if (android.os.Build.VERSION.SDK_INT >= 33) android.Manifest.permission.READ_MEDIA_IMAGES
+            else android.Manifest.permission.READ_EXTERNAL_STORAGE
+        if (!marker.exists() && androidx.core.content.ContextCompat.checkSelfPermission(app, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            TripBackupManager(app).reconnect()
+            // A trip restored by Android is historical; do not silently capture a new phone's photos into it.
+            val installedAt = app.packageManager.getPackageInfo(app.packageName, 0).firstInstallTime
+            dao.getActiveTrip()?.takeIf { it.createdAt < installedAt }?.let { active ->
+                dao.endTrip(active.id, maxOf(active.startTime, dao.lastProcessedTimestamp(active.id) ?: active.startTime))
+            }
+            withContext(Dispatchers.IO) { marker.writeText("validated") }
+        }
         if (dao.getActiveTrip() != null) ensureObserverRunning()
         else stopObserver()
     }

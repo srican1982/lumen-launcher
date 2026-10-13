@@ -10,7 +10,7 @@ val LocalIconGlassStrength = staticCompositionLocalOf { 0.5f }
 val LocalIconTreatment = staticCompositionLocalOf { IconTreatment.Original }
 
 fun iconColorFilter(treatment: IconTreatment): ColorFilter? = when (treatment) {
-    IconTreatment.Original, IconTreatment.Glass, IconTreatment.WhiteGlass, IconTreatment.GlassColor -> null
+    IconTreatment.Original, IconTreatment.Glass, IconTreatment.WhiteGlass, IconTreatment.GlassColor, IconTreatment.Tinted, IconTreatment.Crystal, IconTreatment.Ios -> null
     IconTreatment.Work -> ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.52f) })
     IconTreatment.Mono -> ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.16f) })
     IconTreatment.Contrast -> ColorFilter.colorMatrix(
@@ -27,7 +27,9 @@ fun iconColorFilter(treatment: IconTreatment): ColorFilter? = when (treatment) {
 
 fun iconElevation(treatment: IconTreatment, rest: Float): Float = when (treatment) {
     IconTreatment.Glass -> 0f
-    IconTreatment.WhiteGlass, IconTreatment.GlassColor -> 0f
+    IconTreatment.WhiteGlass, IconTreatment.GlassColor, IconTreatment.Tinted -> 0f
+    IconTreatment.Ios -> rest * 0.4f
+    IconTreatment.Crystal -> rest * 0.6f
     IconTreatment.Work -> rest + 2f
     IconTreatment.Mono -> rest - 1f
     IconTreatment.Contrast -> rest + 4f
@@ -37,4 +39,4 @@ fun iconElevation(treatment: IconTreatment, rest: Float): Float = when (treatmen
 fun iconHasGlass(treatment: IconTreatment): Boolean =
     treatment == IconTreatment.Glass || treatment == IconTreatment.Work ||
         treatment == IconTreatment.Contrast || treatment == IconTreatment.WhiteGlass ||
-        treatment == IconTreatment.GlassColor
+        treatment == IconTreatment.GlassColor || treatment == IconTreatment.Tinted || treatment == IconTreatment.Crystal

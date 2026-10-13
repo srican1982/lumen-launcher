@@ -1,5 +1,9 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.graphicsLayer
+import com.lumen.launcher.ui.theme.Lumen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -34,22 +38,23 @@ import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 
 @Composable
-fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Unit, onSave: (List<String>) -> Unit, welcome: Boolean = false, initialKeys: List<String>? = null, onUsage: (() -> Unit)? = null) {
-    var selected by remember(state.activeSpace, initialKeys) { mutableStateOf((initialKeys ?: state.homeApps.map { it.key }).toSet()) }
+fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Unit, onSave: (List<String>) -> Unit, welcome: Boolean = false, initialKeys: List<String>? = null, onUsage: (() -> Unit)? = null, editing: Boolean = false) {
+    val maxApps = com.lumen.launcher.data.ModeAppsResolver.MAX_APPS
+    var selected by remember(state.activeSpace, initialKeys) { mutableStateOf((initialKeys ?: state.homeApps.map { it.key }).take(maxApps).toSet()) }
     val gridState = rememberLazyGridState()
     var query by remember { mutableStateOf("") }
     val apps = remember(state.visibleApps, query, selected) {
         state.visibleApps.filter { it.label.contains(query.trim(), true) }.sortedWith(compareByDescending<com.lumen.launcher.data.AppInfo> { it.key in selected }.thenBy { it.label.lowercase() })
     }
-    val accent = Color(0xFFF5CB7E)
+    val accent = Lumen.Accent
+    val motion = rememberInfiniteTransition(label = "mode edit")
+    val wiggle by motion.animateFloat(-1.4f, 1.4f, infiniteRepeatable(tween(180), RepeatMode.Reverse), label = "wiggle")
     val shape = RoundedCornerShape(28.dp)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp).imePadding()
                 .heightIn(max = 720.dp).fillMaxHeight(0.86f)
-                .clip(shape)
-                .background(Brush.verticalGradient(listOf(Color(0xFF302B3D), Color(0xFF1D1C26))))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+                .denseGlass(shape)
                 .padding(20.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -59,7 +64,7 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 }
                 IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Cancel", tint = Color.White.copy(alpha = 0.7f)) }
             }
-            Text(if (welcome) "We picked ${(initialKeys ?: state.homeApps.map { it.key }).size} to start \u00b7 Add more anytime" else "Choose the apps you want in this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+            Text(if (welcome) "We picked ${(initialKeys ?: state.homeApps.map { it.key }).take(maxApps).size} to start \u00b7 Up to $maxApps apps" else if (editing) "Remove apps from this mode or search to add more." else "Choose up to $maxApps apps for this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
             TextField(
                 value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -75,7 +80,7 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 )
             )
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${selected.size} selected", color = accent, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("${selected.size} of $maxApps selected", color = accent, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = { selected = emptySet() }, enabled = selected.isNotEmpty()) { Text("Clear", color = if (selected.isEmpty()) Color.Gray else accent) }
             }
             if (apps.isEmpty()) {
@@ -91,10 +96,10 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 items(apps, key = { it.key }) { app ->
                     val chosen = app.key in selected
                     val tileShape = RoundedCornerShape(18.dp)
-                    Box(Modifier.fillMaxWidth().height(80.dp).clip(tileShape)
+                    Box(Modifier.fillMaxWidth().height(80.dp).graphicsLayer { rotationZ = if (editing) wiggle * (if (app.key.hashCode() % 2 == 0) 1 else -1) else 0f }.clip(tileShape)
                         .background(if (chosen) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.035f))
                         .border(if (chosen) 1.5.dp else 1.dp, if (chosen) accent else Color.White.copy(alpha = 0.06f), tileShape)
-                        .toggleable(value = chosen, role = Role.Checkbox) { selected = if (it) selected + app.key else selected - app.key }
+                        .toggleable(value = chosen, enabled = chosen || selected.size < maxApps, role = Role.Checkbox) { selected = if (it) selected + app.key else selected - app.key }
                     ) {
                         Column(Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             AppIcon(app.packageName, app.activityName, 38.dp, icons, showNotificationBadge = false)
@@ -102,8 +107,8 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                             Text(app.label, color = Color.White, fontFamily = Outfit, fontSize = 11.sp, lineHeight = 14.sp,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                         }
-                        if (chosen) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp).background(accent, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Check, null, tint = Color(0xFF31213D), modifier = Modifier.size(13.dp))
+                        if (chosen) Box(Modifier.align(Alignment.TopStart).padding(3.dp).size(24.dp).background(accent, CircleShape).clickable { selected = selected - app.key }, contentAlignment = Alignment.Center) {
+                            if (editing) Text("−", color = Color(0xFF31213D), fontSize = 18.sp) else Icon(Icons.Outlined.Check, "Remove from mode", tint = Color(0xFF31213D), modifier = Modifier.size(13.dp))
                         }
                     }
                 }
@@ -124,7 +129,7 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 if (!welcome) TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.7f)) }
                 Button(onClick = { onSave(selected.toList()) }, modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(0xFF30213A))) {
-                    Text(if (welcome) "Continue (${selected.size})" else "Save (${selected.size})", fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Text(if (welcome) "Continue (${selected.size})" else if (editing) "Done (${selected.size})" else "Save (${selected.size})", fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 1)
                 }
             }
         }

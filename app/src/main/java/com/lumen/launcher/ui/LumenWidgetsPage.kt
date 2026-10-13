@@ -7,15 +7,22 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
@@ -31,21 +38,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -59,7 +62,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun LumenWidgetsPage(isActive: Boolean) {
@@ -76,16 +78,30 @@ fun LumenWidgetsPage(isActive: Boolean) {
     val pending = remember { context.getSharedPreferences("widget_binding", Context.MODE_PRIVATE) }
     var binding by remember { mutableStateOf(pending.getInt("id", -1) != -1) }
     val haptics = LocalHapticFeedback.current
-    val view = LocalView.current
-    val gridState = rememberLazyGridState()
+    val scroll = rememberScrollState()
     var draggingId by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    var dropTarget by remember { mutableStateOf<Int?>(null) }
-    var order by remember { mutableStateOf(ids) }
-    var gridRoot by remember { mutableStateOf(Offset.Zero) }
+    var positionRevision by remember { mutableIntStateOf(0) }
+    val positions = remember { mutableStateMapOf<Int, WidgetPosition>() }
+    var dragOrigin by remember { mutableStateOf<Map<Int, WidgetPosition>>(emptyMap()) }
+    var dragDesired by remember { mutableStateOf(WidgetPosition(0f, 0f)) }
+    val moveDrag = remember { arrayOf<(Offset) -> Unit>({}) }
+    val density = LocalDensity.current
+    var viewportHeightPx by remember { mutableFloatStateOf(1f) }
+    var fingerY by remember { mutableFloatStateOf(0f) }
+    var alignment by remember { mutableStateOf<WidgetAlignment?>(null) }
 
     fun finishBinding(id: Int, success: Boolean) {
         if (id != -1 && success && manager.getAppWidgetInfo(id)?.provider?.packageName == context.packageName) {
+            if (ids.isNotEmpty()) {
+                val bottom = ids.maxOf { existing ->
+                    val kind = WidgetKind.entries.firstOrNull {
+                        manager.getAppWidgetInfo(existing)?.provider == LumenWidgetProvider.component(context, it)
+                    } ?: WidgetKind.Tasks
+                    (positions[existing] ?: WidgetHostStore.position(context, existing) ?: WidgetPosition(0f, 0f)).yDp +
+                        WidgetHostStore.height(context, existing, kind) + 10f
+                }
+                WidgetHostStore.setPosition(context, id, WidgetPosition(0f, bottom))
+            }
             WidgetHostStore.add(context, id)
             picker = false
             scope.launch(Dispatchers.IO) { runCatching { LumenWidgetProvider.refreshAll(context) } }
@@ -122,7 +138,9 @@ fun LumenWidgetsPage(isActive: Boolean) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == "ids") {
                 ids = WidgetHostStore.ids(context)
-                if (draggingId == null) order = ids
+                positionRevision++
+            } else if (key?.startsWith("x_") == true || key?.startsWith("y_") == true) {
+                positionRevision++
             } else if (key?.startsWith("columns_") == true || key?.startsWith("height_") == true) {
                 sizingRevision++
             }
@@ -143,14 +161,26 @@ fun LumenWidgetsPage(isActive: Boolean) {
             withContext(Dispatchers.IO) { runCatching { LumenWidgetProvider.refreshAll(context) } }
         }
     }
-    LaunchedEffect(ids) {
-        if (draggingId == null) order = ids
-    }
     LaunchedEffect(editing) {
         if (!editing) {
+            WidgetHostStore.setPositions(context, positions.toMap())
             draggingId = null
-            dragOffset = Offset.Zero
-            dropTarget = null
+            alignment = null
+        }
+    }
+    LaunchedEffect(draggingId) {
+        while (draggingId != null) {
+            val edge = with(density) { 48.dp.toPx() }
+            val movement = when {
+                fingerY < edge -> -10f
+                fingerY > viewportHeightPx - edge -> 10f
+                else -> 0f
+            }
+            if (movement != 0f) {
+                val moved = scroll.scrollBy(movement)
+                moveDrag[0](Offset(0f, moved / density.density))
+            }
+            kotlinx.coroutines.delay(16)
         }
     }
 
@@ -158,29 +188,6 @@ fun LumenWidgetsPage(isActive: Boolean) {
         WidgetKind.entries.firstOrNull {
             manager.getAppWidgetInfo(id)?.provider == LumenWidgetProvider.component(context, it)
         } ?: WidgetKind.Tasks
-
-    fun commitOrder(next: List<Int>) {
-        order = next
-        WidgetHostStore.setOrder(context, next)
-        ids = WidgetHostStore.ids(context)
-    }
-
-    fun targetIndexForDrag(rootPos: Offset): Int? {
-        val info = gridState.layoutInfo
-        val items = info.visibleItemsInfo
-        if (items.isEmpty()) return null
-        // LazyGrid item.offset is already in viewport coordinates.
-        val local = rootPos - gridRoot
-        val hit = items.minByOrNull { item ->
-            val cx = item.offset.x + item.size.width / 2f
-            val cy = item.offset.y + item.size.height / 2f
-            val dx = local.x - cx
-            val dy = local.y - cy
-            dx * dx + dy * dy
-        } ?: return null
-        val key = hit.key as? Int ?: return null
-        return order.indexOf(key).takeIf { it >= 0 }
-    }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -209,7 +216,7 @@ fun LumenWidgetsPage(isActive: Boolean) {
             Text(message, color = Lumen.Accent, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
         if (ids.isEmpty()) {
-            Glass(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), airy = true) {
+            Glass(modifier = Modifier.fillMaxWidth().height(220.dp), shape = RoundedCornerShape(26.dp), airy = true) {
                 Column(Modifier.fillMaxWidth().padding(24.dp)) {
                     Text("Make room for your day", color = Lumen.Text, fontFamily = Outfit, fontSize = 21.sp)
                     Text(
@@ -225,81 +232,127 @@ fun LumenWidgetsPage(isActive: Boolean) {
                 }
             }
         } else {
-            val layoutSizes = remember(order, sizingRevision) {
-                order.associateWith { id ->
+            val layoutSizes = remember(ids, sizingRevision) {
+                ids.associateWith { id ->
                     val kind = kindOf(id)
                     WidgetHostStore.columns(context, id, kind) to WidgetHostStore.height(context, id, kind)
                 }
             }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                state = gridState,
-                userScrollEnabled = draggingId == null,
-                contentPadding = PaddingValues(bottom = 66.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.onGloballyPositioned { gridRoot = it.positionInRoot() }
-            ) {
-                items(
-                    items = order,
-                    key = { it },
-                    span = { id -> GridItemSpan(layoutSizes[id]?.first ?: 1) }
-                ) { id ->
-                    val info = manager.getAppWidgetInfo(id)
-                    if (info != null) {
-                        val kind = kindOf(id)
-                        val columns = layoutSizes[id]?.first ?: 1
-                        val height = layoutSizes[id]?.second ?: kind.heightDp
-                        val active = draggingId == id
-                        WidgetBoardCard(
-                            id = id,
-                            info = info,
-                            host = host,
-                            manager = manager,
-                            kind = kind,
-                            columns = columns,
-                            heightDp = height,
-                            editing = editing,
-                            dragging = active,
-                            dragOffset = if (active) dragOffset else Offset.Zero,
-                            modifier = Modifier.animateItem(
-                                placementSpec = if (active) null else androidx.compose.animation.core.spring(stiffness = 500f)
-                            ),
-                            onRemove = {
-                                host.deleteAppWidgetId(id)
-                                WidgetHostStore.remove(context, setOf(id))
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(bottom = 58.dp).onSizeChanged {
+                viewportHeightPx = it.height.toFloat()
+            }) {
+                val boardWidth = maxWidth.value
+                val defaults = remember(ids, layoutSizes, boardWidth) {
+                    WidgetBoardLayout.defaults(ids.map { id ->
+                        WidgetBoardSize(id, layoutSizes.getValue(id).first, layoutSizes.getValue(id).second)
+                    }, boardWidth)
+                }
+                LaunchedEffect(ids, boardWidth, positionRevision, layoutSizes) {
+                    if (draggingId == null) {
+                        val saved = ids.associateWith { WidgetHostStore.position(context, it) }
+                        val initial = ids.associateWith { id -> saved[id] ?: positions[id] ?: defaults.getValue(id) }
+                        val settled = WidgetBoardLayout.settle(ids.map { WidgetBoardSize(it, layoutSizes.getValue(it).first, layoutSizes.getValue(it).second) }, boardWidth, initial)
+                        positions.putAll(settled)
+                        WidgetHostStore.setPositions(context, settled)
+                    }
+                    positions.keys.filter { it !in ids }.forEach { positions.remove(it) }
+                }
+                val shown = WidgetBoardLayout.settle(
+                    ids.map { WidgetBoardSize(it, layoutSizes.getValue(it).first, layoutSizes.getValue(it).second) },
+                    boardWidth, ids.associateWith { positions[it] ?: defaults.getValue(it) }
+                )
+                fun widthOf(id: Int) = if (layoutSizes.getValue(id).first == 2) boardWidth else (boardWidth - 10f) / 2f
+                SideEffect {
+                    moveDrag[0] = { amount ->
+                        draggingId?.let { id ->
+                            val available = boardWidth - widthOf(id)
+                            dragDesired = WidgetPosition(if (available > 0f) (dragDesired.xFraction + amount.x / available).coerceIn(0f, 1f) else 0f,
+                                (dragDesired.yDp + amount.y).coerceAtLeast(0f))
+                            positions.putAll(WidgetBoardLayout.settle(ids.map { WidgetBoardSize(it, layoutSizes.getValue(it).first, layoutSizes.getValue(it).second) }, boardWidth, dragOrigin, id, dragDesired))
+                            alignment = WidgetBoardLayout.align(positions.getValue(id), widthOf(id), layoutSizes.getValue(id).second.toFloat(), boardWidth, emptyList())
+                        }
+                    }
+                }
+                val contentHeight = maxOf(maxHeight.value, ids.maxOfOrNull {
+                    shown.getValue(it).yDp + layoutSizes.getValue(it).second + 66f
+                } ?: 0f)
+                Box(Modifier.fillMaxSize().verticalScroll(scroll, enabled = draggingId == null)) {
+                    Box(Modifier.fillMaxWidth().height(contentHeight.dp).pointerInput(editing, boardWidth, layoutSizes) {
+                        if (!editing) return@pointerInput
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { point ->
+                                val x = point.x / density.density
+                                val y = point.y / density.density
+                                draggingId = ids.asReversed().firstOrNull { id ->
+                                    val pos = positions[id] ?: defaults.getValue(id)
+                                    val width = widthOf(id)
+                                    val left = pos.xFraction * (boardWidth - width)
+                                    x in left..(left + width) && y in pos.yDp..(pos.yDp + layoutSizes.getValue(id).second)
+                                }
+                                dragOrigin = ids.associateWith { positions[it] ?: defaults.getValue(it) }
+                                draggingId?.let { dragDesired = dragOrigin.getValue(it) }
+                                alignment = null
+                                fingerY = point.y - scroll.value
+                                if (draggingId != null) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             },
-                            onResizeLive = { nextColumns, nextHeight ->
-                                WidgetHostStore.resize(context, id, nextColumns, nextHeight, kind)
-                            },
-                            dropHighlight = dropTarget != null && order.getOrNull(dropTarget!!) == id && draggingId != id,
-                            onDragStart = {
-                                draggingId = id
-                                dragOffset = Offset.Zero
-                                dropTarget = order.indexOf(id).takeIf { it >= 0 }
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                            },
-                            onDrag = { delta, fingerRoot ->
-                                dragOffset += delta
-                                val target = targetIndexForDrag(fingerRoot)
-                                if (target != null && target != dropTarget) {
-                                    dropTarget = target
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onDrag = { change, amount ->
+                                draggingId?.let { id ->
+                                    change.consume()
+                                    moveDrag[0](amount / density.density)
+                                    fingerY = change.position.y - scroll.value
                                 }
                             },
                             onDragEnd = {
-                                val to = dropTarget
-                                if (to != null) {
-                                    WidgetHostStore.moveTo(context, id, to)
-                                    order = WidgetHostStore.ids(context)
-                                    ids = order
-                                }
+                                WidgetHostStore.setPositions(context, positions.toMap())
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 draggingId = null
-                                dragOffset = Offset.Zero
-                                dropTarget = null
+                                alignment = null
+                            },
+                            onDragCancel = {
+                                if (draggingId != null && editing) positions.putAll(dragOrigin)
+                                draggingId = null
+                                alignment = null
                             }
                         )
+                    }) {
+                        if (draggingId != null) Canvas(Modifier.matchParentSize()) {
+                            val guide = alignment
+                            val color = Lumen.BrandGold.copy(alpha = .7f)
+                            val dash = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx()))
+                            guide?.guideX?.let { x -> drawLine(color, Offset(x.dp.toPx(), 0f),
+                                Offset(x.dp.toPx(), size.height), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+                            guide?.guideY?.let { y -> drawLine(color, Offset(0f, y.dp.toPx()),
+                                Offset(size.width, y.dp.toPx()), strokeWidth = 1.dp.toPx(), pathEffect = dash) }
+                        }
+                        ids.forEach { id ->
+                            key(id) {
+                                val info = manager.getAppWidgetInfo(id)
+                                if (info != null) {
+                                    val pos = shown.getValue(id)
+                                    val active = draggingId == id
+                                    val motion = snap<Float>()
+                                    val left by animateFloatAsState(pos.xFraction * (boardWidth - widthOf(id)), motion, label = "widget-left-$id")
+                                    val top by animateFloatAsState(pos.yDp, motion, label = "widget-top-$id")
+                                    WidgetBoardCard(
+                                        id = id, info = info, host = host, manager = manager, kind = kindOf(id),
+                                        columns = layoutSizes.getValue(id).first,
+                                        heightDp = layoutSizes.getValue(id).second,
+                                        editing = editing, dragging = draggingId == id,
+                                        modifier = Modifier.offset {
+                                            IntOffset((left * density.density).roundToInt(), (top * density.density).roundToInt())
+                                        }.width(widthOf(id).dp),
+                                        onRemove = {
+                                            host.deleteAppWidgetId(id)
+                                            WidgetHostStore.remove(context, setOf(id))
+                                        },
+                                        onResizeLive = { columns, height ->
+                                            WidgetHostStore.resize(context, id, columns, height, kindOf(id))
+                                            sizingRevision++
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -412,24 +465,15 @@ private fun WidgetBoardCard(
     heightDp: Int,
     editing: Boolean,
     dragging: Boolean,
-    dragOffset: Offset,
-    dropHighlight: Boolean = false,
     modifier: Modifier = Modifier,
     onRemove: () -> Unit,
-    onResizeLive: (columns: Int, heightDp: Int) -> Unit,
-    onDragStart: () -> Unit,
-    onDrag: (delta: Offset, rootPos: Offset) -> Unit,
-    onDragEnd: () -> Unit
+    onResizeLive: (columns: Int, heightDp: Int) -> Unit
 ) {
     val density = LocalDensity.current
     var liveColumns by remember(id, columns) { mutableIntStateOf(columns) }
     var liveHeight by remember(id, heightDp) { mutableIntStateOf(heightDp) }
-    var rootOrigin by remember { mutableStateOf(Offset.Zero) }
     var cardWidthPx by remember { mutableFloatStateOf(1f) }
     val shape = RoundedCornerShape(26.dp)
-    val latestDragStart by rememberUpdatedState(onDragStart)
-    val latestDrag by rememberUpdatedState(onDrag)
-    val latestDragEnd by rememberUpdatedState(onDragEnd)
     val latestResize by rememberUpdatedState(onResizeLive)
 
     LaunchedEffect(columns, heightDp, dragging) {
@@ -441,32 +485,24 @@ private fun WidgetBoardCard(
 
     Box(
         modifier
+            .height(heightDp.dp)
             .zIndex(if (dragging) 8f else 0f)
             .graphicsLayer {
                 if (dragging) {
-                    translationX = dragOffset.x
-                    translationY = dragOffset.y
-                    scaleX = 1.03f
-                    scaleY = 1.03f
-                    shadowElevation = 18f
+                    shadowElevation = 0f
                     alpha = 0.96f
                 }
             }
             .onGloballyPositioned {
-                rootOrigin = it.positionInRoot()
                 cardWidthPx = it.size.width.toFloat().coerceAtLeast(1f)
             }
-            .then(
-                if (editing) {
-                    Modifier
-                        .border(
-                            width = if (dropHighlight) 2.dp else 1.2.dp,
-                            color = Lumen.Accent.copy(alpha = if (dropHighlight) 0.95f else 0.55f),
-                            shape = shape
-                        )
-                        .clip(shape)
-                } else Modifier
+            // Keep the same clipping/layer chain when edit controls disappear.
+            .border(
+                width = if (dragging) 2.dp else 1.dp,
+                color = if (editing) Lumen.Accent.copy(alpha = if (dragging) .7f else .3f) else Color.Transparent,
+                shape = shape
             )
+            .clip(shape)
     ) {
         AndroidView(
             factory = {
@@ -490,62 +526,9 @@ private fun WidgetBoardCard(
         )
 
         if (editing) {
-            // Blocks widget taps while arranging. Hold briefly, then drag to reorder.
-            // (Pinch was removed from this layer — it stole the long-press.)
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(Color.Transparent)
-                    .pointerInput(id) {
-                        val slop = viewConfiguration.touchSlop
-                        val holdMs = 280L
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = true)
-                            var finger = down.position
-                            val held = withTimeoutOrNull(holdMs) {
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    val change = event.changes.firstOrNull { it.id == down.id }
-                                        ?: return@withTimeoutOrNull false
-                                    finger = change.position
-                                    if (!change.pressed || change.changedToUpIgnoreConsumed()) {
-                                        return@withTimeoutOrNull false
-                                    }
-                                    // Early movement → let the grid scroll instead of picking up.
-                                    if ((finger - down.position).getDistance() > slop) {
-                                        return@withTimeoutOrNull false
-                                    }
-                                }
-                            }
-                            // null = hold completed (timeout); non-null = cancelled (up/move).
-                            if (held != null) return@awaitEachGesture
-                            // Long-press succeeded — consume so LazyGrid cannot steal the drag.
-                            down.consume()
-                            latestDragStart()
-                            val pickup = finger
-                            var last = finger
-                            var moving = false
-                            val liftOrigin = rootOrigin
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                if (change == null || !change.pressed || change.changedToUpIgnoreConsumed()) {
-                                    latestDragEnd()
-                                    break
-                                }
-                                change.consume()
-                                finger = change.position
-                                val total = finger - pickup
-                                if (!moving && total.getDistance() > slop) moving = true
-                                if (moving) {
-                                    val delta = finger - last
-                                    last = finger
-                                    latestDrag(delta, liftOrigin + finger)
-                                }
-                            }
-                        }
-                    }
-            )
+            // Suppress native widget actions in arrange mode. The canvas handles
+            // dragging in stable coordinates, independently of the moving widget.
+            Box(Modifier.matchParentSize().clickable(onClickLabel = "Hold to move widget") {})
 
             // Remove — small, out of the way of the resize handle.
             Box(
@@ -568,8 +551,8 @@ private fun WidgetBoardCard(
                     .size(40.dp)
                     .padding(4.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Lumen.Accent.copy(alpha = 0.88f))
-                    .pointerInput(id, kind, heightDp, columns) {
+                    .background(Lumen.BrandGold.copy(alpha = 0.85f))
+                    .pointerInput(id, kind) {
                         var accumX = 0f
                         var startHeight = heightDp
                         var startColumns = columns

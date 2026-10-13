@@ -100,6 +100,12 @@ class LauncherActivity : FragmentActivity() {
         viewModel.onContactsPermission(granted)
     }
 
+    private val photoSearchPermission = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        viewModel.onPhotoSearchPermission(granted.values.any { it })
+    }
+
     private val calendarPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -279,6 +285,13 @@ class LauncherActivity : FragmentActivity() {
                 .setPositiveButton("Open settings") { _, _ -> event.action() }.show()
             is com.lumen.launcher.vm.LauncherEvent.Permission -> when (event) {
                 com.lumen.launcher.vm.LauncherEvent.Permission.Contacts -> contactsPermission.launch(Manifest.permission.READ_CONTACTS)
+                com.lumen.launcher.vm.LauncherEvent.Permission.MediaImages -> photoSearchPermission.launch(
+                    when {
+                        Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                        Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+                        else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    }
+                )
                 com.lumen.launcher.vm.LauncherEvent.Permission.Calendar -> {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED)
                         viewModel.onCalendarPermission(true)

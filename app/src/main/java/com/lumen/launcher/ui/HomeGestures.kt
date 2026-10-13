@@ -156,7 +156,7 @@ fun Modifier.homeEmptyTaps(
                             ?: return@withTimeoutOrNull "lost"
                         if (change.isConsumed || first.isConsumed) return@withTimeoutOrNull "consumed"
                         if (!change.pressed) return@withTimeoutOrNull "up"
-                        if (change.positionChange().getDistance() > slop) return@withTimeoutOrNull "move"
+                        if ((change.position - first.position).getDistance() > slop) return@withTimeoutOrNull "move"
                     }
                 }
                 if (held == null) {

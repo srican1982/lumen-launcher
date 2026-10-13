@@ -13,7 +13,7 @@ object SpaceSearch {
         else -> "Search anything…"
     }
 
-    fun results(s: LauncherUiState, people: List<SearchHit.Action> = emptyList()): List<SearchHit> {
+    fun results(s: LauncherUiState, people: List<SearchHit.Action> = emptyList(), device: List<SearchHit.Action> = emptyList()): List<SearchHit> {
         val q = s.query.trim()
         val space = s.activeSpace
         val focusApps = FocusContext.apps(s)
@@ -95,6 +95,14 @@ object SpaceSearch {
             scored += SearchHit.Action("places", "Find $q in Maps", "Places and directions", q) to 100
         }
         people.forEach { scored += it to if (PeopleActions.parse(q) != null) 1200 else if (space == SpaceKind.Personal || space == SpaceKind.Work) 1070 else 930 }
+        device.forEach { hit ->
+            val score = when {
+                hit.id.startsWith("contact:") -> 1050
+                hit.id.startsWith("photo:") -> 980
+                else -> 350
+            }
+            scored += hit to score
+        }
         return scored.sortedByDescending { it.second }.map { it.first }.distinctBy {
             when(it) {
                 is SearchHit.Action -> "${it.id}:${it.phone}"

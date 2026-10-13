@@ -151,6 +151,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         emit(LauncherEvent.Authenticate(success, failure))
     }
     private val onRequestContacts = { emit(LauncherEvent.Permission.Contacts) }
+    private val onRequestMediaImages = { emit(LauncherEvent.Permission.MediaImages) }
     private val onRequestCalendar = { emit(LauncherEvent.Permission.Calendar) }
     private val onRequestCallLog = { emit(LauncherEvent.Permission.CallLog) }
     private val onRequestNotifications = { emit(LauncherEvent.Permission.Notifications) }
@@ -164,6 +165,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val icons = IconCache(application)
     val socialCreate = SocialCreateCoordinator(application, viewModelScope)
     private val contacts = ContactLookup(application)
+    private val deviceContentSearch = com.lumen.launcher.search.DeviceContentSearch(application)
     private var pendingPeople: SearchHit.Action? = null
     private var padLeft = 0f
     private var padTop = 0f
@@ -439,6 +441,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 }
                 _state.update { applyContext(it) }
                 if (previousState.hidden != stored.hidden || previousState.privateApps != stored.privateApps || previousState.aiInboxSummary != stored.aiInboxSummary) refreshInboxDigest(_state.value.inbox)
+                if (_state.value.apps.any { it.packageName in stored.hidden }) {
+                    preferences.recoverHiddenApps(_state.value.apps)
+                }
                 initializeHomeGrid()
                 if (lastInterests != stored.newsInterests) {
                     lastInterests = stored.newsInterests
@@ -483,6 +488,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     )
                 )
             }
+            preferences.recoverHiddenApps(apps)
             initializeHomeGrid()
         }
     }
@@ -1158,8 +1164,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(privatePageActive = false) }
     }
 
+    fun toggleHomeApp(app: AppInfo) {
+        val current = _state.value
+        if (current.visibleApps.none { it.key == app.key } || current.dock.any { it.packageName == app.packageName }) return
+        val home = current.copy(spaceOverride = SpaceKind.Home).homeApps.map { it.key }
+        val next = if (app.key in home) home - app.key
+            else if (home.size < com.lumen.launcher.data.ModeAppsResolver.MAX_APPS) home + app.key else return
+        saveModeApps(SpaceKind.Home, next)
+    }
+
     fun saveModeApps(space: SpaceKind, keys: List<String>) {
-        val next = _state.value.modeApps + (space.name to keys.distinct())
+        val next = _state.value.modeApps + (space.name to keys.distinct().take(com.lumen.launcher.data.ModeAppsResolver.MAX_APPS))
         _state.update { it.copy(modeApps = next) }
         viewModelScope.launch { preferences.setModeApps(next) }
     }
@@ -1213,6 +1228,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             dismissAppActions()
             onChanged()
         } }, {})
+    }
+
+    fun removeFromPrivate(app: AppInfo) {
+        val restore = {
+            viewModelScope.launch {
+                val keys = (_state.value.apps.filter { it.packageName == app.packageName }.map { it.key } + app.key).toSet()
+                preferences.removeFromPrivate(keys, app.packageName)
+                _state.update { it.copy(privateApps = it.privateApps - keys, hidden = it.hidden - app.packageName) }
+                dismissAppActions()
+            }
+            Unit
+        }
+        if (_state.value.privateUnlocked) restore()
+        else onAuthenticate?.invoke(restore, {})
     }
 
     fun moveToPrivate(app: AppInfo) {
@@ -1571,18 +1600,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         searchJob = viewModelScope.launch {
             kotlinx.coroutines.delay(100)
-            val people = withContext(Dispatchers.IO) {
+            val (people, device) = withContext(Dispatchers.IO) {
                 val explicit = PeopleActions.hits(contacts, query)
-                if (explicit.isNotEmpty() || query.isBlank()) explicit else contacts.matches(query).flatMap { person ->
+                val people = if (explicit.isNotEmpty() || query.isBlank()) explicit else contacts.matches(query).flatMap { person ->
                     listOf(
                         SearchHit.Action("call", person.name, "Call · ${person.phone}", query, phone = person.phone),
                         SearchHit.Action("whatsapp", "WhatsApp ${person.name}", "Open contact chat", query, phone = person.phone)
                     )
                 }
+                people to deviceContentSearch.results(query)
             }
             if (query != _state.value.query) return@launch
-            _state.update { it.copy(hits = com.lumen.launcher.search.SpaceSearch.results(it, people)) }
+            _state.update { it.copy(hits = com.lumen.launcher.search.SpaceSearch.results(it, people, device)) }
         }
+    }
+
+    fun onPhotoSearchPermission(granted: Boolean) {
+        if (granted) onQueryChange(_state.value.query)
     }
 
     fun onContactsPermission(granted: Boolean) {
@@ -1734,6 +1768,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         when (destination) {
             "Tasks", "Social", "Trip", "Hush", "Focus", "Photo", "TripToggle" ->
                 _state.update { it.copy(sheet = Sheet.WidgetTool, widgetTool = destination, widgetItem = item) }
+            "TasksOverview", "TasksFilters", "TasksNext", "TasksManager" ->
+                _state.update { it.copy(sheet = Sheet.WidgetTool, widgetTool = "Tasks", widgetItem = item) }
+            "TaskList" -> openTodoList()
             "AddTask" -> openCapture(CaptureKind.Task)
             "CompleteTask" -> {
                 val task = com.lumen.launcher.data.TaskAgenda.today(_state.value.todos, System.currentTimeMillis())
@@ -1743,6 +1780,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "Scribble" -> openSocialTool(SocialCreateTool.Scribble)
             "Quote" -> openSocialTool(SocialCreateTool.Quote)
             "Photos" -> openSocialTool(SocialCreateTool.Photo)
+            "TripPlan" -> { selectSpace(SpaceKind.Travel); _state.update { it.copy(workspaceOpen = true) } }
+            "TripCamera" -> startIntent(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA))
+            "TripNote" -> openCapture(CaptureKind.Note)
+            "TripShare" -> viewModelScope.launch {
+                val tripId = item.toLongOrNull()
+                val photos = if (tripId != null) com.lumen.launcher.travel.data.TravelDatabase.get(getApplication()).tripDao().getTripPhotos(tripId) else emptyList()
+                val uris = photos.filter { it.contentUri.isNotBlank() }.map { Uri.parse(it.contentUri) }
+                if (uris.isNotEmpty()) com.lumen.launcher.travel.share.TripShareManager.shareImages(getApplication(), uris)
+                else _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = tripId) }
+            }
+            "TripUpcoming", "TripCompleted", "TripCompact", "TripSmall", "TripActions", "TripCollage" ->
+                _state.update { it.copy(sheet = Sheet.TripAlbums) }
             "TripAlbums" -> _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = item.toLongOrNull()) }
             "TravelDocs" -> _state.update { it.copy(sheet = Sheet.TravelDocs, searchDocumentUri = null, searchTravelCategory = null) }
             "StartFocus", "FocusSetup" -> {
@@ -2044,6 +2093,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private fun runLocalSearchHit(hit: SearchHit.Action): Boolean {
         val s = _state.value
         when {
+            hit.id == "permission:contacts" -> onRequestContacts()
+            hit.id == "permission:photos" -> onRequestMediaImages()
+            hit.id.startsWith("contact:") -> {
+                val id = hit.id.removePrefix("contact:").toLongOrNull() ?: return true
+                val uri = android.content.ContentUris.withAppendedId(android.provider.ContactsContract.Contacts.CONTENT_URI, id)
+                if (startIntent(Intent(Intent.ACTION_VIEW, uri))) closeSheet()
+            }
+            hit.id.startsWith("photo:") -> {
+                val uri = Uri.parse(hit.id.removePrefix("photo:"))
+                val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "image/*")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (startIntent(intent)) closeSheet()
+            }
             hit.id.startsWith("task:") -> {
                 val task = s.todos.find { it.id == hit.id.removePrefix("task:") } ?: return true
                 closeSheet()
@@ -2210,6 +2272,16 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             preferences.setHidden(current)
             dismissAppActions()
         } }, {})
+    }
+
+    /** Explicit hide drop: persist silently; unlocking or revealing apps still requires authentication. */
+    fun hideAppFromSearch(app: AppInfo) {
+        viewModelScope.launch {
+            val keys = (_state.value.apps.filter { it.packageName == app.packageName }.map { it.key } + app.key).toSet()
+            preferences.hideInPrivate(keys, setOf(app.packageName))
+            _state.update { it.copy(privateApps = it.privateApps + keys, hidden = it.hidden - app.packageName) }
+            if (_state.value.sheet == Sheet.Search) onQueryChange(_state.value.query)
+        }
     }
 
     fun unhide(packageName: String) {

@@ -27,9 +27,9 @@ internal fun FittingGreeting(greeting: String) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val style = TextStyle(fontFamily = Outfit, fontWeight = FontWeight.Light, fontSize = 28.sp)
         val width = measurer.measure(greeting, style, softWrap = false).size.width
-        val fitted = (28f * constraints.maxWidth / width.coerceAtLeast(1)).coerceIn(22f, 28f)
-        // At larger accessibility sizes, wrap instead of truncating or shrinking indefinitely.
-        Text(greeting, color = Lumen.Text, style = style.copy(fontSize = fitted.sp), maxLines = 2)
+        val fitted = (28f * constraints.maxWidth / width.coerceAtLeast(1)).times(0.98f).coerceIn(1f, 28f)
+        // Fit the complete greeting into the available width on a single line.
+        Text(greeting, color = Lumen.Text, style = style.copy(fontSize = fitted.sp), maxLines = 1, softWrap = false)
     }
 }
 

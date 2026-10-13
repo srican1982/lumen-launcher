@@ -100,7 +100,7 @@ fun TripAlbumScreen(
     val context = LocalContext.current
 
     LaunchedEffect(photos) {
-        selected = selected.intersect(photos.map { it.id }.toSet())
+        selected = selected.intersect(photos.filter { it.contentUri.isNotBlank() }.map { it.id }.toSet())
     }
     LaunchedEffect(places) {
         if (filter != null && places.none { it.label == filter }) filter = null
@@ -180,6 +180,10 @@ fun TripAlbumScreen(
                         }
                     }
 
+                    TripBackupControls(tripId = shown.id, title = shown.displayTitle)
+                    val missingPhotos = photos.count { it.contentUri.isBlank() }
+                    if (missingPhotos > 0) Text("$missingPhotos photos unavailable on this phone. Download them, then reconnect using Backup & restore.",
+                        color = Lumen.Muted, modifier = Modifier.padding(vertical = 8.dp))
                     if (destinations.isNotEmpty()) {
                         LocationSummaryCard(
                             city = destinations.joinToString(" · ") { it.label },
@@ -230,12 +234,14 @@ fun TripAlbumScreen(
                                 Modifier
                                     .aspectRatio(1f)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
+                                    .clickable(enabled = photo.contentUri.isNotBlank()) {
                                         selected =
                                             if (isSelected) selected - photo.id else selected + photo.id
                                     }
                             ) {
-                                AsyncImage(
+                                if (photo.contentUri.isBlank()) Text("Photo unavailable", color = Lumen.Muted,
+                                    modifier = Modifier.align(Alignment.Center).padding(8.dp))
+                                else AsyncImage(
                                     model = request,
                                     contentDescription = photo.displayName,
                                     contentScale = ContentScale.Crop,

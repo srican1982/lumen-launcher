@@ -190,6 +190,9 @@ fun AppIcon(
     val glassKind = when (treatment) {
         IconTreatment.WhiteGlass -> 1
         IconTreatment.GlassColor -> 2
+        IconTreatment.Tinted -> 3
+        IconTreatment.Crystal -> 4
+        IconTreatment.Ios -> 5
         else -> 0
     }
     var bitmap by remember(packageName, activityName, glassKind, glassStrength) { mutableStateOf<ImageBitmap?>(null) }
@@ -197,10 +200,13 @@ fun AppIcon(
         bitmap = when (glassKind) {
             1 -> icons.getFrosted(packageName, activityName, glassStrength * 2f)
             2 -> icons.getFrostedColor(packageName, activityName, glassStrength * 2f)
+            3 -> icons.getTinted(packageName, activityName, glassStrength * 2f)
+            5 -> icons.getIos(packageName, activityName, glassStrength * 2f)
+            4 -> icons.getCrystal(packageName, activityName, glassStrength * 2f)
             else -> icons.get(packageName, activityName, glassStrength * 2f)
         }
     }
-    val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else Squircle
+    val iconShape = if (corner > 0.dp) RoundedCornerShape(corner) else if (treatment == IconTreatment.Ios) RoundedCornerShape(size * .22f) else Squircle
     val badgeMode = LocalNotificationBadgeMode.current
     val badgeCount = if (showNotificationBadge) {
         LocalNotificationBadgeCounts.current[packageName] ?: 0

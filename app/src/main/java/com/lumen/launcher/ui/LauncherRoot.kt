@@ -1,4 +1,6 @@
 package com.lumen.launcher.ui
+
+import androidx.compose.animation.togetherWith
 import com.lumen.launcher.data.SpaceKind
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -95,6 +97,14 @@ fun LauncherRoot(
     val homePage = 1
     val pagerState = rememberPagerState(initialPage = homePage, pageCount = { 4 })
     val pagerScope = rememberCoroutineScope()
+    var showPageDots by remember { mutableStateOf(false) }
+    LaunchedEffect(pagerState.isScrollInProgress) {
+        if (pagerState.isScrollInProgress) showPageDots = true
+        else {
+            kotlinx.coroutines.delay(650)
+            showPageDots = false
+        }
+    }
     var taskPickerVisible by remember { mutableStateOf(false) }
     var listTyping by remember { mutableStateOf(false) }
     val wallpaperPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -132,10 +142,15 @@ fun LauncherRoot(
     LumenTheme {
         CompositionLocalProvider(
             LocalIconGlassStrength provides state.iconGlassStrength,
-            LocalIconTreatment provides when (state.theme) {
-                LumenThemeMode.WhiteGlass -> IconTreatment.WhiteGlass
-                LumenThemeMode.WhiteGlassColor -> IconTreatment.GlassColor
-                LumenThemeMode.Violet -> IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
+            LocalIconTreatment provides when {
+                state.iconSkin == IconSkin.Tinted -> IconTreatment.Tinted
+                state.iconSkin == IconSkin.Crystal -> IconTreatment.Crystal
+                state.iconSkin == IconSkin.Ios -> IconTreatment.Ios
+                else -> when (state.theme) {
+                    LumenThemeMode.WhiteGlass -> IconTreatment.WhiteGlass
+                    LumenThemeMode.WhiteGlassColor -> IconTreatment.GlassColor
+                    LumenThemeMode.Violet -> IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
+                }
             },
             LocalGlass provides rememberGlassColors(
                 state.spaceWallpaper,
@@ -173,6 +188,7 @@ fun LauncherRoot(
                             state.recentsOpen || state.socialCreateTool != null -> Modifier.blur(24.dp)
                             state.sheet == Sheet.Voice -> Modifier.blur(22.dp)
                             state.sheet == Sheet.Drawer -> Modifier.blur(28.dp)
+                            state.sheet == Sheet.Search -> Modifier.blur(28.dp)
                             else -> Modifier
                         }
                     )
@@ -229,31 +245,33 @@ fun LauncherRoot(
                             onQuickSettings = viewModel::expandQuickSettings
                         )
                 )
-                if (!taskPickerVisible && !(pagerState.currentPage == homePage && state.activeSpace == SpaceKind.Focus)) Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = if (pagerState.currentPage == homePage) (state.iconSizeDp + 28).dp else 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    repeat(4) { index ->
-                        val active = pagerState.currentPage == index
-                        Box(
-                            Modifier
-                                .width(if (active) 18.dp else 14.dp)
-                                .height(18.dp)
-                                .clip(CircleShape)
-                                .clickable { pagerScope.launch { pagerState.animateScrollToPage(index) } },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                Modifier
-                                    .width(if (active) 8.dp else 7.dp)
-                                    .height(7.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = if (active) 0.95f else 0.32f))
-                            )
+                if (!taskPickerVisible &&
+                    (pagerState.currentPage == homePage ||
+                        (pagerState.isScrollInProgress && pagerState.settledPage == homePage)) &&
+                    !(pagerState.currentPage == homePage &&
+                    (state.activeSpace == SpaceKind.Focus || state.recentsOpen))) {
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = showPageDots,
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+                            .padding(bottom = if (pagerState.currentPage == homePage) (state.iconSizeDp + 32).dp else 12.dp),
+                        transitionSpec = {
+                            androidx.compose.animation.fadeIn(tween(180)) togetherWith androidx.compose.animation.fadeOut(tween(140))
+                        }, label = "search-page-indicator"
+                    ) { dots ->
+                        Box(Modifier.width(108.dp).height(48.dp), contentAlignment = Alignment.Center) {
+                            if (!dots) CompactSearchButton(onClick = viewModel::openModeSearch)
+                            else Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                repeat(4) { index ->
+                                    val active = pagerState.currentPage == index
+                                    Box(Modifier.width(18.dp).height(32.dp).clip(CircleShape)
+                                        .clickable { pagerScope.launch { pagerState.animateScrollToPage(index) } },
+                                        contentAlignment = Alignment.Center) {
+                                        Box(Modifier.width(if (active) 8.dp else 7.dp).height(7.dp).clip(CircleShape)
+                                            .background(Color.White.copy(alpha = if (active) 0.95f else 0.32f)))
+                                    }
+                                }
+                            }
                         }
                     }
                 }

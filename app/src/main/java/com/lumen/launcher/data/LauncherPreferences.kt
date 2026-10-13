@@ -208,6 +208,32 @@ class LauncherPreferences(private val context: Context) {
         }
     }
 
+    suspend fun hideInPrivate(keys: Set<String>, packages: Set<String>) {
+        context.launcherStore.edit { prefs ->
+            prefs[PRIVATE] = prefs[PRIVATE].orEmpty() + keys
+            prefs[HIDDEN] = prefs[HIDDEN].orEmpty() - packages
+        }
+    }
+
+    suspend fun removeFromPrivate(keys: Set<String>, packageName: String) {
+        context.launcherStore.edit { prefs ->
+            prefs[PRIVATE] = prefs[PRIVATE].orEmpty() - keys
+            prefs[HIDDEN] = prefs[HIDDEN].orEmpty() - packageName
+        }
+    }
+
+    suspend fun recoverHiddenApps(apps: List<AppInfo>) {
+        context.launcherStore.edit { prefs ->
+            val hidden = prefs[HIDDEN].orEmpty()
+            val privateApps = prefs[PRIVATE].orEmpty()
+            val result = HiddenAppsMigration.resolve(apps, hidden, privateApps)
+            if (result.hidden != hidden || result.privateApps != privateApps) {
+                prefs[HIDDEN] = result.hidden
+                prefs[PRIVATE] = result.privateApps
+            }
+        }
+    }
+
     suspend fun setPrivateApps(keys: Set<String>) {
         context.launcherStore.edit { it[PRIVATE] = keys }
     }

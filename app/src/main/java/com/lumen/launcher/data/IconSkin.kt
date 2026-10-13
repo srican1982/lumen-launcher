@@ -5,7 +5,10 @@ enum class IconSkin(val title: String) {
     Glass("Lumen Glass"),
     Mono("Lumen Mono"),
     WhiteGlass("White glass"),
-    MatchSpace("Match current Space");
+    MatchSpace("Match current Space"),
+    Tinted("Tinted (iOS 18 style)"),
+    Crystal("Crystal Glass"),
+    Ios("iOS Style");
 
     companion object {
         fun parse(raw: String?): IconSkin =
@@ -22,6 +25,9 @@ enum class IconSkin(val title: String) {
                 Glass -> IconTreatment.Glass
                 Mono -> IconTreatment.Mono
                 WhiteGlass -> IconTreatment.WhiteGlass
+                Tinted -> IconTreatment.Tinted
+                Crystal -> IconTreatment.Crystal
+                Ios -> IconTreatment.Ios
                 MatchSpace -> when {
                     // Focus keeps colorful original icons in the default Lumen theme.
                     focusing || space == SpaceKind.Focus -> IconTreatment.Original
@@ -40,5 +46,11 @@ enum class IconTreatment {
     /** White symbol on a frosted-glass tile. */
     WhiteGlass,
     /** The app's colored logo on a frosted-glass tile. */
-    GlassColor
+    GlassColor,
+    /** A gold symbol on a dark tile, inspired by tinted Home Screen icons. */
+    Tinted,
+    /** Full-color logos raised above a transparent glass tile. */
+    Crystal,
+    /** Original rounded-square icon pack with colorful gradients and familiar app glyphs. */
+    Ios
 }

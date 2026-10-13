@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -33,16 +35,27 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MicNone
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -50,11 +63,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumen.launcher.data.AppInfo
@@ -64,6 +79,7 @@ import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 import com.lumen.launcher.vm.LauncherUiState
 import com.lumen.launcher.vm.LauncherViewModel
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 @Composable
@@ -72,17 +88,45 @@ fun SearchSheet(
     viewModel: LauncherViewModel,
     onDismiss: () -> Unit
 ) {
+    val interaction = remember { SearchAppInteraction() }
+    var searchOrigin by remember { mutableStateOf(Offset.Zero) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) {
-        repeat(8) { index ->
-            delay(if (index == 0) 16 else 40)
-            runCatching { focusRequester.requestFocus() }
-            keyboard?.show()
+    LaunchedEffect(interaction.lifted, interaction.menu) {
+        if (interaction.lifted != null || interaction.menu != null) keyboard?.hide()
+    }
+    val focusManager = LocalFocusManager.current
+    val resultsState = rememberLazyListState()
+    val dismissKeyboardOnScroll = remember(keyboard, focusManager) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y < 0f) {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                }
+                return Offset.Zero
+            }
         }
     }
+    LaunchedEffect(Unit) {
+        delay(100)
+        runCatching { focusRequester.requestFocus() }
+        keyboard?.show()
+    }
+    val appResults = if (state.query.isBlank()) {
+        (state.recentApps + state.favoriteApps + state.homeApps).distinctBy { it.key }.take(4)
+    } else state.hits.filterIsInstance<SearchHit.App>().map { it.app }.distinctBy { it.key }.take(8)
+    val tileKeys = appResults.map { it.key }.toSet()
+    val otherResults = state.hits.filter {
+        it !is SearchHit.App || (state.query.isNotBlank() && it.app.key !in tileKeys)
+    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+
+    CompositionLocalProvider(LocalSearchAppInteraction provides interaction) {
+    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { searchOrigin = it.positionInRoot() }) {
+        Box(Modifier.fillMaxSize().blur(if (interaction.lifted != null) 16.dp else 0.dp)) {
+        SpaceBackdrop(state.spaceWallpaper, extraBlur = 16.dp)
+        AmbientBackdrop()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -90,57 +134,70 @@ fun SearchSheet(
                 .clickable(onClick = onDismiss)
         )
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .imePadding()
-                .padding(start = 10.dp, end = 10.dp, top = 8.dp)
-                .denseGlass(RoundedCornerShape(Lumen.SheetRadius))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 22.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 14.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.28f))
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (state.query.isBlank()) "Suggestions" else "Search", color = Lumen.Text,
+                    fontFamily = Outfit, fontSize = 22.sp, modifier = Modifier.weight(1f))
+                Text("Cancel", color = Lumen.BrandGold, fontFamily = Outfit, fontSize = 14.sp,
+                    modifier = Modifier.clickable(onClick = onDismiss).padding(12.dp))
+            }
+            Spacer(Modifier.height(12.dp))
+            LazyColumn(
+                state = resultsState,
+                modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(dismissKeyboardOnScroll),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (appResults.isNotEmpty()) item(key = "app-grid") {
+                    SearchAppTiles(appResults, viewModel, state.iconSizeDp.dp)
+                }
+                items(otherResults.size) { index ->
+                    when (val hit = otherResults[index]) {
+                        is SearchHit.Math -> MathRow(hit)
+                        is SearchHit.App -> AppRow(hit, viewModel, state.iconSizeDp.dp, featured = false)
+                        is SearchHit.Action -> ActionRow(hit, viewModel)
+                        is SearchHit.IntentGroup -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel, state.iconSizeDp.dp)
+                        is SearchHit.Discovery -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel, state.iconSizeDp.dp)
+                        is SearchHit.Web -> WebRow(hit, viewModel)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             SearchField(
-                query = state.query,
-                onQueryChange = viewModel::onQueryChange,
+                query = state.query, onQueryChange = viewModel::onQueryChange,
                 focusRequester = focusRequester,
                 onSearch = { keyboard?.hide(); viewModel.submitSearch() },
                 hint = com.lumen.launcher.search.SpaceSearch.hint(state.activeSpace),
                 onVoice = { keyboard?.hide(); viewModel.voice.openVoice() }
             )
-            Spacer(Modifier.height(14.dp))
-            if (state.query.isBlank()) {
-                ExampleChips(
-                    examples = when (state.activeSpace) {
-                        SpaceKind.Work -> listOf("Teams", "Tasks", "Calendar", "Files")
-                        SpaceKind.Personal -> listOf("WhatsApp", "Photo", "Quote")
-                        SpaceKind.Focus -> listOf("Tasks")
-                        SpaceKind.Travel -> listOf("Boarding", "Hotel", "Ticket", "Trip photos")
-                        else -> listOf("watsap", "today tasks", "Bluetooth", "weather")
-                    },
-                    onSelect = viewModel::onQueryChange
-                )
-                Spacer(Modifier.height(12.dp))
-            }
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(state.hits.size) { index ->
-                    when (val hit = state.hits[index]) {
-                        is SearchHit.Math -> MathRow(hit)
-                        is SearchHit.App -> AppRow(hit, viewModel, featured = index == 0 && state.query.isNotBlank())
-                        is SearchHit.Action -> ActionRow(hit, viewModel)
-                        is SearchHit.IntentGroup -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
-                        is SearchHit.Discovery -> GroupRow(hit.title, hit.subtitle, hit.apps, viewModel)
-                        is SearchHit.Web -> WebRow(hit, viewModel)
+        }
+        }
+        SearchAppOverlay(interaction, searchOrigin, state, viewModel)
+    }
+    }
+}
+
+@Composable
+private fun SearchAppTiles(apps: List<AppInfo>, viewModel: LauncherViewModel, iconSize: Dp) {
+    val rows = apps.chunked(4)
+    val rowHeight = iconSize + 42.dp
+    Glass(modifier = Modifier.fillMaxWidth().height(rowHeight * rows.size + 20.dp),
+        shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
+            rows.forEach { row ->
+                Row(Modifier.fillMaxWidth().height(rowHeight)) {
+                    row.forEach { app ->
+                        Column(Modifier.weight(1f).searchAppContact(app, viewModel),
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            AppIcon(app.packageName, app.activityName, iconSize, viewModel.icons)
+                            Spacer(Modifier.height(6.dp))
+                            FittingAppLabel(app.label, color = Lumen.Text, fontFamily = Outfit, fontSize = 11.sp,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 4.dp))
+                        }
                     }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -161,7 +218,7 @@ private fun SearchField(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(26.dp))
-            .background(Color.White.copy(alpha = 0.08f))
+            .glass(RoundedCornerShape(26.dp), LocalGlass.current)
             .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -211,7 +268,7 @@ private fun SearchField(
             Modifier.size(44.dp).clip(CircleShape).clickable(onClick = onVoice),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.MicNone, "Speak to Lumen", tint = Lumen.Accent, modifier = Modifier.size(20.dp))
+            Icon(Icons.Outlined.MicNone, "Speak to Lumen", tint = Lumen.BrandGold, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -251,20 +308,17 @@ private fun MathRow(hit: SearchHit.Math) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppRow(hit: SearchHit.App, viewModel: LauncherViewModel, featured: Boolean = false) {
+private fun AppRow(hit: SearchHit.App, viewModel: LauncherViewModel, iconSize: Dp, featured: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(if (featured) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.07f))
-            .combinedClickable(
-                onClick = { viewModel.launch(hit.app) },
-                onLongClick = { viewModel.showAppActions(hit.app) }
-            )
+            .searchAppContact(hit.app, viewModel)
             .padding(horizontal = 12.dp, vertical = if (featured) 14.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIcon(hit.app.packageName, hit.app.activityName, if (featured) 52.dp else 46.dp, viewModel.icons)
+        AppIcon(hit.app.packageName, hit.app.activityName, iconSize, viewModel.icons)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -272,14 +326,16 @@ private fun AppRow(hit: SearchHit.App, viewModel: LauncherViewModel, featured: B
                 color = Lumen.Text,
                 fontSize = if (featured) 18.sp else 16.sp,
                 fontFamily = Outfit,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Text(
                 if (featured) "App" else hit.app.category.label,
                 color = Lumen.Faint,
                 fontSize = 12.sp,
                 fontFamily = Outfit,
-                fontWeight = FontWeight.Light
+                fontWeight = FontWeight.Light,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -287,12 +343,31 @@ private fun AppRow(hit: SearchHit.App, viewModel: LauncherViewModel, featured: B
 
 @Composable
 private fun ActionRow(hit: SearchHit.Action, viewModel: LauncherViewModel) {
+    if (hit.id.startsWith("photo:")) {
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .clickable { viewModel.runHit(hit) }
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            AsyncImage(model = android.net.Uri.parse(hit.id.removePrefix("photo:")),
+                contentDescription = "Photo thumbnail", contentScale = ContentScale.Crop,
+                modifier = Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)))
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(hit.title, color = Lumen.Text, fontFamily = Outfit, fontSize = 16.sp, maxLines = 1)
+                Text(hit.subtitle, color = Lumen.Faint, fontFamily = Outfit, fontSize = 12.sp, maxLines = 1)
+            }
+        }
+        return
+    }
     val icon = when (hit.id) {
         "wifi" -> Icons.Outlined.Wifi
         "settings" -> Icons.Outlined.Settings
         "call" -> Icons.Outlined.Call
         "whatsapp", "whatsapp_call" -> Icons.AutoMirrored.Outlined.Chat
-        else -> Icons.Outlined.Search
+        "permission:contacts" -> Icons.Outlined.Person
+        "permission:photos" -> Icons.Outlined.PhotoLibrary
+        else -> if (hit.id.startsWith("contact:")) Icons.Outlined.Person else Icons.Outlined.Search
     }
     ResultRow(icon, hit.title, hit.subtitle) { viewModel.runHit(hit) }
 }
@@ -307,7 +382,8 @@ private fun GroupRow(
     title: String,
     subtitle: String,
     apps: List<AppInfo>,
-    viewModel: LauncherViewModel
+    viewModel: LauncherViewModel,
+    iconSize: Dp
 ) {
     Column(
         modifier = Modifier
@@ -316,20 +392,16 @@ private fun GroupRow(
             .background(Color.White.copy(alpha = 0.07f))
             .padding(14.dp)
     ) {
-        Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Spacer(Modifier.height(10.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(apps.take(6), key = { it.key }) { app ->
-                IconSlot(
-                    label = app.label,
-                    packageName = app.packageName,
-                    activityName = app.activityName,
-                    iconSize = 42.dp,
-                    icons = viewModel.icons,
-                    onClick = { viewModel.launch(app) },
-                    onLongClick = { viewModel.showAppActions(app) }
-                )
+                Box(Modifier.width(iconSize + 20.dp).searchAppContact(app, viewModel)) { Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AppIcon(app.packageName, app.activityName, iconSize, viewModel.icons)
+                    FittingAppLabel(app.label, color = Lumen.Text, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                } }
+
             }
         }
     }
@@ -362,8 +434,8 @@ private fun ResultRow(
         }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(title, color = Lumen.Text, fontSize = 16.sp, fontFamily = Outfit, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(subtitle, color = Lumen.Faint, fontSize = 12.sp, fontFamily = Outfit, fontWeight = FontWeight.Light, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }

@@ -7,7 +7,7 @@ import com.lumen.launcher.data.MissedCall
 /** One-time commands consumed by the current resumed Activity; never stores an Activity. */
 sealed interface LauncherEvent {
     data class Authenticate(val success: () -> Unit, val failure: () -> Unit) : LauncherEvent
-    enum class Permission : LauncherEvent { Contacts, Calendar, CallLog, Notifications, Mic, MicQuiet, Assistant }
+    enum class Permission : LauncherEvent { Contacts, MediaImages, Calendar, CallLog, Notifications, Mic, MicQuiet, Assistant }
     data class Open(val intent: Intent) : LauncherEvent
     data class Conversation(val item: InboxItem) : LauncherEvent
     data class Missed(val call: MissedCall, val fallback: () -> Unit) : LauncherEvent

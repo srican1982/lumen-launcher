@@ -1,24 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Balanced Lumen violet glass — translucent frost, no hard border. -->
+<!-- Same neutral frost as GlassColors; wallpaper supplies the color. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#993B1568"
-                android:centerColor="#A62E1060"
-                android:endColor="#B314061F" />
-        </shape>
-    </item>
-    <item>
-        <shape>
-            <corners android:radius="26dp" />
-            <gradient
-                android:angle="270"
-                android:startColor="#40FFFFFF"
-                android:centerColor="#18E4C6FF"
-                android:endColor="#00FFFFFF" />
-        </shape>
-    </item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="270" android:startColor="#47000000" android:endColor="#33000000" />
+    <stroke android:width="0.8dp" android:color="#33FFFFFF" />
+</shape></item>
+  <item><shape>
+    <corners android:radius="26dp" />
+    <gradient android:angle="315" android:startColor="#04FFFFFF" android:endColor="#00FFFFFF" />
+  </shape></item>
 </layer-list>

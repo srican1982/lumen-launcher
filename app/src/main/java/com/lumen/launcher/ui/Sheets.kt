@@ -143,7 +143,10 @@ fun BottomMenu(
 
 @Composable
 fun MenuSheet(state: LauncherUiState, viewModel: LauncherViewModel, onRequestDefaultHome: () -> Unit) {
-    BottomMenu("Home", "Wallpaper, settings, default app", onDismiss = viewModel::closeSheet) {
+    var editApps by remember(state.activeSpace) { mutableStateOf(false) }
+    if (editApps) AppEditPage(state, viewModel, onDismiss = { editApps = false })
+    BottomMenu(state.activeSpace.title, "Options for ${state.activeSpace.title}", onDismiss = viewModel::closeSheet) {
+        MenuRow("Edit ${state.activeSpace.title} apps") { editApps = true }
         MenuRow("Capture") { viewModel.openCapture() }
         MenuRow("Lumen widgets") { viewModel.openWidgets() }
         MenuRow("Search") { viewModel.openSearch() }
@@ -165,6 +168,13 @@ fun AppActionsSheet(app: AppInfo, state: LauncherUiState, viewModel: LauncherVie
     val inDock = state.dock.any { it.key == app.key }
     val dockFull = !inDock && state.dock.size >= state.dockCapacity
     val self = LocalContext.current.packageName
+    if (state.privatePageActive && state.privateUnlocked && app.key in state.privateApps) {
+        BottomMenu(app.label, "Private Space", onDismiss = viewModel::dismissAppActions) {
+            MenuRow("Remove from Private Space") { viewModel.removeFromPrivate(app) }
+            if (app.packageName != self) MenuRow("Uninstall") { viewModel.uninstallApp(app) }
+        }
+        return
+    }
     val why = if (state.focusing) state.focusReason(app) else null
     BottomMenu(app.label, why ?: app.category.label, onDismiss = viewModel::dismissAppActions) {
         MenuRow("Save for later") { viewModel.saveForLater(app) }
@@ -236,7 +246,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         BadgeStatusLine(inboxAccess = state.inboxAccess, onFix = viewModel::requestInboxAccess)
         MenuRow("Theme  ·  ${state.theme.title}") { viewModel.cycleTheme() }
         MenuRow(
-            if (state.theme.isWhiteGlass) "Icons  ·  set by theme"
+            if (state.theme.isWhiteGlass && state.iconSkin !in setOf(com.lumen.launcher.data.IconSkin.Tinted, com.lumen.launcher.data.IconSkin.Crystal, com.lumen.launcher.data.IconSkin.Ios)) "Icons  ·  set by theme"
             else "Icons  ·  ${state.iconSkin.title}"
         ) { viewModel.cycleIconSkin() }
         MenuRow("Glass  ·  ${state.glassDepth.title}") { viewModel.cycleGlassDepth() }

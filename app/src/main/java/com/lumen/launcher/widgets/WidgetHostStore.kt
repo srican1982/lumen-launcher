@@ -13,13 +13,31 @@ object WidgetHostStore {
     }
     @Synchronized fun remove(context: Context, removed: Set<Int>) {
         val edit = prefs(context).edit().putString("ids", ids(context).filterNot { it in removed }.joinToString(","))
-        removed.forEach { edit.remove("columns_$it").remove("height_$it") }; edit.apply()
+        removed.forEach { edit.remove("columns_$it").remove("height_$it").remove("x_$it").remove("y_$it") }; edit.apply()
     }
     fun columns(context: Context, id: Int, kind: WidgetKind): Int = WidgetContentRules.columns(prefs(context).getInt("columns_$id", if (kind.wide) 2 else 1))
     fun height(context: Context, id: Int, kind: WidgetKind): Int = WidgetContentRules.height(prefs(context).getInt("height_$id", kind.heightDp), kind)
     fun resize(context: Context, id: Int, columns: Int, height: Int, kind: WidgetKind) {
         prefs(context).edit().putInt("columns_$id", WidgetContentRules.columns(columns))
             .putInt("height_$id", WidgetContentRules.height(height, kind)).apply()
+    }
+    fun position(context: Context, id: Int): WidgetPosition? {
+        val prefs = prefs(context)
+        if (!prefs.contains("x_$id") || !prefs.contains("y_$id")) return null
+        val x = prefs.getFloat("x_$id", 0f)
+        val y = prefs.getFloat("y_$id", 0f)
+        if (!x.isFinite() || !y.isFinite()) return null
+        return WidgetPosition(x.coerceIn(0f, 1f), y.coerceAtLeast(0f))
+    }
+    fun setPositions(context: Context, positions: Map<Int, WidgetPosition>) {
+        val edit = prefs(context).edit()
+        positions.forEach { (id, p) -> edit.putFloat("x_$id", p.xFraction).putFloat("y_$id", p.yDp) }
+        edit.apply()
+    }
+    fun setPosition(context: Context, id: Int, position: WidgetPosition) {
+        if (!position.xFraction.isFinite() || !position.yDp.isFinite()) return
+        prefs(context).edit().putFloat("x_$id", position.xFraction.coerceIn(0f, 1f))
+            .putFloat("y_$id", position.yDp.coerceAtLeast(0f)).apply()
     }
     @Synchronized fun move(context: Context, id: Int, delta: Int) {
         val ids = ids(context).toMutableList()

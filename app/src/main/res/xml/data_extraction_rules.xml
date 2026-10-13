@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <include domain="database" path="lumen_travel.db" />
+        <include domain="database" path="lumen_travel.db-wal" />
+        <include domain="database" path="lumen_travel.db-shm" />
         <include domain="sharedpref" path="focus_onboarding.xml" />
         <include domain="sharedpref" path="focus_people.xml" />
         <include domain="sharedpref" path="focus_apps.xml" />
         <include domain="sharedpref" path="focus_sound.xml" />
     </cloud-backup>
     <device-transfer>
+        <include domain="database" path="lumen_travel.db" />
+        <include domain="database" path="lumen_travel.db-wal" />
+        <include domain="database" path="lumen_travel.db-shm" />
         <include domain="sharedpref" path="focus_onboarding.xml" />
         <include domain="sharedpref" path="focus_people.xml" />
         <include domain="sharedpref" path="focus_apps.xml" />

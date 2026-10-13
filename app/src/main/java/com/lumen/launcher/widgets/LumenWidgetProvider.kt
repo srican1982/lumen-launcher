@@ -60,13 +60,31 @@ open class LumenWidgetProvider(private val kind: WidgetKind) : AppWidgetProvider
         internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         fun component(context: Context, kind: WidgetKind) = ComponentName(context, when (kind) {
             WidgetKind.Trip -> TripWidget::class.java
+            WidgetKind.TripUpcoming -> TripUpcomingWidget::class.java
+            WidgetKind.TripCompleted -> TripCompletedWidget::class.java
+            WidgetKind.TripCompact -> TripCompactWidget::class.java
+            WidgetKind.TripSmall -> TripSmallWidget::class.java
+            WidgetKind.TripActions -> TripActionsWidget::class.java
+            WidgetKind.TripCollage -> TripCollageWidget::class.java
+
             WidgetKind.Scribble -> ScribbleWidget::class.java
             WidgetKind.Quote -> QuoteWidget::class.java
             WidgetKind.Photos -> PhotosWidget::class.java
             WidgetKind.Social -> SocialWidget::class.java
             WidgetKind.Tasks -> TasksWidget::class.java
+            WidgetKind.TasksOverview -> TasksOverviewWidget::class.java
+            WidgetKind.TasksFilters -> TasksFiltersWidget::class.java
+            WidgetKind.TasksNext -> TasksNextWidget::class.java
+            WidgetKind.TasksManager -> TasksManagerWidget::class.java
+
             WidgetKind.Focus -> FocusWidget::class.java
             WidgetKind.Contacts -> ContactsWidget::class.java
+            WidgetKind.ContactsRecent -> ContactsRecentWidget::class.java
+            WidgetKind.ContactsSingle -> ContactsSingleWidget::class.java
+            WidgetKind.ContactsRow -> ContactsRowWidget::class.java
+            WidgetKind.ContactsQuick -> ContactsQuickWidget::class.java
+            WidgetKind.ContactsFamily -> ContactsFamilyWidget::class.java
+
             WidgetKind.Hush -> HushWidget::class.java
             WidgetKind.TravelDocs -> TravelDocsWidget::class.java
             WidgetKind.Battery -> BatteryWidget::class.java
@@ -95,3 +113,21 @@ class ContactsWidget : LumenWidgetProvider(WidgetKind.Contacts)
 class HushWidget : LumenWidgetProvider(WidgetKind.Hush)
 class TravelDocsWidget : LumenWidgetProvider(WidgetKind.TravelDocs)
 class BatteryWidget : LumenWidgetProvider(WidgetKind.Battery)
+
+class TripUpcomingWidget : LumenWidgetProvider(WidgetKind.TripUpcoming)
+class TripCompletedWidget : LumenWidgetProvider(WidgetKind.TripCompleted)
+class TripCompactWidget : LumenWidgetProvider(WidgetKind.TripCompact)
+class TripSmallWidget : LumenWidgetProvider(WidgetKind.TripSmall)
+class TripActionsWidget : LumenWidgetProvider(WidgetKind.TripActions)
+class TripCollageWidget : LumenWidgetProvider(WidgetKind.TripCollage)
+
+class TasksOverviewWidget : LumenWidgetProvider(WidgetKind.TasksOverview)
+class TasksFiltersWidget : LumenWidgetProvider(WidgetKind.TasksFilters)
+class TasksNextWidget : LumenWidgetProvider(WidgetKind.TasksNext)
+class TasksManagerWidget : LumenWidgetProvider(WidgetKind.TasksManager)
+
+class ContactsRecentWidget : LumenWidgetProvider(WidgetKind.ContactsRecent)
+class ContactsSingleWidget : LumenWidgetProvider(WidgetKind.ContactsSingle)
+class ContactsRowWidget : LumenWidgetProvider(WidgetKind.ContactsRow)
+class ContactsQuickWidget : LumenWidgetProvider(WidgetKind.ContactsQuick)
+class ContactsFamilyWidget : LumenWidgetProvider(WidgetKind.ContactsFamily)

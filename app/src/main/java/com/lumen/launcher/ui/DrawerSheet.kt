@@ -304,65 +304,12 @@ fun DrawerSheet(
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .shadow(12.dp, RoundedCornerShape(26.dp), spotColor = Color(0x44000000))
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color(0x40201828))
-                        .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(26.dp))
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.Search, null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(22.dp))
-                    BasicTextField(
-                        value = drawerQuery,
-                        onValueChange = { drawerQuery = it },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            color = Color.White,
-                            fontFamily = Outfit,
-                            fontWeight = FontWeight.Light,
-                            fontSize = 16.sp
-                        ),
-                        cursorBrush = SolidColor(Lumen.Accent),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                        decorationBox = { inner ->
-                            Box {
-                                if (drawerQuery.isEmpty()) {
-                                    Text(
-                                        "Search all apps...",
-                                        color = Color.White.copy(alpha = 0.45f),
-                                        fontFamily = Outfit,
-                                        fontWeight = FontWeight.Light,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                                inner()
-                            }
-                        }
-                    )
-                    Icon(
-                        Icons.Outlined.MicNone,
-                        contentDescription = "Voice",
-                        tint = Color.White.copy(alpha = 0.78f),
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable { viewModel.voice.openVoice() }
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
             DrawerTabRow(
                 selected = selectedDrawerTab,
                 onSelect = { selectedDrawerTab = it }
             )
             Spacer(Modifier.height(14.dp))
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (selectedDrawerTab == DrawerTab.MOST_USED && mostUsedSections.all { it.second.isEmpty() }) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -407,6 +354,7 @@ fun DrawerSheet(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .drawerStack(listState, row.map { it.key }.joinToString(), enabled = !holding)
                                             .padding(bottom = 4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
@@ -440,7 +388,8 @@ fun DrawerSheet(
                                         onMenu = { viewModel.showAppActions(app) },
                                         onLocated = { slotWindows[app.key] = it },
                                         onContact = { phase, drag -> onContact(app, phase, drag) },
-                                        onDragEnd = { finishDrag(app) }
+                                        onDragEnd = { finishDrag(app) },
+                                        modifier = Modifier.drawerStack(listState, "${selectedDrawerTab.name}-${app.key}", enabled = !holding)
                                     )
                                 }
                             }
@@ -464,6 +413,8 @@ fun DrawerSheet(
                     }
                 }
             }
+            CompactSearchButton(onClick = viewModel::openSearch,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
         }
         val active = state.activeApp
         val menuOpen = active != null
@@ -627,7 +578,8 @@ private fun DrawerAppRow(
     onMenu: () -> Unit,
     onLocated: (Offset) -> Unit,
     onContact: (IconPhase, Offset) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var phase by remember(app.key) { mutableStateOf(IconPhase.Rest) }
     var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
@@ -666,7 +618,7 @@ private fun DrawerAppRow(
                 onDragEnd = onDragEnd
             )
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .defaultMinSize(minHeight = 64.dp)
             .clip(RoundedCornerShape(16.dp))

@@ -31,6 +31,11 @@ class WidgetCommandReceiver : BroadcastReceiver() {
                 withTimeout(8_000) {
                     commands.withLock {
                     when (command) {
+                        "SetTaskFilter" -> if (item in TaskWidgetRules.filters) context.getSharedPreferences("task_widgets", Context.MODE_PRIVATE)
+                            .edit().putString("filter_$id", item).apply()
+                        "CompleteListedTask" -> LauncherPreferences(context).updateTodos { tasks ->
+                            WidgetCommandRules.completeListedTask(tasks, item, System.currentTimeMillis())
+                        }
                         "CompleteTask" -> LauncherPreferences(context).updateTodos { tasks ->
                             val now = System.currentTimeMillis()
                             WidgetCommandRules.completeTask(tasks, item, now)
@@ -69,9 +74,9 @@ class WidgetCommandReceiver : BroadcastReceiver() {
         private const val ACTION = "com.lumen.launcher.widgets.COMMAND"
         private val commands = Mutex()
         internal fun allowed(kind: WidgetKind, command: String): Boolean = when (kind) {
-            WidgetKind.Tasks -> command == "CompleteTask"
+            WidgetKind.Tasks, WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> command in setOf("CompleteTask", "CompleteListedTask", "SetTaskFilter")
             WidgetKind.Focus -> command in setOf("StartFocus", "PauseFocus", "ResumeFocus")
-            WidgetKind.Trip -> command in setOf("StartTrip", "EndTrip")
+            WidgetKind.Trip, WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> command in setOf("StartTrip", "EndTrip")
             else -> false
         }
         fun pending(context: Context, id: Int, kind: WidgetKind, command: String, item: String = ""): PendingIntent =

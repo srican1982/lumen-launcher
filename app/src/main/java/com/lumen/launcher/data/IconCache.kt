@@ -26,6 +26,114 @@ class IconCache(private val context: Context) {
 
     private val cache = LruCache<String, ImageBitmap>(256)
 
+    suspend fun getCrystal(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
+        if (packageName.isBlank()) return null
+        val key = "$packageName/$activityName#crystal1-$strength"
+        cache.get(key)?.let { return it }
+        return withContext(Dispatchers.IO) {
+            cache.get(key)?.let { return@withContext it }
+            val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
+            val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
+            val bitmap = renderFrostedColor(drawable, adaptive, SIZE, strength,
+                stripMapsPlate = packageName == "com.google.android.apps.maps", crystal = true).asImageBitmap()
+            cache.put(key, bitmap)
+            bitmap
+        }
+    }
+
+    suspend fun getTinted(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
+        if (packageName.isBlank()) return null
+        val key = "$packageName/$activityName#tinted1-$strength"
+        cache.get(key)?.let { return it }
+        return withContext(Dispatchers.IO) {
+            cache.get(key)?.let { return@withContext it }
+            val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
+            val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
+            val label = loadLabel(packageName, activityName)
+            val bitmap = runCatching { renderFrosted(drawable, adaptive, SIZE, label, strength = strength, tinted = true) }
+                .getOrElse { renderFrosted(drawable, null, SIZE, label, letterOnly = true, strength = strength, tinted = true) }
+                .asImageBitmap()
+            cache.put(key, bitmap)
+            bitmap
+        }
+    }
+
+    suspend fun getIos(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
+        val key = "$packageName/$activityName#ios1-$strength"
+        cache.get(key)?.let { return it }
+        return withContext(Dispatchers.IO) {
+            cache.get(key)?.let { return@withContext it }
+            val drawable = loadDrawable(packageName, activityName) ?: return@withContext null
+            val adaptive = loadAdaptive(packageName, activityName) ?: drawable as? AdaptiveIconDrawable
+            renderIos(drawable, adaptive, packageName, strength).asImageBitmap().also { cache.put(key, it) }
+        }
+    }
+
+    private fun renderIos(drawable: Drawable, adaptive: AdaptiveIconDrawable?, packageName: String, strength: Float): Bitmap {
+        val size = SIZE.toFloat()
+        val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val bounds = RectF(0f, 0f, size, size)
+        val path = Path().apply { addRoundRect(bounds, size * .22f, size * .22f, Path.Direction.CW) }
+        canvas.clipPath(path)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val kind = when (packageName) {
+            "com.google.android.dialer", "com.android.dialer", "com.samsung.android.dialer" -> "phone"
+            "com.google.android.apps.messaging", "com.android.mms", "com.samsung.android.messaging" -> "messages"
+            "com.google.android.gm", "com.android.email", "com.samsung.android.email.provider" -> "mail"
+            "com.google.android.GoogleCamera", "com.android.camera", "com.android.camera2", "com.sec.android.app.camera" -> "camera"
+            else -> "original"
+        }
+        if (kind == "original") {
+            paint.color = android.graphics.Color.WHITE; canvas.drawRect(bounds, paint)
+            if (adaptive != null) {
+                canvas.drawBitmap(renderLayer(adaptive.background, SIZE), 0f, 0f, paint)
+                val foreground = renderLayer(adaptive.foreground, SIZE)
+                canvas.drawBitmap(foreground, null, RectF(-size * .06f, -size * .06f, size * 1.06f, size * 1.06f), paint)
+            } else {
+                val source = renderLayer(drawable, SIZE)
+                canvas.drawBitmap(source, null, bounds, paint)
+            }
+        } else {
+            val colors = when (kind) {
+                "mail" -> intArrayOf(0xFF5AC8FA.toInt(), 0xFF087AFF.toInt())
+                "camera" -> intArrayOf(0xFFF0F1F4.toInt(), 0xFFB9BDC6.toInt())
+                else -> intArrayOf(0xFF65E875.toInt(), 0xFF16BA52.toInt())
+            }
+            paint.shader = LinearGradient(0f, 0f, 0f, size, colors, null, Shader.TileMode.CLAMP)
+            canvas.drawRect(bounds, paint); paint.shader = null
+            paint.color = if (kind == "camera") 0xFF292B31.toInt() else android.graphics.Color.WHITE
+            when (kind) {
+                "messages" -> {
+                    canvas.drawOval(RectF(size * .18f, size * .22f, size * .82f, size * .71f), paint)
+                    canvas.drawPath(Path().apply { moveTo(size * .29f, size * .60f); lineTo(size * .24f, size * .79f); lineTo(size * .47f, size * .67f); close() }, paint)
+                }
+                "mail" -> {
+                    canvas.drawRoundRect(RectF(size * .16f, size * .27f, size * .84f, size * .73f), size * .04f, size * .04f, paint)
+                    paint.color = 0xFF168AFF.toInt(); paint.style = Paint.Style.STROKE; paint.strokeWidth = size * .025f
+                    canvas.drawPath(Path().apply { moveTo(size * .18f, size * .30f); lineTo(size * .50f, size * .54f); lineTo(size * .82f, size * .30f) }, paint)
+                }
+                "camera" -> {
+                    canvas.drawRoundRect(RectF(size * .15f, size * .32f, size * .85f, size * .76f), size * .055f, size * .055f, paint)
+                    canvas.drawRoundRect(RectF(size * .32f, size * .25f, size * .61f, size * .36f), size * .03f, size * .03f, paint)
+                    paint.color = 0xFFD8DCE3.toInt(); canvas.drawCircle(size * .50f, size * .54f, size * .17f, paint)
+                    paint.color = 0xFF303C52.toInt(); canvas.drawCircle(size * .50f, size * .54f, size * .125f, paint)
+                    paint.color = 0xFF6C9DD3.toInt(); canvas.drawCircle(size * .46f, size * .50f, size * .035f, paint)
+                }
+                "phone" -> {
+                    paint.style = Paint.Style.STROKE; paint.strokeWidth = size * .115f; paint.strokeCap = Paint.Cap.ROUND
+                    canvas.drawPath(Path().apply { moveTo(size * .31f, size * .29f); cubicTo(size * .20f, size * .47f, size * .50f, size * .80f, size * .71f, size * .67f) }, paint)
+                    canvas.drawLine(size * .29f, size * .29f, size * .38f, size * .39f, paint)
+                    canvas.drawLine(size * .62f, size * .60f, size * .72f, size * .67f, paint)
+                }
+            }
+        }
+        paint.style = Paint.Style.FILL; paint.strokeCap = Paint.Cap.BUTT
+        paint.shader = LinearGradient(0f, 0f, 0f, size, intArrayOf(((strength.coerceIn(0f, 2f) * 18).toInt() shl 24) or 0xFFFFFF, 0x00FFFFFF), null, Shader.TileMode.CLAMP)
+        canvas.drawRect(bounds, paint)
+        return bitmap
+    }
+
     suspend fun get(packageName: String, activityName: String, strength: Float = 1f): ImageBitmap? {
         if (packageName.isBlank()) return null
         val key = "$packageName/$activityName#v10-" + strength
@@ -237,7 +345,8 @@ class IconCache(private val context: Context) {
         size: Int,
         label: String,
         letterOnly: Boolean = false,
-        strength: Float = 1f
+        strength: Float = 1f,
+        tinted: Boolean = false
     ): Bitmap {
         var glyph: Bitmap? = if (letterOnly) monogram(label, size) else null
 
@@ -275,7 +384,27 @@ class IconCache(private val context: Context) {
         // 4) Pure artwork with no clear logo: the app's first letter.
         val g = glyph ?: monogram(label, size)
 
-        return frostedTile(g, size, strength)
+        val tile = if (tinted) tintedTile(g, size, strength) else frostedTile(g, size, strength)
+        g.recycle()
+        return tile
+    }
+
+    private fun tintedTile(glyph: Bitmap, size: Int, strength: Float): Bitmap {
+        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.save()
+        canvas.clipPath(squircle(size))
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(0f, 0f, 0f, size.toFloat(),
+                intArrayOf(0xFF353C40.toInt(), 0xFF121B20.toInt()), null, Shader.TileMode.CLAMP)
+        })
+        canvas.drawBitmap(glyph, null, RectF(size * 0.06f, size * 0.06f, size * 0.94f, size * 0.94f),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                colorFilter = android.graphics.PorterDuffColorFilter(0xFFE4CB91.toInt(), PorterDuff.Mode.SRC_IN)
+            })
+        drawGlass(canvas, size, strength)
+        canvas.restore()
+        return out
     }
 
     /**
@@ -364,7 +493,7 @@ class IconCache(private val context: Context) {
      * If the logo itself is white (its color lives in the background layer, e.g. WhatsApp),
      * it is painted in that background color so it stays colorful.
      */
-    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int, strength: Float = 1f, stripMapsPlate: Boolean = false): Bitmap {
+    private fun renderFrostedColor(drawable: Drawable, adaptive: AdaptiveIconDrawable?, size: Int, strength: Float = 1f, stripMapsPlate: Boolean = false, crystal: Boolean = false): Bitmap {
         var logo: Bitmap? = null
         // 1) Two-layer icon: the logo layer.
         if (adaptive?.foreground != null) {
@@ -408,7 +537,43 @@ class IconCache(private val context: Context) {
             }
             full.recycle()
         }
-        return frostedTile(logo!!, size, strength)
+        val tile = if (crystal) crystalTile(logo!!, size, strength) else frostedTile(logo!!, size, strength)
+        logo.recycle()
+        return tile
+    }
+
+    private fun crystalTile(content: Bitmap, size: Int, strength: Float): Bitmap {
+        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.save()
+        canvas.clipPath(squircle(size))
+        val depth = strength.coerceIn(0f, 2f)
+        // Keep the wallpaper visible. Reflections belong to the tile, below the logo.
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(0f, 0f, size.toFloat(), size.toFloat(),
+                intArrayOf(glassAlpha(0x30FFFFFF, depth), glassAlpha(0x08FFFFFF, depth), glassAlpha(0x0CFFFFFF, depth)),
+                floatArrayOf(0f, 0.48f, 1f), Shader.TileMode.CLAMP)
+        })
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = LinearGradient(0f, 0f, size * 0.7f, size.toFloat(),
+                intArrayOf(0x00FFFFFF, glassAlpha(0x28FFFFFF, depth), 0x00FFFFFF),
+                floatArrayOf(0.18f, 0.24f, 0.38f), Shader.TileMode.CLAMP)
+        })
+        val raised = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        Canvas(raised).drawBitmap(content, null,
+            RectF(size * 0.05f, size * 0.025f, size * 0.95f, size * 0.925f),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        val shadow = raised.extractAlpha()
+        canvas.drawBitmap(shadow, 0f, size * 0.025f * depth, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = glassAlpha(0x35000000, depth)
+            maskFilter = BlurMaskFilter(size * 0.035f, BlurMaskFilter.Blur.NORMAL)
+        })
+        canvas.drawBitmap(raised, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        drawGlass(canvas, size, depth)
+        shadow.recycle()
+        raised.recycle()
+        canvas.restore()
+        return out
     }
 
     /**

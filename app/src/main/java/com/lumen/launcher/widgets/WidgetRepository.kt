@@ -69,7 +69,7 @@ object WidgetRepository {
             stored = stored,
             tasks = TaskAgenda.today(stored.todos.filter { it.space != com.lumen.launcher.data.SpaceKind.Private }, System.currentTimeMillis()),
             trip = trip,
-            lastTrip = if (trip == null) TripRepository.get(context).getLatestEndedTrip() else null,
+            lastTrip = TripRepository.get(context).getLatestEndedTrip(),
             photos = photos,
             scribble = creations.firstOrNull { it.kind == CreationKind.Scribble }?.filePath,
             quoteCreation = creations.firstOrNull { it.kind == CreationKind.Quote }?.filePath,
