@@ -103,7 +103,9 @@ fun TouchpadIsland(
     /** false = no own glass frame / gold rim (used inside the big TouchPad card). */
     framed: Boolean = true,
     /** Size of the gold Lumen ring. */
-    markSize: Dp = 60.dp
+    markSize: Dp = 60.dp,
+    draggingApp: Boolean = false,
+    onTouchChanged: (Boolean) -> Unit = {}
 ) {
     val view = LocalView.current
     val onboarding = remember(view.context) {
@@ -207,10 +209,10 @@ fun TouchpadIsland(
             .graphicsLayer {
                 val stretchX = (trailX / 180f).coerceIn(-1f, 1f)
                 val stretchY = (trailY / 180f).coerceIn(-1f, 1f)
-                scaleX = scale.value * (1f + 0.014f * kotlin.math.abs(stretchX) + 0.03f * dropShown)
-                scaleY = scale.value * (1f + 0.014f * kotlin.math.abs(stretchY) + 0.03f * dropShown)
-                translationX = stretchX * 3.4f
-                translationY = stretchY * 3.4f
+                scaleX = if (!framed) 1f else scale.value * (1f + 0.014f * kotlin.math.abs(stretchX) + 0.03f * dropShown)
+                scaleY = if (!framed) 1f else scale.value * (1f + 0.014f * kotlin.math.abs(stretchY) + 0.03f * dropShown)
+                translationX = if (framed) stretchX * 3.4f else 0f
+                translationY = if (framed) stretchY * 3.4f else 0f
             }
             // Only the framed pill casts a shadow; inside the glass card it would show as a pale band.
             .then(
@@ -225,6 +227,7 @@ fun TouchpadIsland(
                 enabled = enabled && !state.privatePageActive,
                 onPress = { down, origin ->
                     pressed = down
+                    onTouchChanged(down)
                     touch = origin
                     if (down) {
                         lockMorph = 0f
@@ -478,37 +481,52 @@ fun TouchpadIsland(
                 )
             }
         } else {
-            // Card: logo on top; labels at bottom — the whole column is the TouchPad (no fingerprint).
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                LogoMark()
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    if (seal > 0.6f) "Private" else "Lumen",
-                    color = Color.White.copy(alpha = if (pressed) 0.95f else 0.92f),
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    if (seal > 0.6f) "Space" else if (showVoiceHint) "Tap to talk" else "TouchPad",
-                    color = Color.White.copy(alpha = 0.72f),
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 13.sp,
-                    letterSpacing = 0.4.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp)
-                )
+            val touching by animateFloatAsState(if (pressed) 1f else 0f, tween(200), label = "pad-map")
+            var hintIndex by remember { mutableStateOf(0) }
+            val hints = listOf("Tap · ${GestureAction.label(state.tapAction, state.apps)}", "Hold · Vault", "Swipe for shortcuts")
+            LaunchedEffect(pressed, draggingApp) {
+                while (!pressed && !draggingApp) {
+                    kotlinx.coroutines.delay(6000)
+                    hintIndex = (hintIndex + 1) % hints.size
+                }
+            }
+            Box(Modifier.fillMaxSize().padding(6.dp), contentAlignment = Alignment.Center) {
+                // Anchor the mark independently: fading labels must never offset the swipe center.
+                Box(Modifier.align(Alignment.Center).graphicsLayer { alpha = if (draggingApp) 0f else 1f }) {
+                    LogoMark()
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+                        .graphicsLayer { alpha = if (draggingApp) 0f else 1f }) {
+                    Text("Lumen", color = GoldHi, fontFamily = Outfit, fontSize = 17.sp,
+                        modifier = Modifier.graphicsLayer { alpha = 1f - touching })
+                    androidx.compose.animation.Crossfade(hintIndex, animationSpec = tween(200), label = "pad-hint") { index ->
+                        Text(hints[index], color = Color.White.copy(.72f), fontFamily = Outfit, fontSize = 10.sp,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.graphicsLayer { alpha = 1f - touching })
+                    }
+                }
+                if (!draggingApp) {
+                    listOf("swipeUp" to Alignment.TopCenter, "swipeDown" to Alignment.BottomCenter,
+                        "swipeLeft" to Alignment.CenterStart, "swipeRight" to Alignment.CenterEnd).forEach { (kind, alignment) ->
+                        val spec = specFor(state, kind)
+                        val app = state.apps.find { it.key == GestureAction.appKey(spec) }
+                        Column(Modifier.align(alignment).graphicsLayer { alpha = touching }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (app != null) AppIcon(app.packageName, app.activityName, 22.dp, icons)
+                            else Icon(systemIcon(spec), null, tint = GoldHi, modifier = Modifier.size(22.dp))
+                            Text(GestureAction.label(spec, state.apps), color = Color.White, fontSize = 8.sp,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.size(width = 54.dp, height = 14.dp), textAlign = TextAlign.Center)
+                        }
+                    }
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Outlined.Lock, null, tint = GoldHi, modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Hide in Vault", color = GoldHi, fontFamily = Outfit, fontSize = 15.sp)
+                        Text("Drop to hide", color = Color.White.copy(.65f), fontSize = 11.sp)
+                    }
+                }
             }
         }
     }

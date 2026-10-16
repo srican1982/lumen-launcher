@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -110,18 +112,23 @@ fun AlphabetRail(
                 }
                 .onSizeChanged { railHeight = it.height }
                 .pointerInput(index.available) {
-                    detectVerticalDragGestures(
-                        onDragStart = { offset ->
-                            onScrubbingChange(true)
-                            pick(offset.y)
-                        },
-                        onVerticalDrag = { change, _ ->
-                            change.consume()
-                            pick(change.position.y)
-                        },
-                        onDragEnd = { onScrubbingChange(false) },
-                        onDragCancel = { onScrubbingChange(false) }
-                    )
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        down.consume()
+                        onScrubbingChange(true)
+                        pick(down.position.y)
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                change.consume()
+                                if (!change.pressed) break
+                                pick(change.position.y)
+                            }
+                        } finally {
+                            onScrubbingChange(false)
+                        }
+                    }
                 }
                 .padding(vertical = 4.dp),
             verticalArrangement = Arrangement.SpaceEvenly,
@@ -129,7 +136,7 @@ fun AlphabetRail(
         ) {
             index.letters.forEach { letter ->
                 val present = letter in index.available
-                val selected = scrubbing && activeLetter == letter
+                val selected = activeLetter == letter
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -185,27 +192,7 @@ fun AlphabetRail(
             }
         }
 
-        if (scrubbing && activeLetter != null) {
-            val offsetX = with(density) { -(192.dp).roundToPx() }
-            Popup(
-                alignment = Alignment.CenterStart,
-                offset = IntOffset(offsetX, 0),
-                properties = PopupProperties(
-                    focusable = false,
-                    dismissOnBackPress = false,
-                    dismissOnClickOutside = false,
-                    clippingEnabled = false
-                )
-            ) {
-                AlphabetPreviewBubble(
-                    visible = true,
-                    letter = activeLetter,
-                    apps = index.previews[activeLetter].orEmpty(),
-                    total = index.totals[activeLetter] ?: 0,
-                    icons = icons
-                )
-            }
-        }
+
     }
 }
 

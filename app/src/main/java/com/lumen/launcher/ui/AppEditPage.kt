@@ -46,7 +46,6 @@ fun AppEditPage(state: LauncherUiState, vm: LauncherViewModel, onDismiss: () -> 
     val focus = remember { FocusRequester() }
     val self = LocalContext.current.packageName
     val homeKeys = state.copy(spaceOverride = com.lumen.launcher.data.SpaceKind.Home).homeApps.map { it.key }.toSet()
-    val maxHomeApps = com.lumen.launcher.data.ModeAppsResolver.MAX_APPS
     val apps = remember(state.visibleApps, query) {
         state.visibleApps.filter { it.label.contains(query.trim(), ignoreCase = true) }
             .sortedBy { it.label.lowercase() }
@@ -71,10 +70,14 @@ fun AppEditPage(state: LauncherUiState, vm: LauncherViewModel, onDismiss: () -> 
                     }
                     TextButton(onClick = onDismiss) { Text("Done", color = Lumen.Accent, fontFamily = Outfit) }
                 }
-                Text("Home apps: ${homeKeys.size} / $maxHomeApps", color = Lumen.BrandGold, fontFamily = Outfit,
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onDismiss(); vm.openWidgets() }) {
+                        Text("Add widgets", color = Lumen.BrandGold)
+                    }
+                }
+                Text("Home apps: ${homeKeys.size}", color = Lumen.BrandGold, fontFamily = Outfit,
                     modifier = Modifier.padding(bottom = 4.dp))
-                Text(if (homeKeys.size >= maxHomeApps) "Home is full. Remove a Home app to add another. − on the icon uninstalls."
-                    else "Add apps to Home below. − Home removes the shortcut; − on the icon uninstalls.",
+                Text("Add apps to Home below. − Home removes the shortcut; − on the icon uninstalls.",
                     color = Lumen.Muted, fontFamily = Outfit, fontSize = 12.sp,
                     modifier = Modifier.padding(bottom = 16.dp))
                 TextField(value = query, onValueChange = { query = it }, singleLine = true,
@@ -125,10 +128,10 @@ fun AppEditPage(state: LauncherUiState, vm: LauncherViewModel, onDismiss: () -> 
                             val onHome = app.key in homeKeys
                             val inDock = state.dock.any { it.packageName == app.packageName }
                             TextButton(onClick = { vm.toggleHomeApp(app) },
-                                enabled = !inDock && (onHome || homeKeys.size < maxHomeApps),
+                                enabled = !inDock,
                                 contentPadding = PaddingValues(0.dp), modifier = Modifier.fillMaxWidth().height(32.dp)) {
-                                Text(when { inDock -> "In dock"; onHome -> "− Home"; homeKeys.size >= maxHomeApps -> "Home full"; else -> "Add to Home" },
-                                    color = if (onHome || (!inDock && homeKeys.size < maxHomeApps)) Lumen.BrandGold else Lumen.Faint,
+                                Text(when { inDock -> "In dock"; onHome -> "− Home"; else -> "Add to Home" },
+                                    color = if (onHome || !inDock) Lumen.BrandGold else Lumen.Faint,
                                     fontFamily = Outfit, fontSize = 10.sp, maxLines = 1)
                             }
                         }

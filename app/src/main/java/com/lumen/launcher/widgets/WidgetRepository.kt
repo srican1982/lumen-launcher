@@ -11,12 +11,18 @@ import android.content.pm.PackageManager
 import android.os.BatteryManager
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
+import com.lumen.launcher.data.CalendarEvent
+import com.lumen.launcher.data.CalendarRepository
 import com.lumen.launcher.data.LauncherPreferences
 import com.lumen.launcher.data.LauncherState
 import com.lumen.launcher.data.TaskAgenda
 import com.lumen.launcher.data.TodoItem
 import com.lumen.launcher.data.UsageTimeline
+import com.lumen.launcher.data.WeatherRepository
+import com.lumen.launcher.data.WeatherSnapshot
 import com.lumen.launcher.inbox.InboxHub
+import com.lumen.launcher.media.NowPlaying
+import com.lumen.launcher.media.NowPlayingRepository
 import com.lumen.launcher.social.CreationKind
 import com.lumen.launcher.social.CreationRepository
 import com.lumen.launcher.travel.data.TripRepository
@@ -24,6 +30,7 @@ import com.lumen.launcher.travel.model.Trip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -46,6 +53,9 @@ data class WidgetSnapshot(
     val focusStartedAt: Long = 0L,
     val focusRemainingMs: Long = 0L,
     val focusError: String = "",
+    val weather: WeatherSnapshot? = null,
+    val nextEvent: CalendarEvent? = null,
+    val nowPlaying: NowPlaying? = null,
     val locked: Boolean = false
 )
 
@@ -58,13 +68,16 @@ object WidgetRepository {
         val level = battery?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = battery?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
         val percent = if (level >= 0 && scale > 0) (level * 100 / scale).coerceIn(0, 100) else null
-        if (locked) return@withContext WidgetSnapshot(stored = stored, battery = percent, locked = true)
+        val nowPlaying = NowPlayingRepository.current(context)
+        if (locked) return@withContext WidgetSnapshot(stored = stored, battery = percent, locked = true, weather = cachedWeather(context), nowPlaying = nowPlaying)
         val trip = TripRepository.get(context).getActiveTrip()
         val creations = CreationRepository(context).items.first()
         val photos = creations
             .filter { it.kind == CreationKind.Photo }.map { it.filePath }.take(3)
         val notifications = InboxHub.items.value.filter { !it.isDigest && !it.secret && it.packageName !in stored.hidden && stored.privateApps.none { key -> key.substringBefore('/') == it.packageName } }
         val focus = com.lumen.launcher.focus.FocusSessionManager.get(context).snapshotNow()
+        val weather = loadWeather(context)
+        val nextEvent = runCatching { CalendarRepository(context).nextEvent() }.getOrNull()
         WidgetSnapshot(
             stored = stored,
             tasks = TaskAgenda.today(stored.todos.filter { it.space != com.lumen.launcher.data.SpaceKind.Private }, System.currentTimeMillis()),
@@ -81,7 +94,43 @@ object WidgetRepository {
             focusPaused = focus.paused,
             focusStartedAt = focus.startedAt,
             focusRemainingMs = focus.remainingMs(),
-            focusError = focus.error
+            focusError = focus.error,
+            weather = weather,
+            nextEvent = nextEvent,
+            nowPlaying = nowPlaying ?: NowPlayingRepository.state.value
+        )
+    }
+
+    private suspend fun loadWeather(context: Context): WeatherSnapshot? {
+        val cached = cachedWeather(context)
+        val prefs = context.getSharedPreferences("lumen_widget_weather", Context.MODE_PRIVATE)
+        val age = System.currentTimeMillis() - prefs.getLong("at", 0L)
+        if (cached != null && age in 0 until 30 * 60_000L) return cached
+        val fresh = withTimeoutOrNull(4_500) {
+            runCatching { WeatherRepository(context).load() }.getOrNull()
+        } ?: return cached
+        prefs.edit()
+            .putLong("at", System.currentTimeMillis())
+            .putInt("temp", fresh.temperatureC)
+            .putString("summary", fresh.summary)
+            .putString("place", fresh.place)
+            .putInt("high", fresh.highC ?: Int.MIN_VALUE)
+            .putInt("low", fresh.lowC ?: Int.MIN_VALUE)
+            .apply()
+        return fresh
+    }
+
+    private fun cachedWeather(context: Context): WeatherSnapshot? {
+        val prefs = context.getSharedPreferences("lumen_widget_weather", Context.MODE_PRIVATE)
+        if (!prefs.contains("temp")) return null
+        val high = prefs.getInt("high", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        val low = prefs.getInt("low", Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        return WeatherSnapshot(
+            temperatureC = prefs.getInt("temp", 0),
+            summary = prefs.getString("summary", "Local weather").orEmpty(),
+            place = prefs.getString("place", "Local").orEmpty(),
+            highC = high,
+            lowC = low
         )
     }
 

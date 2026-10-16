@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Next Stop — Apple-style: one destination, one plan action -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <TextView
+        android:id="@+id/trip_widget_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Next Stop"
+        android:textColor="#99FFFFFF"
+        android:textSize="12sp"
+        android:fontFamily="@font/outfit_medium"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/trip_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="#FFFFFF"
+        android:textSize="28sp"
+        android:fontFamily="@font/outfit_semibold"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/trip_widget_route"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#CCFFFFFF"
+        android:textSize="13sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:includeFontPadding="false" />
+
+    <TextView
+        android:id="@+id/trip_widget_dates"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#8A94A8"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:includeFontPadding="false" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:id="@+id/trip_widget_primary"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:background="@drawable/widget_trip_cta_purple"
+        android:gravity="center"
+        android:text="Open Plan"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="@font/outfit_medium"
+        android:includeFontPadding="false" />
+</LinearLayout>

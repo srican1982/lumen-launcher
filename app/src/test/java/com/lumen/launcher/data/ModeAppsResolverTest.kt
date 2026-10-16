@@ -64,4 +64,10 @@ class ModeAppsResolverTest {
         assertThat(result).hasSize(12)
         assertThat(result).containsExactlyElementsIn(apps.take(12)).inOrder()
     }
+    @Test fun savedHomeSelectionCanExceedTwelveWithoutDroppingOrder() {
+        val apps = (1..24).map { AppInfo("App $it", "app$it", "Main", 0, AppCategory.Utilities) }
+        assertThat(ModeAppsResolver.resolve(SpaceKind.Home, apps, apps.map { it.key }, emptyList(), emptyList()))
+            .containsExactlyElementsIn(apps).inOrder()
+    }
+
 }

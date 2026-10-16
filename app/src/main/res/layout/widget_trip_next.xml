@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- C · Next destination / itinerary -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/widget_ic_trip"
+            android:contentDescription="@null" />
+        <TextView
+            android:id="@+id/trip_widget_label"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Next Up"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:paddingHorizontal="10dp"
+            android:gravity="center"
+            android:background="@drawable/widget_trip_badge"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:fontFamily="@font/outfit_medium"
+            android:visibility="gone"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/trip_widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:fontFamily="@font/outfit_semibold"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:includeFontPadding="false" />
+    <TextView
+        android:id="@+id/trip_widget_route"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#CCFFFFFF"
+        android:textSize="12sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:includeFontPadding="false" />
+    <TextView
+        android:id="@+id/trip_widget_dates"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="#99FFFFFF"
+        android:textSize="11sp"
+        android:maxLines="1"
+        android:includeFontPadding="false" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/trip_widget_step1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#D5DFF0"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_step2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#D5DFF0"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_step3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#D5DFF0"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/trip_widget_primary"
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:background="@drawable/widget_trip_cta_purple"
+        android:gravity="center"
+        android:text="View Details  ›"
+        android:textColor="#FFFFFF"
+        android:textSize="12sp"
+        android:fontFamily="@font/outfit_medium"
+        android:includeFontPadding="false" />
+</LinearLayout>

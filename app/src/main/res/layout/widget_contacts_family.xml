@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/contact_card_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@drawable/widget_contact_family_glass">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:paddingBottom="6dp">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/widget_ic_contacts"
+            android:contentDescription="@null" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/contact_card_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Family"
+                android:textColor="#152237"
+                android:textSize="16sp"
+                android:fontFamily="@font/outfit_medium"
+                android:maxLines="1"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/contact_card_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Always connected"
+                android:textColor="#526174"
+                android:textSize="11sp"
+                android:maxLines="1"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+        <TextView
+            android:id="@+id/contact_card_group"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:gravity="center"
+            android:paddingHorizontal="12dp"
+            android:text="Group Message"
+            android:textColor="#152237"
+            android:textSize="11sp"
+            android:fontFamily="@font/outfit_medium"
+            android:background="@drawable/widget_contact_group_button"
+            android:includeFontPadding="false"
+            android:visibility="gone" />
+        <ImageView
+            android:id="@+id/contact_card_add"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/widget_contact_light_button"
+            android:src="@drawable/widget_contact_plus_dark"
+            android:padding="6dp"
+            android:scaleType="fitCenter"
+            android:contentDescription="Choose contacts" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:id="@+id/contact_card_person1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="5dp"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:background="@drawable/widget_contact_person_card"
+            android:gravity="center_horizontal">
+            <ImageView android:id="@+id/contact_card_photo1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="centerCrop" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_name1" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#152237" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:gravity="center" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/contact_card_status1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#3D9B6A" android:textSize="9sp" android:gravity="center" android:maxLines="1" android:includeFontPadding="false" />
+            <LinearLayout android:id="@+id/contact_card_actions1" android:layout_width="match_parent" android:layout_height="28dp" android:layout_marginTop="4dp" android:gravity="center">
+                <ImageView android:id="@+id/contact_card_call1" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Call" />
+                <ImageView android:id="@+id/contact_card_message1" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Message" />
+                <ImageView android:id="@+id/contact_card_video1" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_video" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/contact_card_person2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="5dp"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:background="@drawable/widget_contact_person_card"
+            android:gravity="center_horizontal">
+            <ImageView android:id="@+id/contact_card_photo2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="centerCrop" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_name2" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#152237" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:gravity="center" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/contact_card_status2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#3D9B6A" android:textSize="9sp" android:gravity="center" android:maxLines="1" android:includeFontPadding="false" />
+            <LinearLayout android:id="@+id/contact_card_actions2" android:layout_width="match_parent" android:layout_height="28dp" android:layout_marginTop="4dp" android:gravity="center">
+                <ImageView android:id="@+id/contact_card_call2" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Call" />
+                <ImageView android:id="@+id/contact_card_message2" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Message" />
+                <ImageView android:id="@+id/contact_card_video2" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_video" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/contact_card_person3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="5dp"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:background="@drawable/widget_contact_person_card"
+            android:gravity="center_horizontal">
+            <ImageView android:id="@+id/contact_card_photo3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="centerCrop" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_name3" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#152237" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:gravity="center" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/contact_card_status3" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#3D9B6A" android:textSize="9sp" android:gravity="center" android:maxLines="1" android:includeFontPadding="false" />
+            <LinearLayout android:id="@+id/contact_card_actions3" android:layout_width="match_parent" android:layout_height="28dp" android:layout_marginTop="4dp" android:gravity="center">
+                <ImageView android:id="@+id/contact_card_call3" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Call" />
+                <ImageView android:id="@+id/contact_card_message3" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Message" />
+                <ImageView android:id="@+id/contact_card_video3" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_video" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/contact_card_person4"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginEnd="5dp"
+            android:orientation="vertical"
+            android:padding="6dp"
+            android:background="@drawable/widget_contact_person_card"
+            android:gravity="center_horizontal">
+            <ImageView android:id="@+id/contact_card_photo4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="centerCrop" android:contentDescription="Contact" />
+            <TextView android:id="@+id/contact_card_name4" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#152237" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:gravity="center" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/contact_card_status4" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#3D9B6A" android:textSize="9sp" android:gravity="center" android:maxLines="1" android:includeFontPadding="false" />
+            <LinearLayout android:id="@+id/contact_card_actions4" android:layout_width="match_parent" android:layout_height="28dp" android:layout_marginTop="4dp" android:gravity="center">
+                <ImageView android:id="@+id/contact_card_call4" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_call" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Call" />
+                <ImageView android:id="@+id/contact_card_message4" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_message" android:background="@drawable/widget_contact_message_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Message" />
+                <ImageView android:id="@+id/contact_card_video4" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginHorizontal="2dp" android:src="@drawable/widget_contact_video" android:background="@drawable/widget_contact_light_button" android:padding="5dp" android:scaleType="fitCenter" android:contentDescription="Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/contact_card_note"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/widget_contact_note_card"
+            android:gravity="center"
+            android:padding="10dp"
+            android:text="Good People Make a Brighter Life."
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@font/outfit_medium"
+            android:lineSpacingExtra="2dp" />
+    </LinearLayout>
+</LinearLayout>

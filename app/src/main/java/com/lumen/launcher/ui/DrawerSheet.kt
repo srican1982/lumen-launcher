@@ -1,5 +1,7 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -85,7 +88,7 @@ import kotlinx.coroutines.launch
 import android.view.HapticFeedbackConstants
 
 private enum class DrawerTab(val label: String) {
-    AZ("A-Z"),
+    AZ("All"),
     MOST_USED("Top"),
     CATEGORIES("Groups"),
     RECENT("Recent")
@@ -113,9 +116,10 @@ fun DrawerSheet(
     val holding = dragPhase == IconPhase.Lifted || dragPhase == IconPhase.Dragging
     val moving = dragPhase == IconPhase.Dragging
     val density = LocalDensity.current
-    val iconPx = with(density) { state.iconSizeDp.dp.toPx() }
+    val iconPx = with(density) { 44.dp.toPx() }
     var drawerQuery by remember { mutableStateOf("") }
     val query = drawerQuery.trim()
+    val dismissKeyboardOnScroll = rememberSearchKeyboardDismissal()
     val azBase = remember(state.visibleApps, state.activeSpace, state.recents) {
         AlphabetIndex.buildAz(
             apps = state.visibleApps,
@@ -145,10 +149,13 @@ fun DrawerSheet(
         DrawerTab.CATEGORIES -> categorySectionsFiltered
         DrawerTab.MOST_USED -> mostUsedSections
     }
+    val gridColumns = 4
+    val allAzApps = remember(azSections) { azSections.flatMap { it.second } }
+    val gridSections = displaySections
     val showAlphabet = selectedDrawerTab == DrawerTab.AZ && query.isBlank()
     val alphabetIndex = remember(azSections, showAlphabet, azBase) {
         if (!showAlphabet) AlphabetIndex.build(emptyList())
-        else AlphabetIndex.build(azSections, leadingItems = 0)
+        else AlphabetIndex.buildGrid(azSections, gridColumns)
             .copy(spaceBoosted = azBase.second.spaceBoosted)
     }
     val listState = rememberLazyListState()
@@ -156,8 +163,21 @@ fun DrawerSheet(
     var scrubLetter by remember { mutableStateOf<Char?>(null) }
     var scrubbing by remember { mutableStateOf(false) }
 
+    var alphabetTouch by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val searchAttention = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(scrubbing, alphabetTouch) {
+        if (alphabetTouch == 0 && !scrubbing) return@LaunchedEffect
+        searchAttention.animateTo(.65f, androidx.compose.animation.core.tween(130))
+        searchAttention.animateTo(if (scrubbing) .22f else 0f, androidx.compose.animation.core.tween(450))
+    }
+
+    val gridDragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(gridDragged) { if (gridDragged) scrubLetter = null }
+    val highlightedLetter = if (showAlphabet && scrubbing) scrubLetter else null
+
     fun jumpToLetter(letter: Char) {
         scrubLetter = letter
+        alphabetTouch++
         val target = alphabetIndex.firstVisibleIndex(letter) ?: return
         scope.launch { listState.scrollToItem(target) }
     }
@@ -222,31 +242,16 @@ fun DrawerSheet(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (LumenPalette.whiteGlass) {
-                    // White Glass theme: neutral frosted grey instead of pink
-                    Brush.verticalGradient(
-                        0f to Color(0xFF59616C),
-                        0.35f to Color(0xFF3C434C),
-                        0.72f to Color(0xFF262A30),
-                        1f to Color(0xFF15171B)
-                    )
-                } else {
-                    Brush.verticalGradient(
-                        0f to Color(0xFFA22E77),
-                        0.35f to Color(0xFF6E1E5C),
-                        0.72f to Color(0xFF3A1236),
-                        1f to Color(0xFF190A18)
-                    )
-                }
-            )
-            .background(if (LumenPalette.whiteGlass) Color(0x26000000) else Color(0x40200A1C))
+            .background(DrawerTheme.gradient)
             .onGloballyPositioned { root = it }
     ) {
+        SpaceBackdrop(state.spaceWallpaper, extraBlur = 8.dp)
+        Box(Modifier.fillMaxSize().background(Color(0xEB080B0C)))
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .then(if (moving) Modifier.blur(10.dp) else Modifier)
+                .nestedScroll(dismissKeyboardOnScroll)
                 .emptySpaceLongPress(enabled = !holding, onLongPress = viewModel::openMenu)
                 .statusBarsPadding()
                 .navigationBarsPadding()
@@ -254,55 +259,18 @@ fun DrawerSheet(
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(11.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.GridView, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(18.dp))
-                }
-                Text(
-                    "Lumen",
-                    color = Color.White,
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 22.sp,
-                    modifier = Modifier.padding(start = 12.dp)
-                )
-                Spacer(Modifier.weight(1f))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(22.dp))
-                        .clickable { viewModel.openMenu() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        state.activeSpace.title,
-                        color = Color.White.copy(alpha = 0.92f),
-                        fontFamily = Outfit,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp
-                    )
-                    Icon(
-                        Icons.Outlined.ExpandMore,
-                        contentDescription = "Space",
-                        tint = Color.White.copy(alpha = 0.75f),
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(20.dp)
-                    )
-                }
-            }
+            val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+            SearchField(
+                query = drawerQuery,
+                onQueryChange = { drawerQuery = it },
+                focusRequester = searchFocus,
+                onSearch = { viewModel.openSearch(); viewModel.onQueryChange(drawerQuery) },
+                hint = "Search apps...",
+                onVoice = { viewModel.voice.openVoice() },
+                autoFocus = false,
+                showScope = false,
+                attention = searchAttention.value
+            )
             Spacer(Modifier.height(16.dp))
             DrawerTabRow(
                 selected = selectedDrawerTab,
@@ -329,76 +297,48 @@ fun DrawerSheet(
                         contentPadding = PaddingValues(bottom = 28.dp, top = 4.dp),
                         userScrollEnabled = !holding && !scrubbing
                     ) {
-                        displaySections.forEach { (title, apps) ->
+                        gridSections.forEach { (title, apps) ->
                             if (apps.isEmpty()) return@forEach
-                            item(key = "h-${selectedDrawerTab.name}-$title") {
-                                val letterHeader = selectedDrawerTab == DrawerTab.AZ && title.length == 1
-                                Text(
-                                    title,
-                                    color = Color.White.copy(alpha = if (letterHeader) 0.88f else 0.72f),
-                                    fontSize = if (letterHeader) 28.sp else 22.sp,
-                                    fontFamily = Outfit,
-                                    fontWeight = if (letterHeader) FontWeight.Light else FontWeight.Medium,
-                                    letterSpacing = if (letterHeader) 0.sp else 0.3.sp,
-                                    modifier = Modifier.padding(
-                                        top = if (letterHeader) 12.dp else 18.dp,
-                                        bottom = if (letterHeader) 6.dp else 10.dp
-                                    )
-                                )
+                            if (selectedDrawerTab == DrawerTab.CATEGORIES || selectedDrawerTab == DrawerTab.AZ) {
+                                item(key = "h-$title") {
+                                    Text(title, color = Color.White.copy(.9f), fontFamily = Outfit,
+                                        fontSize = 22.sp, fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(top = 9.dp, bottom = 6.dp))
+                                }
                             }
-                            if (selectedDrawerTab == DrawerTab.CATEGORIES) {
-                                items(
-                                    items = apps.chunked(4),
-                                    key = { row -> row.map { it.key }.joinToString() }
-                                ) { row ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .drawerStack(listState, row.map { it.key }.joinToString(), enabled = !holding)
-                                            .padding(bottom = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        row.forEach { app ->
-                                            DrawerCategoryCell(
-                                                app = app,
-                                                icons = viewModel.icons,
-                                                dimmed = moving && dragApp?.key != app.key,
-                                                lifted = holding && dragApp?.key == app.key,
-                                                onLaunch = { viewModel.launch(app) },
-                                                onMenu = { viewModel.showAppActions(app) },
-                                                onLocated = { slotWindows[app.key] = it },
-                                                onContact = { phase, drag -> onContact(app, phase, drag) },
-                                                onDragEnd = { finishDrag(app) },
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-                                        repeat(4 - row.size) {
-                                            Spacer(Modifier.weight(1f))
-                                        }
+                            items(apps.chunked(gridColumns), key = { row ->
+                                "${selectedDrawerTab.name}-$title-${row.first().key}"
+                            }) { row ->
+                                Row(Modifier.fillMaxWidth().padding(bottom = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    row.forEach { app ->
+                                        DrawerCategoryCell(
+                                            app = app, icons = viewModel.icons,
+                                            dimmed = moving && dragApp?.key != app.key,
+                                            highlighted = highlightedLetter == null ||
+                                                AlphabetIndex.letterKey(app.label).first() == highlightedLetter,
+                                            lifted = holding && dragApp?.key == app.key,
+                                            onLaunch = { viewModel.launch(app) },
+                                            onMenu = { viewModel.showAppActions(app) },
+                                            onLocated = { slotWindows[app.key] = it },
+                                            onContact = { phase, drag -> onContact(app, phase, drag) },
+                                            onDragEnd = { finishDrag(app) },
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
-                                }
-                            } else {
-                                items(apps, key = { "${selectedDrawerTab.name}-${it.key}" }) { app ->
-                                    DrawerAppRow(
-                                        app = app,
-                                        icons = viewModel.icons,
-                                        dimmed = moving && dragApp?.key != app.key,
-                                        lifted = holding && dragApp?.key == app.key,
-                                        onLaunch = { viewModel.launch(app) },
-                                        onMenu = { viewModel.showAppActions(app) },
-                                        onLocated = { slotWindows[app.key] = it },
-                                        onContact = { phase, drag -> onContact(app, phase, drag) },
-                                        onDragEnd = { finishDrag(app) },
-                                        modifier = Modifier.drawerStack(listState, "${selectedDrawerTab.name}-${app.key}", enabled = !holding)
-                                    )
+                                    repeat(gridColumns - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
+                        }
+                        if (gridSections.all { it.second.isEmpty() }) item {
+                            Text("No matching apps", color = Color.White.copy(.6f), fontFamily = Outfit,
+                                modifier = Modifier.padding(vertical = 24.dp))
                         }
                     }
                     if (showAlphabet && alphabetIndex.available.isNotEmpty()) {
                         AlphabetRail(
                             index = alphabetIndex,
-                            activeLetter = scrubLetter,
+                            activeLetter = highlightedLetter,
                             scrubbing = scrubbing,
                             icons = viewModel.icons,
                             onLetter = ::jumpToLetter,
@@ -413,8 +353,7 @@ fun DrawerSheet(
                     }
                 }
             }
-            CompactSearchButton(onClick = viewModel::openSearch,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
+
         }
         val active = state.activeApp
         val menuOpen = active != null
@@ -452,7 +391,7 @@ fun DrawerSheet(
                 AppIcon(
                     ghost.packageName,
                     ghost.activityName,
-                    state.iconSizeDp.dp,
+                    44.dp,
                     viewModel.icons,
                     phase = dragPhase
                 )
@@ -517,52 +456,23 @@ private fun DrawerTabRow(
     onSelect: (DrawerTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            ,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Row(modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         DrawerTab.entries.forEach { tab ->
-            val isSelected = tab == selected
-            val shape = RoundedCornerShape(22.dp)
-            Box(
-                modifier = Modifier.weight(1f)
-                    .then(
-                        if (isSelected) {
-                            Modifier.shadow(12.dp, shape, spotColor = Color(0xFFF5CB7E).copy(alpha = 0.65f))
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .clip(shape)
-                    .background(
-                        if (isSelected) {
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E))
-                            )
-                        } else {
-                            Brush.verticalGradient(
-                                listOf(Color.White.copy(alpha = 0.11f), Color.White.copy(alpha = 0.05f))
-                            )
-                        }
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = if (isSelected) Color(0xFFF5CB7E).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
-                        shape = shape
-                    )
-                    .clickable { onSelect(tab) }
-                    .padding(horizontal = 4.dp, vertical = 10.dp)
-                , contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = tab.label,
-                    color = if (isSelected) Color(0xFF241B10) else Color.White.copy(alpha = 0.68f),
-                    fontFamily = Outfit,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    fontSize = 14.sp
-                )
+            val selectedTab = tab == selected
+            Box(Modifier.weight(1f).height(48.dp).clickable { onSelect(tab) },
+                contentAlignment = Alignment.Center) {
+                Text(tab.label, color = if (selectedTab) Color(0xFF241B10) else Color.White.copy(.65f),
+                    fontFamily = Outfit, fontSize = 14.sp,
+                    fontWeight = if (selectedTab) FontWeight.Medium else FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.horizontalGradient(if (selectedTab)
+                            listOf(Color(0xFFF3D7A0), Color(0xFFF5CB7E))
+                            else listOf(Color.Transparent, Color.Transparent)))
+                        .padding(horizontal = 4.dp, vertical = 8.dp))
             }
         }
     }
@@ -679,7 +589,8 @@ private fun DrawerCategoryCell(
     onLocated: (Offset) -> Unit,
     onContact: (IconPhase, Offset) -> Unit,
     onDragEnd: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlighted: Boolean = true
 ) {
     var phase by remember(app.key) { mutableStateOf(IconPhase.Rest) }
     var drag by remember(app.key) { mutableStateOf(Offset.Zero) }
@@ -720,17 +631,18 @@ private fun DrawerCategoryCell(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .defaultMinSize(minHeight = 88.dp)
+            .graphicsLayer { alpha = if (highlighted) 1f else .25f }
+            .defaultMinSize(minHeight = 80.dp)
             .clip(RoundedCornerShape(16.dp))
             .then(if (dimmed) Modifier.blur(8.dp) else Modifier)
 
-            .padding(vertical = 8.dp, horizontal = 4.dp)
+            .padding(vertical = 3.dp, horizontal = 0.dp)
     ) {
-        Box(iconTouch.padding(6.dp)) {
+        Box(iconTouch.padding(2.dp)) {
         AppIcon(
             packageName = app.packageName,
             activityName = app.activityName,
-            size = 52.dp,
+            size = 44.dp,
             icons = icons,
             corner = 14.dp,
             phase = if (lifted || phase == IconPhase.Lifted || phase == IconPhase.Dragging) {
@@ -747,17 +659,20 @@ private fun DrawerCategoryCell(
             )
         )
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             text = app.label,
             color = Color.White.copy(alpha = if (lifted) 0.35f else 0.9f),
             fontFamily = Outfit,
             fontWeight = FontWeight.Light,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
+            style = TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)),
+            minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.clickable(onClick = onLaunch).padding(horizontal = 4.dp, vertical = 6.dp)
+            modifier = Modifier.clickable(onClick = onLaunch).padding(horizontal = 1.dp, vertical = 2.dp)
         )
     }
 }

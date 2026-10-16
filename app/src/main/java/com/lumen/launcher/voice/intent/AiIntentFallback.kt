@@ -15,7 +15,7 @@ import org.json.JSONObject
  */
 object AiIntentFallback {
 
-    const val MODEL = "gemini-2.5-flash"
+    const val MODEL = "gemini-2.5-flash-lite"
     private val destructive = setOf(
         VoiceAction.REMOVE_FROM_DOCK,
         VoiceAction.UNPIN_APP,

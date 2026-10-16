@@ -75,7 +75,8 @@ fun TripModeCard(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     tripVm: TripViewModel = viewModel(),
-    onViewTrip: ((Trip) -> Unit)? = null
+    onViewTrip: ((Trip) -> Unit)? = null,
+    heroContent: (@Composable (com.lumen.launcher.travel.model.TripUiState, (Boolean) -> Unit, (Trip) -> Unit) -> Unit)? = null
 ) {
     val state by tripVm.uiState.collectAsStateWithLifecycle()
     var albumTrip by remember { mutableStateOf<Trip?>(null) }
@@ -112,14 +113,18 @@ fun TripModeCard(
     ) { granted -> tripVm.onMediaPermissionResult(granted) }
 
     val shape = RoundedCornerShape(18.dp)
-    if (compact) Row(modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
+    val toggle: (Boolean) -> Unit = { enabled ->
+        if (enabled) tripVm.onTripModeToggled(true) else confirmEnd = true
+    }
+    if (heroContent != null) heroContent(state, toggle, openTrip)
+    else if (compact) Row(modifier.fillMaxWidth(), verticalAlignment=Alignment.CenterVertically) {
         Text(if (state.isLoading) "Please wait..." else "Trip mode",color=Color.White,fontFamily=Outfit,fontSize=13.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
         Switch(checked=state.tripModeEnabled,onCheckedChange={ enabled ->
             if(enabled) tripVm.onTripModeToggled(true) else confirmEnd=true
         },enabled=!state.isLoading,modifier=Modifier.height(32.dp),
             colors=SwitchDefaults.colors(
-                checkedTrackColor=Color(0xFFAC1749),checkedThumbColor=Color.White,
-                checkedBorderColor=Color(0xFFC55B7D),
+                checkedTrackColor=Lumen.BrandGold,checkedThumbColor=Color.White,
+                checkedBorderColor=Lumen.BrandGold,
                 uncheckedTrackColor=Color.White.copy(alpha=.23f),uncheckedThumbColor=Color.White,
                 uncheckedBorderColor=Color.White.copy(alpha=.30f)))
     } else Column(
@@ -170,7 +175,7 @@ fun TripModeCard(
                 enabled = !state.isLoading,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFFAC1749),
+                    checkedTrackColor = Lumen.BrandGold,
                     checkedBorderColor = Color.Transparent,
                     uncheckedThumbColor = Color.White,
                     uncheckedTrackColor = Color.White.copy(alpha = 0.22f),

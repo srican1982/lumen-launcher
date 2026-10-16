@@ -1,2 +1,11 @@
-<?xml version='1.0' encoding='utf-8'?>
-<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android" android:minWidth="140dp" android:minHeight="132dp" android:minResizeWidth="140dp" android:minResizeHeight="132dp" android:initialLayout="@layout/lumen_widget" android:previewImage="@drawable/widget_preview" android:resizeMode="horizontal|vertical" android:updatePeriodMillis="1800000" android:widgetCategory="home_screen" />
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="140dp"
+    android:minHeight="200dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="132dp"
+    android:initialLayout="@layout/widget_trip_docs_apple"
+    android:previewImage="@drawable/widget_preview"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

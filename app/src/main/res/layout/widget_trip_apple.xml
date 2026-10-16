@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Main Trip — Apple-style: photo, large title, one status, one action -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <ImageView
+        android:id="@+id/trip_widget_cover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_trip_scrim_strong" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/trip_widget_label"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Trip"
+                android:textColor="#CCFFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/trip_widget_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:minWidth="48dp"
+                android:paddingHorizontal="12dp"
+                android:gravity="center"
+                android:background="@drawable/widget_trip_on_pill"
+                android:text="ON"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_semibold"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/trip_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="26sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_dates"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#B8FFFFFF"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_stats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#99FFFFFF"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/trip_widget_primary"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/widget_trip_cta_purple"
+            android:gravity="center"
+            android:text="Open Album"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="@font/outfit_medium"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+</FrameLayout>

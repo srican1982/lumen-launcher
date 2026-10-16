@@ -168,6 +168,9 @@ fun HomeScreen(
         // Dock chrome uses 8.dp horizontal padding (Apple-like tight inset).
         val dockWidth = ((gridWidth - 16.dp - 6.dp * (state.dockCapacity - 1)) / state.dockCapacity).coerceAtLeast(1.dp)
         val homeIconSize = minOf(state.iconSizeDp.dp, cellWidth - 8.dp, dockWidth - 8.dp).coerceAtLeast(1.dp)
+        val widgetEditSession = LocalWidgetEditSession.current
+        var widgetDragging by remember { mutableStateOf(false) }
+        val mixedAppDrop = remember { arrayOf<(String, Offset) -> Boolean>({ _, _ -> false }) }
         val homeGridApps = state.homeApps.filter { it.key !in state.folderAppKeys }
         val recentsOpen = state.recentsOpen
         var editKey by remember { mutableStateOf<String?>(null) }
@@ -190,6 +193,7 @@ fun HomeScreen(
         val copy = remember(state.activeSpace, state.spaceAutomatic, hour) {
             SpaceCopy.context(state.activeSpace, hour, state.spaceAutomatic)
         }
+        val dockPadState = remember { DockPadState() }
         val restBlur = if (editing) Modifier.blur(12.dp) else Modifier
         val dragged = homeGridApps.find { it.key == editKey }
         val density = LocalDensity.current
@@ -295,6 +299,13 @@ fun HomeScreen(
                 return
             }
             dropArmed = false
+            if (from != null && mixedAppDrop[0](from, window)) {
+                editKey = null
+                editPhase = IconPhase.Rest
+                editDrag = Offset.Zero
+                showFloatPad = false
+                return
+            }
             val point = liftOrigin + editDrag
             val target = slotOrigins.minByOrNull { (_, pos) ->
                 (pos - point).getDistance()
@@ -370,8 +381,13 @@ fun HomeScreen(
                     .statusBarsPadding()
                     .padding(horizontal = 24.dp)
                     .homeEmptyTaps(
-                        enabled = !recentsOpen && !editing,
-                        onTap = viewModel::openMenu,
+                        enabled = !widgetEditSession.active && !recentsOpen && !editing && !widgetDragging,
+                        onTap = {
+                            if (dockPadState.expanded.value) {
+                                dockPadState.expanded.value = false
+                                dockPadState.selected.value = null
+                            } else viewModel.openMenu()
+                        },
                         onDoubleTap = {}, onTripleTap = {},
                         onLongPress = { modeEditing = true }
                     )
@@ -421,7 +437,7 @@ fun HomeScreen(
                     columns = GridCells.Fixed(state.gridColumns),
                     state = gridState,
                     modifier = Modifier.fillMaxSize().gridEdgeGestures(
-                        enabled = !editing && !recentsOpen,
+                        enabled = !widgetEditSession.active && !editing && !widgetDragging && !recentsOpen,
                         gridState = gridState,
                         scrollEnabled = gridNeedsScroll,
                         onOpenSearch = viewModel::openModeSearch,
@@ -431,7 +447,7 @@ fun HomeScreen(
                         top = if (state.activeSpace == SpaceKind.Focus) 4.dp else 12.dp,
                         bottom = if (gridNeedsScroll) 28.dp else 0.dp
                     ),
-                    userScrollEnabled = !editing && gridNeedsScroll,
+                    userScrollEnabled = !widgetEditSession.active && !editing && !widgetDragging && gridNeedsScroll,
                     horizontalArrangement = Arrangement.spacedBy(gridGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -439,49 +455,7 @@ fun HomeScreen(
                         when (state.activeSpace) {
                             SpaceKind.Personal -> SocialSpaceCard(state, viewModel)
                             SpaceKind.Focus -> FocusSpaceCard(state, viewModel)
-                            else -> CompactWorkspace(state, viewModel) {
-                                TouchpadIsland(
-                                    enabled = !recentsOpen && !editing,
-                                    state = state,
-                                    icons = viewModel.icons,
-                                    dropReady = overPad,
-                                    onGesture = viewModel::runBlankGesture,
-                                    onPrivateArmed = viewModel::armPrivateSpace,
-                                    onBoundsInWindow = { l, t, r, b ->
-                                        padBox.value = Rect(l, t, r, b)
-                                        viewModel.setTouchpadWindow(l, t, r, b)
-                                    },
-                                    framed = false,
-                                    markSize = 40.dp,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-                    }
-                    if (state.activeSpace == SpaceKind.Travel) {
-                        // Pinned first Travel icon â€” not in slotOrigins, not draggable, not removable.
-                        item(key = "trip-albums-shortcut") {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .padding(vertical = 4.dp)
-                                    .clickable(
-                                        indication = null,
-                                        interactionSource = remember { MutableInteractionSource() }
-                                    ) { if (!editing) showTripGallery = true }
-                            ) {
-                                com.lumen.launcher.travel.TripAlbumsIcon(size = homeIconSize)
-                                Spacer(Modifier.height(6.dp))
-                                if (state.showLabels) {
-                                    Text(
-                                        "Trip Albums",
-                                        color = Lumen.Text,
-                                        fontFamily = Outfit,
-                                        fontSize = 12.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
+                            else -> CompactWorkspace(state, viewModel)
                         }
                     }
                     if (!state.focusing && state.activeSpace != SpaceKind.Focus) {
@@ -503,23 +477,64 @@ fun HomeScreen(
                             }
                         }
                     }
-                    // Social / Focus canvases own their apps â€” avoid a duplicate grid.
-                    if (state.activeSpace != SpaceKind.Personal && state.activeSpace != SpaceKind.Focus) {
-                        items(homeGridApps, key = { it.key }) { app ->
-                            HomeGridIcon(app)
+                    if (state.activeSpace == SpaceKind.Travel && homeGridApps.isNotEmpty()) {
+                        item(key = "travel-app-strip", span = { GridItemSpan(state.gridColumns) }) {
+                            LazyRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp)) {
+                                items(homeGridApps, key = { it.key }) { app ->
+                                    HomeGridIcon(app, Modifier.width(cellWidth))
+                                }
+                            }
                         }
+                    }
+                    item(key = "mixed-home-board-${state.activeSpace.name}", span = { GridItemSpan(state.gridColumns) }) {
+                        ModeWidgetBoard(
+                            space = state.activeSpace, isActive = isActive,
+                            apps = if (state.activeSpace in setOf(SpaceKind.Personal, SpaceKind.Focus, SpaceKind.Travel)) emptyList() else homeGridApps,
+                            columns = state.gridColumns, iconSize = homeIconSize,
+                            hasAddTile = state.activeSpace == SpaceKind.Home && !state.focusing,
+                            registerAppDrop = { mixedAppDrop[0] = it },
+                            onDraggingChanged = { widgetDragging = it },
+                            appContent = { app, modifier -> HomeGridIcon(app, modifier) },
+                            addContent = { modifier ->
+                                Column(modifier.clickable(onClickLabel = "Add apps to Home") { modeEditing = true },
+                                    horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(homeIconSize).clip(Squircle)
+                                        .background(Color.White.copy(.12f)).border(1.dp, Lumen.BrandGold.copy(.55f), Squircle),
+                                        contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Outlined.Add, "Add app", tint = Lumen.BrandGold, modifier = Modifier.size(28.dp))
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("Add", color = Lumen.Text, fontFamily = Outfit, fontSize = 12.sp)
+                                }
+                            })
                     }
                 }
                 }
             }
             DockScrollHint(gridState, state.activeSpace, enabled = gridNeedsScroll && !editing && !recentsOpen && !state.focusing)
-            if (!focusCompleted && !recentsOpen && !state.focusing) {
-                Spacer(Modifier.height(48.dp))
-            }
+            Spacer(Modifier.height(14.dp))
+            TransformingLumenDock(
+                state = state,
+                icons = viewModel.icons,
+                padState = dockPadState,
+                enabled = !widgetEditSession.active && !editing && !recentsOpen && !modeEditing,
+                onSearch = viewModel::openModeSearch,
+                onVoice = { viewModel.voice.openVoice() },
+                onGesture = viewModel::runBlankGesture,
+                onActiveChanged = {},
+                dockHeight = 64.dp,
+                onRingBounds = { box ->
+                    padBox.value = box
+                    viewModel.setTouchpadWindow(box.left, box.top, box.right, box.bottom)
+                },
+                modifier = restBlur.navigationBarsPadding().padding(bottom = 6.dp)
+            ) { ring ->
             DockBar(
+                centerRing = ring,
                 apps = state.dock,
                 slotCount = state.dockCapacity,
-                iconSize = homeIconSize,
+                iconSize = 48.dp,
                 icons = viewModel.icons,
                 hoverSlot = hoverDock,
                 onClick = viewModel::launchDock,
@@ -541,10 +556,9 @@ fun HomeScreen(
                     val info = state.apps.find { it.key == app.key } ?: return@DockBar
                     viewModel.moveToPrivate(info)
                 },
-                modifier = restBlur
-                    .navigationBarsPadding()
-                    .padding(bottom = 6.dp)
+                modifier = Modifier
             )
+            }
             }
             FloatingPrivateIsland(
                 visible = showFloatPad,
@@ -904,77 +918,7 @@ private fun spaceIcon(space: SpaceKind): ImageVector = when (space) {
 
 @Composable
 fun SpaceRow(selected: SpaceKind, automatic: Boolean, onSelect: (SpaceKind) -> Unit) {
-    val spaces = SpaceKind.entries.filter { it != SpaceKind.Private }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        spaces.forEach { space ->
-            val active = space == selected
-            val white = LumenPalette.whiteGlass
-            val chipShape = RoundedCornerShape(16.dp)
-            val content = if (active) Lumen.OnBrandGold else Color.White.copy(alpha = 0.88f)
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .drawWithContent {
-                        drawContent()
-                        if (active && space == SpaceKind.Travel) {
-                            val unit = 1.dp.toPx()
-                            val x = size.width * .77f
-                            val y = -10 * unit
-                            val plane = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(x, y - 11*unit)
-                                lineTo(x + 2*unit, y - 3*unit)
-                                lineTo(x + 10*unit, y + 3*unit)
-                                lineTo(x + 10*unit, y + 5*unit)
-                                lineTo(x + 2*unit, y + 2*unit)
-                                lineTo(x + 1.5f*unit, y + 8*unit)
-                                lineTo(x + 4*unit, y + 10*unit)
-                                lineTo(x + 4*unit, y + 11*unit)
-                                lineTo(x, y + 9*unit)
-                                lineTo(x - 4*unit, y + 11*unit)
-                                lineTo(x - 4*unit, y + 10*unit)
-                                lineTo(x - 1.5f*unit, y + 8*unit)
-                                lineTo(x - 2*unit, y + 2*unit)
-                                lineTo(x - 10*unit, y + 5*unit)
-                                lineTo(x - 10*unit, y + 3*unit)
-                                lineTo(x - 2*unit, y - 3*unit)
-                                close()
-                            }
-                            drawPath(plane, Lumen.BrandGold)
-                        }
-                    }
-                    .clip(chipShape)
-                    .then(
-                        when {
-                            active -> Modifier.background(Lumen.AccentFill)
-                                .border(1.dp, Lumen.BrandGold, chipShape)
-                            else -> Modifier
-                                .background(Color.White.copy(alpha = if (white) 0.14f else 0.08f))
-                                .border(0.8.dp, Color.White.copy(alpha = if (white) 0.35f else 0.12f), chipShape)
-                        }
-                    )
-                    .clickable { onSelect(space) }
-                    .padding(horizontal = 4.dp, vertical = 7.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(spaceIcon(space), contentDescription = null, tint = content, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = space.title,
-                    color = content,
-                    fontSize = 11.sp,
-                    fontFamily = Outfit,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1
-                )
-            }
-        }
-    }
+    SpaceTrack(selected, onSelect, ::spaceIcon)
 }
 
 @Composable
@@ -1038,6 +982,7 @@ private fun HomeFolderTile(
 
 @Composable
 private fun DockBar(
+    centerRing: @Composable () -> Unit,
     apps: List<DockApp>,
     slotCount: Int = 4,
     iconSize: Dp,
@@ -1054,7 +999,8 @@ private fun DockBar(
     onDropPrivate: (DockApp) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val slots = List(slotCount.coerceIn(3, 6)) { index -> apps.getOrNull(index) }
+    val capacity = slotCount.coerceIn(3, 6)
+    val slots = List(capacity + capacity % 2) { index -> apps.getOrNull(index).takeIf { index < capacity } }
     var dockKey by remember { mutableStateOf<String?>(null) }
     var dockPhase by remember { mutableStateOf(IconPhase.Rest) }
     var dockDrag by remember { mutableStateOf(Offset.Zero) }
@@ -1071,20 +1017,8 @@ private fun DockBar(
         modifier = modifier
             .fillMaxWidth()
             .height((iconSize + 16.dp).coerceAtLeast(56.dp))
-            .shadow(
-                elevation = 10.dp,
-                shape = dockShape,
-                spotColor = Color(0x28000000),
-                ambientColor = Color(0x14000000)
-            )
-            .clip(dockShape)
-            .background(
-                Brush.verticalGradient(
-                    0f to glass.airyTop,
-                    1f to glass.airyBottom
-                )
-            )
     ) {
+        DockGlassSurface(Modifier.matchParentSize())
         Box(Modifier.fillMaxSize().onGloballyPositioned { dockLayout = it }) {
             Row(
                 Modifier
@@ -1093,10 +1027,11 @@ private fun DockBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 slots.forEachIndexed { index, slot ->
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        DockSlot(
+                    if (index == slots.size / 2) centerRing()
+                    BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        if (index < capacity) DockSlot(
                             app = slot,
-                            iconSize = iconSize,
+                            iconSize = iconSize.coerceAtMost(maxWidth),
                             icons = icons,
                             hidden = moving && slot?.key == dockKey,
                             highlighted = hoverSlot == index,

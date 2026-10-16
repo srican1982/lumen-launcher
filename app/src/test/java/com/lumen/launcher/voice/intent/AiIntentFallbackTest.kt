@@ -140,7 +140,7 @@ class AiIntentFallbackTest {
         assertThat(body).contains("OPEN_APP")
         assertThat(body).contains("ANSWER")
         assertThat(body).contains("ChatGPT")
-        assertThat(AiIntentFallback.MODEL).isEqualTo("gemini-2.5-flash")
+        assertThat(AiIntentFallback.MODEL).isEqualTo("gemini-2.5-flash-lite")
         assertThat(body).doesNotContain("launch this intent")
         assertThat(body).contains("abbreviated")
     }

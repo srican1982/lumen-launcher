@@ -7,7 +7,10 @@ object ModeAppsResolver {
     fun resolve(space: SpaceKind, visible: List<AppInfo>, selected: List<String>?, favorites: List<AppInfo>, recents: List<AppInfo>, frequent: List<AppInfo> = emptyList(), dockPackages: Set<String> = emptySet(), homeCapacity: Int = MAX_APPS): List<AppInfo> {
         val eligible = if (space == SpaceKind.Home) visible.filterNot { it.packageName in dockPackages } else visible
         val byKey = eligible.associateBy { it.key }
-        if (selected != null) return selected.distinct().mapNotNull(byKey::get).take(homeCapacity)
+        if (selected != null) {
+            val picks = selected.distinct().mapNotNull(byKey::get)
+            return if (space == SpaceKind.Home) picks else picks.take(homeCapacity)
+        }
         if (space == SpaceKind.Focus) return emptyList()
         if (space == SpaceKind.Home) {
             // Cold-start suggestions alternate categories rather than filling with one alphabetic cluster.

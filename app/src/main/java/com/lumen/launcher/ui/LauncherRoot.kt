@@ -81,6 +81,8 @@ fun LauncherRoot(
 ) {
     if (state.activeSpace == SpaceKind.Home) HomeWelcome(state, viewModel)
     SpaceWelcome(state, viewModel)
+    val dockRegion = remember { DockGestureRegion() }
+    val widgetEditSession = remember { WidgetEditSession() }
     val density = LocalDensity.current
     val layoutDir = LocalLayoutDirection.current
     val screen = LocalView.current.resources.displayMetrics
@@ -126,7 +128,7 @@ fun LauncherRoot(
         if (pagerState.settledPage != 2) listTyping = false
     }
     val createUiOpen = state.recentsOpen || state.socialCreateTool != null
-    val homeIdle = !state.workspaceOpen && state.sheet == Sheet.None && !state.privatePageActive && !createUiOpen
+    val homeIdle = !widgetEditSession.active && !state.workspaceOpen && state.sheet == Sheet.None && !state.privatePageActive && !createUiOpen
     val privateExpand = remember { Animatable(0f) }
     LaunchedEffect(state.privatePageActive) {
         if (state.privatePageActive) {
@@ -152,6 +154,8 @@ fun LauncherRoot(
                     LumenThemeMode.Violet -> IconSkin.treatment(state.iconSkin, state.activeSpace, state.focusing)
                 }
             },
+            LocalDockGestureRegion provides dockRegion,
+            LocalWidgetEditSession provides widgetEditSession,
             LocalGlass provides rememberGlassColors(
                 state.spaceWallpaper,
                 state.glassDepth,
@@ -163,6 +167,7 @@ fun LauncherRoot(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .widgetEditGuard(widgetEditSession)
                 .homeGestures(
                     enabled = homeIdle,
                     topZonePx = topZonePx,
@@ -172,10 +177,11 @@ fun LauncherRoot(
                     onSwipeUp = viewModel::openDrawer,
                     onNotifications = viewModel::expandNotifications,
                     onQuickSettings = viewModel::expandQuickSettings,
-                    onPinch = viewModel::openSettings
+                    onPinch = viewModel::openSettings,
+                    isReservedTouch = { dockRegion.bounds?.contains(it) == true }
                 )
         ) {
-            val workspaceBlur by androidx.compose.animation.core.animateDpAsState(if (state.workspaceOpen) 22.dp else 0.dp, tween(240), label = "workspace-blur")
+            val workspaceBlur by androidx.compose.animation.core.animateDpAsState(if (state.workspaceOpen) 22.dp else if (dockRegion.active) 24.dp else 0.dp, tween(240), label = "workspace-blur")
             SpaceBackdrop(state.spaceWallpaper, workspaceBlur)
             WallpaperWindowBlur(state.spaceWallpaper == null, 12.dp + workspaceBlur)
             AmbientBackdrop()
@@ -184,7 +190,7 @@ fun LauncherRoot(
                     .fillMaxSize()
                     .then(
                         when {
-                            workspaceBlur > 0.dp -> Modifier.blur(workspaceBlur)
+                            state.workspaceOpen && workspaceBlur > 0.dp -> Modifier.blur(workspaceBlur)
                             state.recentsOpen || state.socialCreateTool != null -> Modifier.blur(24.dp)
                             state.sheet == Sheet.Voice -> Modifier.blur(22.dp)
                             state.sheet == Sheet.Drawer -> Modifier.blur(28.dp)
@@ -200,7 +206,7 @@ fun LauncherRoot(
                 state = pagerState,
                 beyondViewportPageCount = 1,
                 // Focus owns its own horizontal app/group rows — don't let those swipes flip pages.
-                userScrollEnabled = homeIdle && !listTyping && state.activeSpace != SpaceKind.Focus,
+                userScrollEnabled = homeIdle && !widgetEditSession.active && !listTyping && state.activeSpace != SpaceKind.Focus,
                 flingBehavior = PagerDefaults.flingBehavior(
                     state = pagerState,
                     snapAnimationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
@@ -223,7 +229,7 @@ fun LauncherRoot(
                             onPickerVisible = { taskPickerVisible = it },
                             onComposerFocus = { listTyping = it }
                         )
-                        3 -> LumenWidgetsPage(isActive = pagerState.settledPage == 3)
+                        3 -> LumenWidgetsPage(isActive = pagerState.settledPage == 3, space = state.activeSpace)
                         else -> HomeScreen(
                             state = state,
                             viewModel = viewModel,
@@ -259,8 +265,7 @@ fun LauncherRoot(
                         }, label = "search-page-indicator"
                     ) { dots ->
                         Box(Modifier.width(108.dp).height(48.dp), contentAlignment = Alignment.Center) {
-                            if (!dots) CompactSearchButton(onClick = viewModel::openModeSearch)
-                            else Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            if (dots) Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 repeat(4) { index ->
                                     val active = pagerState.currentPage == index
@@ -382,6 +387,12 @@ fun LauncherRoot(
                 exit = fadeOut(tween(120))
             ) {
                 MenuSheet(state, viewModel, onRequestDefaultHome)
+            }
+            if (state.sheet == Sheet.WidgetPicker) {
+                WidgetPickerDialog(
+                    space = state.activeSpace,
+                    onDismiss = viewModel::closeSheet
+                )
             }
             AnimatedVisibility(
                 visible = state.sheet == Sheet.Settings,

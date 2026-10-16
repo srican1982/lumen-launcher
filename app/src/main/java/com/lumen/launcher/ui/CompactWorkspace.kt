@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -41,7 +42,14 @@ import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @Composable () -> Unit) {
+fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
+    if (state.activeSpace == SpaceKind.Travel) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            TravelHeroPanel(state, vm)
+            TravelShortcutRow(state, vm)
+        }
+        return
+    }
     val context = LocalContext.current
     val media by NowPlayingRepository.state.collectAsStateWithLifecycle()
     val expanded = state.workspaceOpen
@@ -110,14 +118,19 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
     val showCapture = state.activeSpace !in setOf(SpaceKind.Focus, SpaceKind.Travel)
     Column(Modifier.fillMaxWidth(), verticalArrangement=Arrangement.spacedBy(10.dp)) {
     Row(
-        Modifier.fillMaxWidth().height(152.dp).clip(shape)
+        Modifier.fillMaxWidth().height(if (state.activeSpace == SpaceKind.Travel || state.focusing) 152.dp else 110.dp).clip(shape)
             .background(Brush.verticalGradient(listOf(Color.White.copy(0.16f), Color.White.copy(0.07f))))
-            .border(0.8.dp, Brush.verticalGradient(listOf(Color.White.copy(0.35f), Color.White.copy(0.10f))), shape),
+            .drawBehind {
+                val inset = 1.dp.toPx()
+                drawRoundRect(Color.White.copy(.22f),
+                    topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+                    size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(26.dp.toPx()),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(),
+                        pathEffect = null))
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Equal, independent touch regions. No buttons or media extend under the TouchPad.
-        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) { touchpad() }
-        Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 16.dp).background(Color.White.copy(0.20f)))
         if (state.focusing) {
             // Active Focus session � replace the right panel with a return-to-Focus control.
             Box(Modifier.weight(1f).fillMaxHeight().padding(10.dp)) {
@@ -140,11 +153,6 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel, touchpad: @C
                 ) {
                     if (state.activeSpace == SpaceKind.Travel && !showPasses) {
                         TravelMapEmblem(Modifier.align(Alignment.CenterHorizontally).size(36.dp))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(state.activeSpace.title.uppercase(), color = Lumen.Text.copy(alpha = 0.72f), fontFamily = Outfit,
-                            fontSize = 10.sp, letterSpacing = 1.2.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = Lumen.Text.copy(alpha = 0.65f), modifier = Modifier.size(18.dp))
                     }
                     Text(title, color = Lumen.Text, fontFamily = Outfit, fontWeight = FontWeight.Medium,
                         fontSize = if (state.activeSpace == SpaceKind.Focus && focusing) 28.sp else 16.sp,

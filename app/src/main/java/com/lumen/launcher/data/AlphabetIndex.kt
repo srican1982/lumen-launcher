@@ -71,6 +71,18 @@ data class AlphabetIndex(
             )
         }
 
+        /** Lazy grid rows include one heading per letter and ceil(app count / columns) rows. */
+        fun buildGrid(sections: List<Pair<String, List<AppInfo>>>, columns: Int): AlphabetIndex {
+            require(columns > 0)
+            var offset = 0
+            val starts = linkedMapOf<Char, Int>()
+            sections.filter { it.second.isNotEmpty() }.forEach { (title, apps) ->
+                starts[title.first()] = offset
+                offset += 1 + (apps.size + columns - 1) / columns
+            }
+            return build(sections).copy(firstIndex = starts)
+        }
+
         fun buildAz(
             apps: List<AppInfo>,
             space: SpaceKind,

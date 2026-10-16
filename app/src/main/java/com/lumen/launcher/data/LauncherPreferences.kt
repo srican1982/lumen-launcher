@@ -55,10 +55,10 @@ class LauncherPreferences(private val context: Context) {
             doubleAction = prefs[DOUBLE_ACTION].orEmpty(),
             tripleAction = prefs[TRIPLE_ACTION].orEmpty(),
             longAction = prefs[LONG_ACTION] ?: GestureAction.PRIVATE,
-            swipeUpAction = prefs[SWIPE_UP].orEmpty(),
-            swipeDownAction = prefs[SWIPE_DOWN].orEmpty(),
-            swipeLeftAction = prefs[SWIPE_LEFT].orEmpty(),
-            swipeRightAction = prefs[SWIPE_RIGHT].orEmpty(),
+            swipeUpAction = prefs[SWIPE_UP] ?: GestureAction.DEFAULT_CAMERA,
+            swipeDownAction = prefs[SWIPE_DOWN] ?: GestureAction.PRIVATE,
+            swipeLeftAction = prefs[SWIPE_LEFT] ?: GestureAction.DEFAULT_MAPS,
+            swipeRightAction = prefs[SWIPE_RIGHT] ?: GestureAction.DEFAULT_MUSIC,
             touchpadHaptics = prefs[HAPTICS] ?: TouchpadHaptics.STANDARD,
             tasks = decodeList(prefs[TASKS].orEmpty()),
             todos = decodeTodos(prefs[TODOS].orEmpty()).ifEmpty {
@@ -785,10 +785,10 @@ data class LauncherState(
     val doubleAction: String = "",
     val tripleAction: String = "",
     val longAction: String = GestureAction.PRIVATE,
-    val swipeUpAction: String = "",
-    val swipeDownAction: String = "",
-    val swipeLeftAction: String = "",
-    val swipeRightAction: String = "",
+    val swipeUpAction: String = GestureAction.DEFAULT_CAMERA,
+    val swipeDownAction: String = GestureAction.PRIVATE,
+    val swipeLeftAction: String = GestureAction.DEFAULT_MAPS,
+    val swipeRightAction: String = GestureAction.DEFAULT_MUSIC,
     val touchpadHaptics: String = TouchpadHaptics.STANDARD,
     val tasks: List<String> = emptyList(),
     val todos: List<TodoItem> = emptyList(),
@@ -845,6 +845,22 @@ object TouchpadHaptics {
 }
 
 object GestureAction {
+    const val DEFAULT_CAMERA = "default:camera"
+    const val DEFAULT_MAPS = "default:maps"
+    const val DEFAULT_MUSIC = "default:music"
+
+    fun resolveDefault(value: String, apps: List<AppInfo>): String {
+        val preferred = when (value) {
+            DEFAULT_CAMERA -> listOf("com.sec.android.app.camera", "com.google.android.GoogleCamera", "com.android.camera", "com.android.camera2")
+            DEFAULT_MAPS -> listOf("com.google.android.apps.maps", "com.waze")
+            DEFAULT_MUSIC -> listOf("com.spotify.music", "com.google.android.apps.youtube.music", "com.sec.android.app.music")
+            else -> return value
+        }
+        val match = preferred.firstNotNullOfOrNull { pkg -> apps.firstOrNull { it.packageName == pkg } }
+            ?: apps.firstOrNull { it.label.equals(value.removePrefix("default:"), ignoreCase = true) }
+        return match?.let { app(it.key) } ?: value
+    }
+
     const val NONE = ""
     const val OFF = "action:none"
     const val LOCK = "action:lock"
@@ -862,6 +878,9 @@ object GestureAction {
     fun isOff(value: String) = value == NONE || value == OFF
 
     fun label(value: String, apps: List<AppInfo>): String = when (value) {
+        DEFAULT_CAMERA -> "Camera"
+        DEFAULT_MAPS -> "Maps"
+        DEFAULT_MUSIC -> "Music"
         NONE -> "Choose…"
         OFF -> "Not set"
         LOCK -> "Lock screen"

@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- H · Media app shortcuts -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/media_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_media_glass">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Media Controls"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:includeFontPadding="false" />
+        <TextView
+            android:text="›"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#99FFFFFF"
+            android:textSize="16sp"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+            <LinearLayout
+                android:id="@+id/media_widget_slot1"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="6dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/widget_media_shortcut"
+                android:padding="6dp">
+                <ImageView
+                    android:id="@+id/media_widget_slot_icon1"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="App" />
+                <TextView
+                    android:id="@+id/media_widget_slot_label1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:maxLines="1"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/media_widget_slot2"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginStart="6dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/widget_media_shortcut"
+                android:padding="6dp">
+                <ImageView
+                    android:id="@+id/media_widget_slot_icon2"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="App" />
+                <TextView
+                    android:id="@+id/media_widget_slot_label2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:maxLines="1"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp">
+            <LinearLayout
+                android:id="@+id/media_widget_slot3"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="6dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/widget_media_shortcut"
+                android:padding="6dp">
+                <ImageView
+                    android:id="@+id/media_widget_slot_icon3"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="App" />
+                <TextView
+                    android:id="@+id/media_widget_slot_label3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:maxLines="1"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/media_widget_slot4"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginStart="6dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:background="@drawable/widget_media_shortcut"
+                android:padding="6dp">
+                <ImageView
+                    android:id="@+id/media_widget_slot_icon4"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:contentDescription="App" />
+                <TextView
+                    android:id="@+id/media_widget_slot_label4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:maxLines="1"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

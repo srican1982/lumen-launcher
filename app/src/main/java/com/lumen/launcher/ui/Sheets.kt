@@ -148,7 +148,7 @@ fun MenuSheet(state: LauncherUiState, viewModel: LauncherViewModel, onRequestDef
     BottomMenu(state.activeSpace.title, "Options for ${state.activeSpace.title}", onDismiss = viewModel::closeSheet) {
         MenuRow("Edit ${state.activeSpace.title} apps") { editApps = true }
         MenuRow("Capture") { viewModel.openCapture() }
-        MenuRow("Lumen widgets") { viewModel.openWidgets() }
+        MenuRow("Widgets") { viewModel.openWidgets() }
         MenuRow("Search") { viewModel.openSearch() }
         MenuRow("Wallpaper for ${state.activeSpace.title}") { viewModel.openWallpaperPicker() }
         if (!state.spaceWallpaper.isNullOrBlank()) {
@@ -591,7 +591,7 @@ fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Tap an empty gesture on the TouchPad to assign it. Long-press is always Locked Space.\nLocked Space hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nSwipe left from Home for your list.\nLong-press an app to pin, dock, or hide it.",
+            "Tap the dock ring to search. Hold, slide, and release to run a shortcut. Change the four directions above. Empty shortcuts show +.\nLocked Space hides and locks access through Lumen. Apps can still appear in Settings, Play Store, another launcher, and notifications.\nLight follows your finger; pull back before release to cancel a swipe.\nPinch with two fingers for launcher settings.\nSwipe right from Home for Flow.\nSwipe left from Home for your list.\nLong-press an app to pin, dock, or hide it.",
             color = Lumen.Faint,
             fontSize = 12.sp,
             fontFamily = Outfit,

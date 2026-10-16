@@ -13,6 +13,15 @@ class AlphabetIndexTest {
         category = category
     )
 
+    @Test fun gridLetterOffsetsIncludeHeadersAndPartialRows() {
+        val sections = listOf("N" to (1..5).map { app("N$it") },
+            "O" to listOf(app("Opera")), "P" to listOf(app("Photos")))
+        val index = AlphabetIndex.buildGrid(sections, 4)
+        assertThat(index.firstVisibleIndex('N')).isEqualTo(0)
+        assertThat(index.firstVisibleIndex('O')).isEqualTo(3)
+        assertThat(index.firstVisibleIndex('P')).isEqualTo(5)
+    }
+
     @Test
     fun numbersAndSymbolsLandInHash() {
         assertThat(AlphabetIndex.letterKey("7-Eleven")).isEqualTo("#")

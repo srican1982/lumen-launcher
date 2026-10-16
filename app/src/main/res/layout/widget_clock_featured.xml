@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- D · Featured clock + weather + next event -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clock_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <ImageView
+        android:id="@+id/clock_widget_cover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/focus_morning_lake"
+        android:contentDescription="@null" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_trip_scrim_strong" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1.15"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical">
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/widget_clock_leaf"
+                    android:contentDescription="@null" />
+                <TextView
+                    android:id="@+id/clock_widget_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:textColor="#E6FFFFFF"
+                    android:textSize="12sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/clock_widget_time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="#FFFFFF"
+                android:textSize="36sp"
+                android:fontFamily="@font/outfit_semibold"
+                android:includeFontPadding="false"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/clock_widget_quote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="“Good time. Better days.”"
+                android:textColor="#F2FFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <FrameLayout
+                android:layout_width="36dp"
+                android:layout_height="2dp"
+                android:layout_marginTop="6dp"
+                android:background="#88FFFFFF" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_marginStart="10dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical">
+                <TextView
+                    android:id="@+id/clock_widget_weather_icon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="☀"
+                    android:textSize="16sp"
+                    android:includeFontPadding="false" />
+                <TextView
+                    android:id="@+id/clock_widget_temp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:fontFamily="@font/outfit_semibold"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/clock_widget_place"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#E6FFFFFF"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/clock_widget_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#B3FFFFFF"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/clock_widget_hi_lo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#99FFFFFF"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+
+            <LinearLayout
+                android:id="@+id/clock_widget_event"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:padding="10dp"
+                android:gravity="center_vertical"
+                android:background="@drawable/widget_clock_capsule"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Next Event"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:includeFontPadding="false" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center_vertical">
+                    <TextView
+                        android:id="@+id/clock_widget_event_title"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:fontFamily="@font/outfit_medium"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textColor="#FFFFFF"
+                        android:textSize="14sp"
+                        android:includeFontPadding="false" />
+                </LinearLayout>
+                <TextView
+                    android:id="@+id/clock_widget_event_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#B3FFFFFF"
+                    android:textSize="11sp"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

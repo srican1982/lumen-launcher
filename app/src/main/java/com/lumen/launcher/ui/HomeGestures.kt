@@ -14,7 +14,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.hypot
 
 @Composable
@@ -27,9 +29,11 @@ fun Modifier.homeGestures(
     onSwipeUp: () -> Unit,
     onNotifications: () -> Unit,
     onQuickSettings: () -> Unit,
-    onPinch: () -> Unit
+    onPinch: () -> Unit,
+    isReservedTouch: (Offset) -> Boolean = { false }
 ): Modifier {
     val swipeSlop = with(LocalDensity.current) { 40.dp.toPx() }
+    val reservedTouch by rememberUpdatedState(isReservedTouch)
     val currentUp by rememberUpdatedState(onSwipeUp)
     val currentNotifications by rememberUpdatedState(onNotifications)
     val currentQuickSettings by rememberUpdatedState(onQuickSettings)
@@ -40,7 +44,7 @@ fun Modifier.homeGestures(
         .pointerInput(swipeSlop, topZonePx, bottomDeadPx, edgeDeadPx, drawerZonePx) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                if (!enabledState) {
+                if (!enabledState || reservedTouch(down.position)) {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
@@ -94,7 +98,7 @@ fun Modifier.homeGestures(
         .pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
-                if (!enabledState) {
+                if (!enabledState || reservedTouch(down.position)) {
                     while (true) {
                         val event = awaitPointerEvent()
                         if (event.changes.none { it.pressed }) break
@@ -260,12 +264,79 @@ fun Modifier.topShadeGestures(
 
 enum class TouchpadSwipe { Up, Down, Left, Right }
 
+/**
+ * Cardinal pick from a slide delta (Compose Y grows downward).
+ *
+ * Left/Right stay wide on the upper side so Camera doesn't steal them. Down uses a
+ * wider lower cone for swipe gestures; the dock pad uses [touchpadDockSelection]
+ * instead so Vault never needs travel into the system nav bar.
+ */
+internal fun touchpadDirection(delta: Offset, threshold: Float, downThreshold: Float = threshold): TouchpadSwipe? {
+    val dist = hypot(delta.x, delta.y)
+    if (dist <= 0f) return null
+    val angle = atan2(delta.y, delta.x) * (180f / PI.toFloat())
+    if (delta.y >= downThreshold && delta.y >= abs(delta.x) * 0.3f) {
+        return TouchpadSwipe.Down
+    }
+    val downward = angle in 20f..160f
+    val required = if (downward) downThreshold else threshold
+    if (dist < required) return null
+    return when {
+        angle >= -55f && angle < 20f -> TouchpadSwipe.Right
+        angle >= 20f && angle <= 160f -> TouchpadSwipe.Down
+        // Keep Up relatively narrow so left/right-up diagonals stay Maps/Spotify.
+        angle >= -125f && angle < -55f -> TouchpadSwipe.Up
+        else -> TouchpadSwipe.Left
+    }
+}
+
+/** Keep the armed card until the finger clearly enters another sector. */
+internal fun touchpadDirectionSticky(
+    delta: Offset,
+    threshold: Float,
+    downThreshold: Float,
+    armed: TouchpadSwipe?,
+    stickBoost: Float = 1.25f
+): TouchpadSwipe? {
+    val next = touchpadDirection(delta, threshold, downThreshold) ?: return null
+    if (armed == null || next == armed) return next
+    if (next == TouchpadSwipe.Down) return next
+    return touchpadDirection(delta, threshold * stickBoost, downThreshold * stickBoost) ?: armed
+}
+
+/**
+ * Map a drag from the bottom ring into pad-centered space. The expanded pad's visual
+ * center sits well above the ring, so Vault (bottom card) is "down from center" even
+ * when the finger is still slightly above the press point.
+ */
+internal fun touchpadDockDelta(dragFromRing: Offset, padCenterLift: Float): Offset =
+    Offset(dragFromRing.x, dragFromRing.y + padCenterLift)
+
+/**
+ * Dock hold-to-select using a vector from the pad visual center. Crossing back below
+ * center selects Vault immediately — the whole bottom card, not only its lower edge.
+ */
+internal fun touchpadDockSelection(
+    deltaFromPadCenter: Offset,
+    threshold: Float,
+    armed: TouchpadSwipe? = null,
+    stickBoost: Float = 1.1f
+): TouchpadSwipe {
+    val next = touchpadDirection(deltaFromPadCenter, threshold, threshold)
+        ?: return armed ?: TouchpadSwipe.Down
+    if (armed == null || next == armed) return next
+    // After visiting Camera, entering the lower half must pick Vault without stickiness.
+    if (next == TouchpadSwipe.Down) return next
+    return touchpadDirection(deltaFromPadCenter, threshold * stickBoost, threshold * stickBoost) ?: armed
+}
+
 private const val TouchpadHoldMs = 600L
 private const val TouchpadTapWindowMs = 380L
 
 @Composable
 fun Modifier.touchpadGestures(
     enabled: Boolean,
+    holdToSelect: Boolean = false,
     onPress: (Boolean, Offset) -> Unit = { _, _ -> },
     onHoldProgress: (Float) -> Unit = {},
     onDrag: (Offset) -> Unit = {},
@@ -278,7 +349,9 @@ fun Modifier.touchpadGestures(
     onSwipe: (TouchpadSwipe) -> Unit
 ): Modifier {
     val trackSlop = with(LocalDensity.current) { 14.dp.toPx() }
-    val activateSlop = with(LocalDensity.current) { 28.dp.toPx() }
+    // Gesture dock: short arm distance from the ring. Vault uses a softer down threshold.
+    val activateSlop = with(LocalDensity.current) { if (holdToSelect) 14.dp.toPx() else 28.dp.toPx() }
+    val dockDownSlop = with(LocalDensity.current) { if (holdToSelect) 8.dp.toPx() else activateSlop }
     val currentTap by rememberUpdatedState(onTap)
     val currentDouble by rememberUpdatedState(onDoubleTap)
     val currentTriple by rememberUpdatedState(onTripleTap)
@@ -290,7 +363,7 @@ fun Modifier.touchpadGestures(
     val currentArmed by rememberUpdatedState(onArmed)
     val currentPulse by rememberUpdatedState(onTapPulse)
     val enabledState by rememberUpdatedState(enabled)
-    return pointerInput(trackSlop, activateSlop) {
+    return pointerInput(trackSlop, activateSlop, dockDownSlop, holdToSelect) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             down.consume()
@@ -298,14 +371,16 @@ fun Modifier.touchpadGestures(
                 waitForUp(down.id, trackSlop)
                 return@awaitEachGesture
             }
+            try {
             currentPress(true, down.position)
             currentDrag(Offset.Zero)
             currentHold(0f)
             currentArmed(null)
-            val start = down.position
+            val origin = down.position
             val startNs = System.nanoTime()
             var total = Offset.Zero
-            var longFired = false
+            // selectMode: pad is live (drag past slop OR optional hold preview).
+            var selectMode = false
             var swiping = false
             var armed: TouchpadSwipe? = null
 
@@ -314,21 +389,30 @@ fun Modifier.touchpadGestures(
                 return (ms / TouchpadHoldMs).coerceIn(0f, 1f)
             }
 
-            fun direction(delta: Offset = total): TouchpadSwipe? {
-                val dist = hypot(delta.x, delta.y)
-                if (dist < activateSlop) return null
-                val horizontal = abs(delta.x) > abs(delta.y)
-                return when {
-                    horizontal && delta.x > 0f -> TouchpadSwipe.Right
-                    horizontal && delta.x < 0f -> TouchpadSwipe.Left
-                    !horizontal && delta.y < 0f -> TouchpadSwipe.Up
-                    !horizontal && delta.y > 0f -> TouchpadSwipe.Down
-                    else -> null
+            fun direction(delta: Offset = total, sticky: Boolean = holdToSelect): TouchpadSwipe? {
+                if (holdToSelect && selectMode) {
+                    // Ring is the radial center — no modal pad-center lift.
+                    return if (sticky) {
+                        touchpadDirectionSticky(delta, activateSlop, dockDownSlop, armed)
+                    } else {
+                        touchpadDirection(delta, activateSlop, dockDownSlop)
+                    }
                 }
+                return if (sticky) touchpadDirectionSticky(delta, activateSlop, activateSlop, armed)
+                else touchpadDirection(delta, activateSlop)
+            }
+
+            fun enterSelectMode() {
+                if (selectMode) return
+                selectMode = true
+                currentHold(1f)
+                // Expand the dock + haptic. Continuous from press — no re-zero.
+                currentLong()
             }
 
             while (true) {
-                val event = if (!swiping && !longFired) {
+                if (holdToSelect && !enabledState) return@awaitEachGesture
+                val event = if (!swiping && !selectMode) {
                     withTimeoutOrNull(16L) { awaitPointerEvent() }
                 } else {
                     awaitPointerEvent()
@@ -336,42 +420,49 @@ fun Modifier.touchpadGestures(
                 if (event == null) {
                     val p = holdOf()
                     currentHold(p)
-                    if (p >= 1f && !longFired) {
-                        longFired = true
-                        currentHold(1f)
-                        currentLong()
-                    }
+                    // Optional hold: preview shortcuts before moving.
+                    if (holdToSelect && p >= 1f) enterSelectMode()
                     continue
                 }
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                total = change.position - start
+                val change = event.changes.firstOrNull { it.id == down.id }
+                    ?: return@awaitEachGesture
+                if (holdToSelect && (change.isConsumed || event.changes.count { it.pressed } > 1 || !enabledState))
+                    return@awaitEachGesture
+                total = change.position - origin
                 change.consume()
                 val dist = hypot(total.x, total.y)
-                if (!longFired && dist > trackSlop) {
-                    swiping = true
-                    currentHold(0f)
+                if (dist > trackSlop) {
+                    if (holdToSelect) {
+                        // Touch + drag past slop → LumenPad mode (no long-press required).
+                        enterSelectMode()
+                        swiping = true
+                    } else if (!selectMode) {
+                        swiping = true
+                        currentHold(0f)
+                    }
                 }
-                if (swiping) {
+                if (swiping || (holdToSelect && selectMode)) {
                     currentDrag(total)
                     val next = direction()
                     if (next != armed) {
                         armed = next
                         currentArmed(next)
                     }
-                } else if (!longFired) {
+                } else if (!selectMode) {
                     currentHold(holdOf())
                 }
                 if (change.pressed) continue
 
                 currentPress(false, change.position)
-                if (longFired) {
+                if (holdToSelect && selectMode) {
+                    direction(sticky = false)?.let { currentSwipe(it) }
                     currentDrag(Offset.Zero)
                     currentArmed(null)
                     currentHold(0f)
                     return@awaitEachGesture
                 }
                 if (swiping) {
-                    val commit = direction()
+                    val commit = direction(sticky = false)
                     currentDrag(Offset.Zero)
                     currentArmed(null)
                     currentHold(0f)
@@ -383,7 +474,27 @@ fun Modifier.touchpadGestures(
                 break
             }
 
-            if (longFired || swiping) return@awaitEachGesture
+            if (selectMode || swiping) return@awaitEachGesture
+            // Dock ring: fire Search immediately on release — don't wait for a double-tap window.
+            // A second tap within the window still opens Voice.
+            if (holdToSelect) {
+                currentPulse(1, down.position)
+                currentTap()
+                val extra = withTimeoutOrNull(TouchpadTapWindowMs) {
+                    awaitFirstDown(requireUnconsumed = false)
+                }
+                if (extra != null) {
+                    extra.consume()
+                    currentPress(true, extra.position)
+                    val moved = waitForUp(extra.id, trackSlop)
+                    currentPress(false, extra.position)
+                    if (!moved) {
+                        currentPulse(2, extra.position)
+                        currentDouble()
+                    }
+                }
+                return@awaitEachGesture
+            }
             var count = 1
             currentPulse(1, down.position)
             while (count < 3) {
@@ -402,6 +513,12 @@ fun Modifier.touchpadGestures(
                 1 -> currentTap()
                 2 -> currentDouble()
                 else -> currentTriple()
+            }
+            } finally {
+                currentPress(false, Offset.Zero)
+                currentDrag(Offset.Zero)
+                currentArmed(null)
+                currentHold(0f)
             }
         }
     }

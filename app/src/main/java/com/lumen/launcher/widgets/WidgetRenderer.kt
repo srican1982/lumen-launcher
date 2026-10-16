@@ -18,16 +18,20 @@ import com.lumen.launcher.data.LumenThemeMode
 
 object WidgetRenderer {
     fun icon(kind: WidgetKind): Int = when (kind) {
-        WidgetKind.Trip, WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> R.drawable.widget_ic_trip
+        WidgetKind.ClockWeather, WidgetKind.WorldClock, WidgetKind.ClockFeatured,
+        WidgetKind.CalendarDay, WidgetKind.MomentClock -> R.drawable.widget_clock_leaf
+        WidgetKind.MediaContinue, WidgetKind.MediaPlayer, WidgetKind.MediaNowPlaying,
+        WidgetKind.MediaShortcuts -> R.drawable.widget_ic_social
+        WidgetKind.Trip, WidgetKind.TripComplete -> R.drawable.widget_ic_trip
+        WidgetKind.TravelDocs -> R.drawable.widget_ic_traveldocs
         WidgetKind.Scribble -> R.drawable.widget_ic_scribble
         WidgetKind.Quote -> R.drawable.widget_ic_quote
         WidgetKind.Photos -> R.drawable.widget_ic_photos
         WidgetKind.Social -> R.drawable.widget_ic_social
         WidgetKind.Tasks, WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> R.drawable.widget_ic_tasks
         WidgetKind.Focus -> R.drawable.widget_ic_focus
-        WidgetKind.Contacts, WidgetKind.ContactsRecent, WidgetKind.ContactsSingle, WidgetKind.ContactsRow, WidgetKind.ContactsQuick, WidgetKind.ContactsFamily -> R.drawable.widget_ic_contacts
+        WidgetKind.Contacts, WidgetKind.ContactsSingle, WidgetKind.ContactsRow -> R.drawable.widget_ic_contacts
         WidgetKind.Hush -> R.drawable.widget_ic_hush
-        WidgetKind.TravelDocs -> R.drawable.widget_ic_traveldocs
         WidgetKind.Battery -> R.drawable.widget_ic_battery
     }
     private fun background(data: WidgetSnapshot): Int {
@@ -48,18 +52,23 @@ object WidgetRenderer {
         if (kind.isContact) return ContactWidgetViews.views(context, id, kind, data)
         if (kind.isTask) return TaskWidgetViews.views(context, id, kind, data)
         if (kind.isTrip) return TripWidgetViews.views(context, id, kind, data)
+        if (kind.isClock) return ClockWidgetViews.views(context, id, kind, data)
+        if (kind.isMedia) return MediaWidgetViews.views(context, id, kind, data)
         if (kind in setOf(WidgetKind.Quote, WidgetKind.Photos, WidgetKind.Scribble)) return contentViews(context, id, kind, data)
         val options = if (id > 0) AppWidgetManager.getInstance(context).getAppWidgetOptions(id) else android.os.Bundle()
         val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, if (kind.wide) 280 else 140)
         val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, kind.heightDp)
+        val scale = WidgetContentRules.scale(width, height, kind)
+        val light = LumenThemeMode.parse(data.stored.theme).isWhiteGlass
         val layout = when (kind) {
-            WidgetKind.Trip -> if (width < 240) R.layout.lumen_widget_trip_compact else R.layout.lumen_widget_trip
             WidgetKind.Social -> R.layout.lumen_widget_social
             WidgetKind.Contacts -> R.layout.lumen_widget_contacts
             else -> R.layout.lumen_widget
         }
         val view = RemoteViews(context.packageName, layout)
-        view.setTextViewTextSize(R.id.widget_title, android.util.TypedValue.COMPLEX_UNIT_SP, if (width >= 260) 14f else 12f)
+        view.setTextViewTextSize(R.id.widget_title, android.util.TypedValue.COMPLEX_UNIT_SP, scale.sp(if (width >= 260) 14f else 12f))
+        view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, scale.sp(13f))
+        view.setTextViewTextSize(R.id.widget_status, android.util.TypedValue.COMPLEX_UNIT_SP, scale.sp(11f))
         // Hosts may reapply onto the same View tree. Explicitly clear the previous
         // state so completed rows, old photos and running timers cannot linger.
         listOf(R.id.widget_detail, R.id.widget_status, R.id.widget_timer, R.id.widget_photos,
@@ -96,11 +105,11 @@ object WidgetRenderer {
                     val bitmap = thumbnail(context, if (people.isNotEmpty()) people[index].photo else uris[index])
                     val person = people.getOrNull(index)
                     if (person != null) view.setImageViewBitmap(image, contactAvatar(bitmap, person.name))
-                    else if (bitmap != null) view.setImageViewBitmap(image, roundedThumbnail(bitmap, if (kind == WidgetKind.Trip) 100f / 64 else 1f))
+                    else if (bitmap != null) view.setImageViewBitmap(image, roundedThumbnail(bitmap, 1f))
                     else view.setImageViewResource(image, icon(WidgetKind.Photos))
                     view.setContentDescription(image, person?.name ?: "Open photo")
-                    val target = if (person != null) "Person" else if (kind == WidgetKind.Trip) "TripAlbums" else "Photo"
-                    val item = person?.id?.toString() ?: if (kind == WidgetKind.Trip) data.trip?.id?.toString().orEmpty() else uris[index]
+                    val target = if (person != null) "Person" else "Photo"
+                    val item = person?.id?.toString() ?: uris[index]
                     view.setOnClickPendingIntent(image, WidgetActions.pending(context, id, target, item))
                 } else if (people.isNotEmpty()) view.setViewVisibility(image, View.INVISIBLE)
             }
@@ -110,29 +119,13 @@ object WidgetRenderer {
             return view
         }
         when (kind) {
-            WidgetKind.ContactsRecent, WidgetKind.ContactsSingle, WidgetKind.ContactsRow, WidgetKind.ContactsQuick, WidgetKind.ContactsFamily -> Unit
+            WidgetKind.ContactsSingle, WidgetKind.ContactsRow -> Unit
             WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> Unit
-            WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> Unit
-            WidgetKind.Trip -> {
-                val shown = data.trip ?: data.lastTrip
-                text(shown?.displayTitle ?: "Your next adventure", if (shown == null) "Start collecting memories" else "${shown.photoCount} ${if (shown.photoCount == 1) "photo" else "photos"} \u00b7 ${if (data.trip != null) "Collecting" else "Saved album"}")
-                if (width < 240) view.setViewVisibility(R.id.widget_status, View.GONE)
-                val preview = shown?.previewUris?.firstOrNull() ?: shown?.coverUri
-                if (preview != null) photos(listOf(preview)) else {
-                    view.setViewVisibility(R.id.widget_photos, View.VISIBLE)
-                    view.setViewVisibility(R.id.widget_photo1, View.VISIBLE)
-                    val scene = BitmapFactory.decodeResource(context.resources, R.drawable.travel_evening_valley,
-                        BitmapFactory.Options().apply { inSampleSize = 4 })
-                    if (scene != null) view.setImageViewBitmap(R.id.widget_photo1, roundedThumbnail(scene, 100f / 64))
-                    view.setContentDescription(R.id.widget_photo1, "Lumen landscape")
-                }
-                if (shown != null) view.setOnClickPendingIntent(R.id.widget_photo1,
-                    WidgetActions.pending(context, id, "TripAlbums", shown.id.toString()))
-                view.setTextViewText(R.id.widget_action, if (data.trip != null) "ON" else "OFF")
-                view.setTextViewTextSize(R.id.widget_action, android.util.TypedValue.COMPLEX_UNIT_SP, 10f)
-                view.setOnClickPendingIntent(R.id.widget_action, WidgetActions.tripToggle(context, id, data.trip?.id))
-                view.setContentDescription(R.id.widget_action, if (data.trip != null) "End trip" else "Start trip")
-            }
+            WidgetKind.Trip, WidgetKind.TripComplete, WidgetKind.TravelDocs -> Unit
+            WidgetKind.ClockWeather, WidgetKind.WorldClock, WidgetKind.ClockFeatured,
+            WidgetKind.CalendarDay, WidgetKind.MomentClock -> Unit
+            WidgetKind.MediaContinue, WidgetKind.MediaPlayer, WidgetKind.MediaNowPlaying,
+            WidgetKind.MediaShortcuts -> Unit
             WidgetKind.Scribble -> {
                 text("Your next idea", "Sketch it. Make it a sticker.")
                 view.setViewVisibility(R.id.widget_button, View.VISIBLE)
@@ -236,16 +229,10 @@ object WidgetRenderer {
                     }
                 }
             }
-            WidgetKind.TravelDocs -> {
-                text("${data.stored.travelAttachments.size} documents", data.stored.travelAttachments.firstOrNull()?.title ?: "Everything for the journey")
-                view.setViewVisibility(R.id.widget_button, View.VISIBLE)
-                view.setTextViewText(R.id.widget_button, "Open documents")
-                view.setOnClickPendingIntent(R.id.widget_button, WidgetActions.pending(context, id, "TravelDocs"))
-            }
             WidgetKind.Battery -> {
                 text(data.battery?.let { "$it%" } ?: "Battery unavailable", if (data.charging) "Charging \u00b7 Phone" else "Phone battery")
-                view.setTextColor(R.id.widget_detail, 0xFFE4CB91.toInt())
-                view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, 28f)
+                view.setTextColor(R.id.widget_detail, WidgetColors.accent(light))
+                view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, scale.sp(28f))
                 data.battery?.let { level ->
                     view.setViewVisibility(R.id.widget_meter, View.VISIBLE)
                     view.setProgressBar(R.id.widget_meter, 100, level, false)
@@ -254,7 +241,7 @@ object WidgetRenderer {
         }
         if (kind == WidgetKind.Quote) {
             view.setInt(R.id.widget_detail, "setMaxLines", 3)
-            view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            view.setTextViewTextSize(R.id.widget_detail, android.util.TypedValue.COMPLEX_UNIT_SP, scale.sp(14f))
         }
         return view
     }

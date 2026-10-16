@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A · Small trip status -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <ImageView
+        android:id="@+id/trip_widget_cover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <!-- FrameLayout only — RemoteViews cannot inflate plain View. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_trip_scrim" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/widget_trip_icon_circle"
+                android:padding="6dp"
+                android:src="@drawable/widget_ic_trip"
+                android:contentDescription="@null" />
+            <FrameLayout android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+            <TextView
+                android:id="@+id/trip_widget_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:minWidth="44dp"
+                android:paddingHorizontal="12dp"
+                android:gravity="center"
+                android:background="@drawable/widget_trip_on_pill"
+                android:text="ON"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <FrameLayout android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/trip_widget_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Trip Mode"
+            android:textColor="#CCFFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="@font/outfit_medium"
+            android:gravity="center"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:gravity="center"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_dates"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#B8FFFFFF"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:maxLines="1"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+</FrameLayout>

@@ -1,48 +1,283 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/task_card_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/widget_task_dark" android:clipToOutline="true">
-<ImageView android:id="@+id/task_card_leaves" android:layout_width="100dp" android:layout_height="match_parent" android:layout_gravity="end" android:src="@drawable/widget_task_leaf" android:scaleType="fitEnd" android:contentDescription="@null"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="14dp">
-<LinearLayout android:layout_width="match_parent" android:layout_height="30dp" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_title" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="Today" android:textSize="20sp" android:fontFamily="@font/outfit_semibold" android:maxLines="1" android:ellipsize="end" android:textColor="#FFFFFF"/>
-<TextView android:id="@+id/task_card_add" android:layout_width="30dp" android:layout_height="30dp" android:text="+" android:background="@drawable/widget_trip_status" android:textColor="#28251D" android:textSize="22sp" android:gravity="center" android:contentDescription="Add task"/>
-</LinearLayout>
-<TextView android:id="@+id/task_card_date" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="#BAC8DB" android:maxLines="1"/>
-<LinearLayout android:id="@+id/task_card_tabs" android:layout_width="match_parent" android:layout_height="26dp" android:layout_marginTop="5dp" android:visibility="gone"><TextView android:id="@+id/task_card_tabtoday" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="Today" android:textColor="#526174" android:gravity="center" android:textSize="10sp"/><TextView android:id="@+id/task_card_tabweek" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="This Week" android:textColor="#526174" android:gravity="center" android:textSize="10sp"/><TextView android:id="@+id/task_card_taball" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="All" android:textColor="#526174" android:gravity="center" android:textSize="10sp"/></LinearLayout>
-<LinearLayout android:id="@+id/task_card_content" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="8dp">
-<TextView android:id="@+id/task_card_counts" android:layout_width="64dp" android:layout_height="match_parent" android:textSize="11sp" android:textColor="#D5DFF0" android:gravity="center_vertical" android:visibility="gone"/>
-<LinearLayout android:id="@+id/task_card_list" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical"><LinearLayout android:id="@+id/task_card_row1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_check1" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91"/>
-<TextView android:id="@+id/task_card_text1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_time1" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1"/>
-</LinearLayout><LinearLayout android:id="@+id/task_card_row2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_check2" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91"/>
-<TextView android:id="@+id/task_card_text2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_time2" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1"/>
-</LinearLayout><LinearLayout android:id="@+id/task_card_row3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_check3" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91"/>
-<TextView android:id="@+id/task_card_text3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_time3" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1"/>
-</LinearLayout><LinearLayout android:id="@+id/task_card_row4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_check4" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91"/>
-<TextView android:id="@+id/task_card_text4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_time4" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1"/>
-</LinearLayout><LinearLayout android:id="@+id/task_card_row5" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
-<TextView android:id="@+id/task_card_check5" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91"/>
-<TextView android:id="@+id/task_card_text5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_time5" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1"/>
-</LinearLayout></LinearLayout>
-<LinearLayout android:id="@+id/task_card_filters" android:layout_width="82dp" android:layout_height="match_parent" android:orientation="vertical" android:layout_marginStart="8dp" android:visibility="gone"><TextView android:id="@+id/task_card_filtertoday" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Today" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp"/><TextView android:id="@+id/task_card_filterinbox" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Inbox" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp"/><TextView android:id="@+id/task_card_filterimportant" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Important" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp"/></LinearLayout>
-<LinearLayout android:id="@+id/task_card_motivation" android:layout_width="90dp" android:layout_height="match_parent" android:orientation="vertical" android:gravity="bottom" android:layout_marginStart="8dp" android:visibility="gone">
-<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="A little progress, one task at a time." android:textColor="#526174" android:textSize="11sp" android:fontFamily="@font/outfit_light" android:gravity="center"/>
-<ImageView android:layout_width="match_parent" android:layout_height="70dp" android:src="@drawable/widget_task_leaf" android:contentDescription="@null"/>
-</LinearLayout>
-<LinearLayout android:id="@+id/task_card_overview" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:gravity="center_vertical" android:visibility="gone">
-<ImageView android:id="@+id/task_card_ring" android:layout_width="78dp" android:layout_height="78dp" android:contentDescription="Task progress"/>
-<TextView android:id="@+id/task_card_overview_counts" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:layout_marginStart="10dp" android:textColor="#D5DFF0" android:textSize="12sp" android:gravity="center_vertical"/>
-</LinearLayout>
-<LinearLayout android:id="@+id/task_card_next" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_vertical" android:visibility="gone">
-<TextView android:id="@+id/task_card_next_title" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="20sp" android:fontFamily="@font/outfit_medium" android:maxLines="2" android:ellipsize="end"/>
-<TextView android:id="@+id/task_card_next_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#BAC8DB" android:textSize="12sp" android:layout_marginTop="5dp" android:maxLines="1"/>
-</LinearLayout>
-</LinearLayout>
-<TextView android:id="@+id/task_card_footer" android:layout_width="match_parent" android:layout_height="32dp" android:layout_marginTop="6dp" android:background="@drawable/widget_trip_cta" android:textColor="#28251D" android:gravity="center" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end"/>
-</LinearLayout></FrameLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/task_card_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_task_dark">
+
+    <!-- Kept for RemoteViews ID compatibility; never shown (leaf art removed). -->
+    <ImageView
+        android:id="@+id/task_card_leaves"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/task_card_title"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Today"
+                android:textSize="20sp"
+                android:fontFamily="@font/outfit_semibold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFFFFF"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/task_card_add"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:text="+"
+                android:background="@drawable/widget_trip_status"
+                android:textColor="#28251D"
+                android:textSize="22sp"
+                android:gravity="center"
+                android:contentDescription="Add task"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/task_card_date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="#BAC8DB"
+            android:maxLines="1"
+            android:includeFontPadding="false" />
+
+        <LinearLayout
+            android:id="@+id/task_card_tabs"
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:layout_marginTop="6dp"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/task_card_tabtoday"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="4dp"
+                android:text="Today"
+                android:textColor="#526174"
+                android:gravity="center"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/task_card_tabweek"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginHorizontal="2dp"
+                android:text="This Week"
+                android:textColor="#526174"
+                android:gravity="center"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/task_card_taball"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_marginStart="4dp"
+                android:text="All"
+                android:textColor="#526174"
+                android:gravity="center"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/task_card_content"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp">
+
+            <LinearLayout
+                android:id="@+id/task_card_counts_panel"
+                android:layout_width="72dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center_vertical"
+                android:paddingEnd="8dp"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/task_card_counts_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Today"
+                    android:textSize="10sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:textColor="#E4CB91"
+                    android:includeFontPadding="false" />
+                <TextView
+                    android:id="@+id/task_card_counts"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textSize="11sp"
+                    android:textColor="#D5DFF0"
+                    android:lineSpacingExtra="2dp"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/task_card_list"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+                <LinearLayout android:id="@+id/task_card_row1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+                    <TextView android:id="@+id/task_card_check1" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_text1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_time1" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/task_card_row2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+                    <TextView android:id="@+id/task_card_check2" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_text2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_time2" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/task_card_row3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+                    <TextView android:id="@+id/task_card_check3" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_text3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_time3" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/task_card_row4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+                    <TextView android:id="@+id/task_card_check4" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_text4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_time4" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/task_card_row5" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+                    <TextView android:id="@+id/task_card_check5" android:layout_width="26dp" android:layout_height="match_parent" android:gravity="center" android:text="☐" android:textSize="20sp" android:textColor="#E4CB91" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_text5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="11sp" android:fontFamily="@font/outfit_regular" android:textColor="#FFFFFF" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+                    <TextView android:id="@+id/task_card_time5" android:layout_width="52dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#BAC8DB" android:textSize="10sp" android:maxLines="1" android:includeFontPadding="false" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/task_card_filters"
+                android:layout_width="82dp"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:layout_marginStart="8dp"
+                android:visibility="gone">
+                <TextView android:id="@+id/task_card_filtertoday" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Today" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/task_card_filterinbox" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Inbox" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/task_card_filterimportant" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginBottom="5dp" android:text="Important" android:background="@drawable/widget_trip_secondary" android:textColor="#E4CB91" android:gravity="center" android:textSize="10sp" android:includeFontPadding="false" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/task_card_motivation"
+                android:layout_width="88dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:gravity="center"
+                android:padding="6dp"
+                android:text="One task at a time."
+                android:textColor="#526174"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_medium"
+                android:lineSpacingExtra="2dp"
+                android:visibility="gone"
+                android:includeFontPadding="false" />
+
+            <LinearLayout
+                android:id="@+id/task_card_overview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+                <ImageView
+                    android:id="@+id/task_card_ring"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:scaleType="fitCenter"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Task progress" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+                    <TextView
+                        android:id="@+id/task_card_overview_label"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Today"
+                        android:textSize="11sp"
+                        android:fontFamily="@font/outfit_medium"
+                        android:textColor="#E4CB91"
+                        android:includeFontPadding="false" />
+                    <TextView
+                        android:id="@+id/task_card_overview_counts"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="#D5DFF0"
+                        android:textSize="13sp"
+                        android:lineSpacingExtra="3dp"
+                        android:includeFontPadding="false" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/task_card_next"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+                <TextView
+                    android:id="@+id/task_card_next_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false" />
+                <TextView
+                    android:id="@+id/task_card_next_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#BAC8DB"
+                    android:textSize="12sp"
+                    android:layout_marginTop="5dp"
+                    android:maxLines="1"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/task_card_footer"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/widget_trip_cta"
+            android:textColor="#28251D"
+            android:gravity="center"
+            android:textSize="11sp"
+            android:fontFamily="@font/outfit_medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+</FrameLayout>

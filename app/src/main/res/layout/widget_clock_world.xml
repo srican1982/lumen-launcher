@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- B · Analog + World Time -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clock_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <ImageView
+            android:id="@+id/clock_widget_analog"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:contentDescription="Analog clock" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/clock_widget_date"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#E6FFFFFF"
+                android:textSize="13sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical">
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/widget_clock_leaf"
+                    android:contentDescription="@null" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="Better Moments Ahead"
+                    android:textColor="#FFFFFF"
+                    android:textSize="13sp"
+                    android:fontFamily="@font/outfit_medium"
+                    android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/clock_widget_cities"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="@drawable/widget_clock_panel">
+
+        <LinearLayout android:id="@+id/clock_widget_city_row1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+            <ImageView android:layout_width="6dp" android:layout_height="6dp" android:src="@drawable/widget_clock_dot" android:contentDescription="@null" />
+            <TextView android:id="@+id/clock_widget_city1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_time1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_semibold" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_day1" android:layout_width="48dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#99FFFFFF" android:textSize="11sp" android:includeFontPadding="false" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/clock_widget_city_row2" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+            <ImageView android:layout_width="6dp" android:layout_height="6dp" android:src="@drawable/widget_clock_dot" android:contentDescription="@null" />
+            <TextView android:id="@+id/clock_widget_city2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_time2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_semibold" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_day2" android:layout_width="48dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#99FFFFFF" android:textSize="11sp" android:includeFontPadding="false" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/clock_widget_city_row3" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+            <ImageView android:layout_width="6dp" android:layout_height="6dp" android:src="@drawable/widget_clock_dot" android:contentDescription="@null" />
+            <TextView android:id="@+id/clock_widget_city3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_time3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_semibold" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_day3" android:layout_width="48dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#99FFFFFF" android:textSize="11sp" android:includeFontPadding="false" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/clock_widget_city_row4" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical">
+            <ImageView android:layout_width="6dp" android:layout_height="6dp" android:src="@drawable/widget_clock_dot" android:contentDescription="@null" />
+            <TextView android:id="@+id/clock_widget_city4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="10dp" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_time4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#FFFFFF" android:textSize="13sp" android:fontFamily="@font/outfit_semibold" android:includeFontPadding="false" />
+            <TextView android:id="@+id/clock_widget_city_day4" android:layout_width="48dp" android:layout_height="wrap_content" android:gravity="end" android:textColor="#99FFFFFF" android:textSize="11sp" android:includeFontPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

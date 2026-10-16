@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- D · Full media player -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/media_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_media_glass">
+
+    <ImageView
+        android:id="@+id/media_widget_art"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="Artwork" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_trip_scrim_strong" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/media_widget_app_icon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:gravity="center"
+                android:text="▶"
+                android:textColor="#FFFF2D55"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_app"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_cta"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:paddingHorizontal="12dp"
+                android:gravity="center"
+                android:background="@drawable/widget_media_cta"
+                android:text="Continue Watching  ›"
+                android:textColor="#FF111827"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/media_widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="bottom"
+            android:layout_marginTop="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/media_widget_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="#CCFFFFFF"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false" />
+
+        <ProgressBar
+            android:id="@+id/media_widget_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="10dp"
+            android:max="1000"
+            android:progress="0"
+            android:progressDrawable="@drawable/widget_media_progress_youtube" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp">
+            <TextView
+                android:id="@+id/media_widget_elapsed"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:textColor="#B3FFFFFF"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_remaining"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#B3FFFFFF"
+                android:textSize="11sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/media_widget_prev"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="⏮"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_play"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:gravity="center"
+                android:background="@drawable/widget_media_play_circle"
+                android:text="▶"
+                android:textColor="#FF111827"
+                android:textSize="16sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_next"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="⏭"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:includeFontPadding="false" />
+            <TextView
+                android:id="@+id/media_widget_open"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="⛶"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

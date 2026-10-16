@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- E · Recent photos -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        <ImageView android:id="@+id/trip_widget_photo3" android:layout_width="72dp" android:layout_height="88dp"
+            android:layout_gravity="center" android:layout_marginStart="28dp" android:layout_marginTop="10dp"
+            android:rotation="8" android:scaleType="centerCrop" android:background="@drawable/widget_trip_photo_frame"
+            android:contentDescription="Trip photo" />
+        <ImageView android:id="@+id/trip_widget_photo2" android:layout_width="72dp" android:layout_height="88dp"
+            android:layout_gravity="center" android:layout_marginEnd="24dp" android:layout_marginTop="6dp"
+            android:rotation="-10" android:scaleType="centerCrop" android:background="@drawable/widget_trip_photo_frame"
+            android:contentDescription="Trip photo" />
+        <ImageView android:id="@+id/trip_widget_photo1" android:layout_width="78dp" android:layout_height="96dp"
+            android:layout_gravity="center" android:scaleType="centerCrop"
+            android:background="@drawable/widget_trip_photo_frame" android:contentDescription="Trip photo" />
+        <ImageView android:id="@+id/trip_widget_camera"
+            android:layout_width="34dp" android:layout_height="34dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/widget_trip_on_pill"
+            android:padding="8dp"
+            android:src="@drawable/widget_trip_gold_camera"
+            android:scaleType="fitCenter"
+            android:contentDescription="Take photo" />
+    </FrameLayout>
+
+    <TextView android:id="@+id/trip_widget_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:textColor="#FFFFFF" android:textSize="13sp"
+        android:fontFamily="@font/outfit_medium" android:maxLines="1" android:ellipsize="end"
+        android:gravity="center" android:includeFontPadding="false" />
+    <TextView android:id="@+id/trip_widget_stats" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" android:textColor="#B8FFFFFF" android:textSize="11sp"
+        android:maxLines="1" android:gravity="center" android:includeFontPadding="false" />
+</LinearLayout>

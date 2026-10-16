@@ -18,6 +18,27 @@ object WidgetActions {
             .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("slot", slot),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
+    fun worldCities(context: Context, id: Int, slot: Int = -1): PendingIntent {
+        val requestCode = 31 * id + ("WorldCities/$slot").hashCode()
+        return PendingIntent.getActivity(context, requestCode,
+            Intent(context, WidgetWorldCitiesActivity::class.java)
+                .setData(Uri.parse("lumen-widget://world-cities/$id/$slot"))
+                .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("slot", slot),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    fun launchPackage(context: Context, widgetId: Int, packageName: String): PendingIntent {
+        val launch = context.packageManager.getLaunchIntentForPackage(packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val requestCode = 31 * widgetId + ("Launch/$packageName").hashCode()
+        return PendingIntent.getActivity(
+            context, requestCode, launch,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     fun dial(context: Context, id: Int, slot: Int, number: String): PendingIntent = PendingIntent.getActivity(context, id,
         Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
@@ -68,12 +89,14 @@ object WidgetActions {
                 .appendPath(destination).appendPath(item).build())
             .putExtra("widget_token", token(context)).putExtra("widget_destination", destination).putExtra("widget_item", item)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        return PendingIntent.getActivity(context, widgetId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        // Unique request codes so each button keeps its own destination.
+        val requestCode = 31 * widgetId + (destination + '/' + item).hashCode()
+        return PendingIntent.getActivity(context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
     fun read(context: Context, intent: Intent?): Pair<String, String>? {
         if (intent?.action != ACTION || intent.getStringExtra("widget_token") != token(context)) return null
         val destination = intent.getStringExtra("widget_destination") ?: return null
-        if (WidgetKind.parse(destination) == null && destination !in setOf("AddTask", "CompleteTask", "StartFocus", "Person", "Photo", "TripToggle", "TripAlbums", "FocusSetup", "UsageAccess", "TripPlan", "TripCamera", "TripNote", "TripShare", "TaskList")) return null
+        if (WidgetKind.parse(destination) == null && destination !in setOf("AddTask", "CompleteTask", "StartFocus", "Person", "Photo", "TripToggle", "TripAlbums", "FocusSetup", "UsageAccess", "TripPlan", "TripCamera", "TripNote", "TripShare", "TaskList", "Calendar", "WorldCities", "OpenMedia", "MediaStore")) return null
         val item = intent.getStringExtra("widget_item").orEmpty()
         intent.removeExtra("widget_token") // do not replay on resume / configuration change
         return destination to item

@@ -1,5 +1,8 @@
 package com.lumen.launcher.ui
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
@@ -25,12 +28,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AspectRatio
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LayersClear
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.WidthNormal
+import androidx.compose.material.icons.outlined.WidthWide
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,22 +52,31 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
@@ -64,19 +87,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun LumenWidgetsPage(isActive: Boolean) {
+fun LumenWidgetsPage(isActive: Boolean, space: com.lumen.launcher.data.SpaceKind = com.lumen.launcher.data.SpaceKind.Home) {
     val context = LocalContext.current
     val manager = remember { AppWidgetManager.getInstance(context) }
-    val host = remember { AppWidgetHost(context.applicationContext, WidgetHostStore.HOST_ID) }
-    var ids by remember { mutableStateOf(WidgetHostStore.ids(context)) }
+    val host = remember { WidgetHostSession.host(context) }
+    var ids by remember(space) { mutableStateOf(WidgetHostStore.idsForMode(context, space.name)) }
     var picker by remember { mutableStateOf(false) }
+    var appWidgetTab by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var sizingRevision by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val prefs = remember { WidgetHostStore.prefs(context) }
-    val pending = remember { context.getSharedPreferences("widget_binding", Context.MODE_PRIVATE) }
-    var binding by remember { mutableStateOf(pending.getInt("id", -1) != -1) }
     val haptics = LocalHapticFeedback.current
     val scroll = rememberScrollState()
     var draggingId by remember { mutableStateOf<Int?>(null) }
@@ -90,58 +112,14 @@ fun LumenWidgetsPage(isActive: Boolean) {
     var fingerY by remember { mutableFloatStateOf(0f) }
     var alignment by remember { mutableStateOf<WidgetAlignment?>(null) }
 
-    fun finishBinding(id: Int, success: Boolean) {
-        if (id != -1 && success && manager.getAppWidgetInfo(id)?.provider?.packageName == context.packageName) {
-            if (ids.isNotEmpty()) {
-                val bottom = ids.maxOf { existing ->
-                    val kind = WidgetKind.entries.firstOrNull {
-                        manager.getAppWidgetInfo(existing)?.provider == LumenWidgetProvider.component(context, it)
-                    } ?: WidgetKind.Tasks
-                    (positions[existing] ?: WidgetHostStore.position(context, existing) ?: WidgetPosition(0f, 0f)).yDp +
-                        WidgetHostStore.height(context, existing, kind) + 10f
-                }
-                WidgetHostStore.setPosition(context, id, WidgetPosition(0f, bottom))
-            }
-            WidgetHostStore.add(context, id)
-            picker = false
-            scope.launch(Dispatchers.IO) { runCatching { LumenWidgetProvider.refreshAll(context) } }
-        } else if (id != -1) {
-            host.deleteAppWidgetId(id)
-            message = "Widget wasn't added. You can try again."
-        }
-        pending.edit().remove("id").apply()
-        binding = false
-    }
-    val bindPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val id = pending.getInt("id", -1)
-        finishBinding(id, result.resultCode == android.app.Activity.RESULT_OK)
-    }
-    fun add(kind: WidgetKind) {
-        if (binding) return
-        message = ""
-        val id = host.allocateAppWidgetId()
-        pending.edit().putInt("id", id).apply()
-        binding = true
-        val component = LumenWidgetProvider.component(context, kind)
-        try {
-            if (manager.bindAppWidgetIdIfAllowed(id, component)) finishBinding(id, true)
-            else bindPermission.launch(
-                Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
-                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, component)
-            )
-        } catch (_: Exception) {
-            finishBinding(id, false)
-        }
-    }
-    DisposableEffect(prefs) {
+    DisposableEffect(prefs, space) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "ids") {
-                ids = WidgetHostStore.ids(context)
+            if (key == "ids" || key?.startsWith("space_") == true) {
+                ids = WidgetHostStore.idsForMode(context, space.name)
                 positionRevision++
             } else if (key?.startsWith("x_") == true || key?.startsWith("y_") == true) {
                 positionRevision++
-            } else if (key?.startsWith("columns_") == true || key?.startsWith("height_") == true) {
+            } else if (key?.startsWith("columns_") == true || key?.startsWith("height_") == true || key?.startsWith("transparent_") == true) {
                 sizingRevision++
             }
         }
@@ -149,13 +127,11 @@ fun LumenWidgetsPage(isActive: Boolean) {
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     DisposableEffect(host, isActive) {
-        if (isActive) host.startListening()
-        onDispose { host.stopListening() }
+        if (isActive) WidgetHostSession.start()
+        onDispose { if (isActive) WidgetHostSession.stop() }
     }
-    LaunchedEffect(isActive) {
+    LaunchedEffect(isActive, space) {
         if (isActive) {
-            val interrupted = pending.getInt("id", -1)
-            if (interrupted != -1) finishBinding(interrupted, manager.getAppWidgetInfo(interrupted) != null)
             val stale = ids.filter { manager.getAppWidgetInfo(it) == null }.toSet()
             if (stale.isNotEmpty()) WidgetHostStore.remove(context, stale)
             withContext(Dispatchers.IO) { runCatching { LumenWidgetProvider.refreshAll(context) } }
@@ -192,7 +168,7 @@ fun LumenWidgetsPage(isActive: Boolean) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Lumen widgets", color = Lumen.Text, fontFamily = Outfit, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                Text("${space.title} widgets", color = Lumen.Text, fontFamily = Outfit, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     if (editing) "Hold & drag to move · Pull corner to resize"
                     else "A little space for what matters",
@@ -211,6 +187,10 @@ fun LumenWidgetsPage(isActive: Boolean) {
             TextButton(onClick = { picker = true }) {
                 Icon(Icons.Outlined.Add, "Add widget", tint = Lumen.Accent)
             }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(onClick = { appWidgetTab = false; picker = true }) { Text("Lumen widgets", color = Lumen.BrandGold) }
+            TextButton(onClick = { appWidgetTab = true; picker = true }) { Text("App widgets", color = Lumen.BrandGold) }
         }
         if (message.isNotEmpty()) {
             Text(message, color = Lumen.Accent, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
@@ -360,102 +340,21 @@ fun LumenWidgetsPage(isActive: Boolean) {
     }
 
     if (picker) {
-        var data by remember { mutableStateOf(WidgetSnapshot()) }
-        var previews by remember { mutableStateOf<Map<WidgetKind, android.widget.RemoteViews>>(emptyMap()) }
-        var quoteRevision by remember { mutableIntStateOf(0) }
-        DisposableEffect(Unit) {
-            val quotePrefs = context.getSharedPreferences("lumen_widget_quotes", Context.MODE_PRIVATE)
-            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> quoteRevision++ }
-            quotePrefs.registerOnSharedPreferenceChangeListener(listener)
-            onDispose { quotePrefs.unregisterOnSharedPreferenceChangeListener(listener) }
-        }
-        LaunchedEffect(Unit) {
-            com.lumen.launcher.social.CreationRepository(context).items.collect {
-                data = withContext(Dispatchers.IO) {
-                    runCatching { WidgetRepository.load(context) }.getOrDefault(WidgetSnapshot())
-                }
-            }
-        }
-        LaunchedEffect(data, quoteRevision) {
-            previews = withContext(Dispatchers.IO) {
-                WidgetKind.entries.associateWith { WidgetRenderer.views(context, 0, it, data) }
-            }
-        }
-        Dialog(
-            onDismissRequest = { if (!binding) picker = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Glass(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(.9f).padding(12.dp),
-                shape = RoundedCornerShape(28.dp),
-                airy = true
-            ) {
-                Column(Modifier.fillMaxSize().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Add a Lumen widget",
-                            color = Lumen.Text,
-                            fontFamily = Outfit,
-                            fontSize = 22.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { if (!binding) picker = false }) {
-                            Icon(Icons.Outlined.Close, "Close widget picker", tint = Lumen.Accent)
-                        }
-                    }
-                    Text(
-                        "Tap a card to add it to this home page",
-                        color = Lumen.Muted,
-                        fontFamily = Outfit,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(
-                            WidgetKind.entries,
-                            key = { it.name },
-                            span = { GridItemSpan(if (it.wide) 2 else 1) }
-                        ) { kind ->
-                            Column {
-                                Box(Modifier.fillMaxWidth().height(kind.heightDp.dp)) {
-                                    AndroidView(
-                                        factory = {
-                                            (previews[kind] ?: WidgetRenderer.views(it, 0, kind, WidgetSnapshot()))
-                                                .apply(it, null)
-                                        },
-                                        update = { previews[kind]?.reapply(context, it) },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    Box(
-                                        Modifier
-                                            .fillMaxSize()
-                                            .clickable(enabled = !binding, onClickLabel = "Add ${kind.title} widget") {
-                                                add(kind)
-                                            }
-                                    )
-                                }
-                                Text(
-                                    kind.description,
-                                    color = Lumen.Muted,
-                                    fontFamily = Outfit,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        WidgetPickerDialog(
+            space = space,
+            onDismiss = { picker = false },
+            onAdded = { /* prefs listener refreshes ids */ },
+            initialAppWidgets = appWidgetTab
+        )
     }
 }
 
+private val WidgetSelectGold = Color(0xFFFAC775)
+
+private enum class WidgetResizeEdge { Left, Right, Top, Bottom, TopLeft, TopRight, BottomLeft, BottomRight }
+
 @Composable
-private fun WidgetBoardCard(
+internal fun WidgetBoardCard(
     id: Int,
     info: AppWidgetProviderInfo,
     host: AppWidgetHost,
@@ -467,26 +366,70 @@ private fun WidgetBoardCard(
     dragging: Boolean,
     modifier: Modifier = Modifier,
     onRemove: () -> Unit,
-    onResizeLive: (columns: Int, heightDp: Int) -> Unit
+    onResizeLive: (columns: Int, heightDp: Int) -> Unit,
+    /** When false (Home), width stays full-row — no half-size beside icons. */
+    allowHalfWidth: Boolean = true,
+    onDone: (() -> Unit)? = null
 ) {
+    val widgetEditSession = LocalWidgetEditSession.current
+    val selectionOwner = remember(id) { Any() }
+    var widgetBounds by remember(id) { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val latestDone by rememberUpdatedState(onDone)
+    DisposableEffect(widgetEditSession, selectionOwner, editing) {
+        if (editing) {
+            widgetEditSession.acquire(
+                owner = selectionOwner,
+                exclusive = onDone != null,
+                onOutside = { latestDone?.invoke() }
+            )
+            widgetEditSession.updateBounds(selectionOwner, widgetBounds)
+        }
+        onDispose { widgetEditSession.release(selectionOwner) }
+    }
+    val context = LocalContext.current
+    val external = WidgetHostStore.external(context, id)
+    var nativeWidget by remember(id) { mutableStateOf<android.appwidget.AppWidgetHostView?>(null) }
+    var transparent by remember(id, editing) { mutableStateOf(WidgetHostStore.transparent(context, id)) }
+    var showSettings by remember(id, editing) { mutableStateOf(false) }
+    var resizing by remember(id) { mutableStateOf(false) }
+    var menuVisible by remember(id, editing) { mutableStateOf(true) }
+    var nativeWidth by remember(id) { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    var liveColumns by remember(id, columns) { mutableIntStateOf(columns) }
-    var liveHeight by remember(id, heightDp) { mutableIntStateOf(heightDp) }
+    var liveColumns by remember(id, columns) { mutableIntStateOf(columns.coerceIn(1, 2)) }
+    var liveHeight by remember(id, heightDp) { mutableFloatStateOf(heightDp.toFloat()) }
     var cardWidthPx by remember { mutableFloatStateOf(1f) }
+    var lastPersistedHeight by remember(id) { mutableIntStateOf(heightDp) }
+    var lastPersistedColumns by remember(id) { mutableIntStateOf(columns.coerceIn(1, 2)) }
     val shape = RoundedCornerShape(26.dp)
     val latestResize by rememberUpdatedState(onResizeLive)
+    val displayHeight = liveHeight.roundToInt().coerceAtLeast(1)
 
-    LaunchedEffect(columns, heightDp, dragging) {
-        if (!dragging) {
-            liveColumns = columns
-            liveHeight = heightDp
+    LaunchedEffect(columns, heightDp, dragging, resizing) {
+        if (!dragging && !resizing) {
+            liveColumns = columns.coerceIn(1, 2)
+            liveHeight = heightDp.toFloat()
+            lastPersistedHeight = heightDp
+            lastPersistedColumns = columns.coerceIn(1, 2)
         }
+    }
+    LaunchedEffect(nativeWidth, displayHeight, resizing) {
+        if (nativeWidth > 0) {
+            manager.updateAppWidgetOptions(id, Bundle().apply {
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, nativeWidth)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, nativeWidth)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, (displayHeight - 16).coerceAtLeast(1))
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, (displayHeight - 16).coerceAtLeast(1))
+            })
+        }
+    }
+    LaunchedEffect(editing) {
+        if (!editing) showSettings = false
     }
 
     Box(
         modifier
-            .height(heightDp.dp)
-            .zIndex(if (dragging) 8f else 0f)
+            .height(displayHeight.dp)
+            .zIndex(if (dragging || editing) 8f else 0f)
             .graphicsLayer {
                 if (dragging) {
                     shadowElevation = 0f
@@ -495,104 +438,393 @@ private fun WidgetBoardCard(
             }
             .onGloballyPositioned {
                 cardWidthPx = it.size.width.toFloat().coerceAtLeast(1f)
+                widgetBounds = it.boundsInRoot()
+                widgetEditSession.updateBounds(selectionOwner, widgetBounds)
             }
-            // Keep the same clipping/layer chain when edit controls disappear.
-            .border(
-                width = if (dragging) 2.dp else 1.dp,
-                color = if (editing) Lumen.Accent.copy(alpha = if (dragging) .7f else .3f) else Color.Transparent,
-                shape = shape
-            )
-            .clip(shape)
     ) {
-        AndroidView(
-            factory = {
-                host.createView(it, id, info).apply { setPadding(0, 0, 0, 0) }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(liveHeight.dp)
-                .onSizeChanged { size ->
-                    val width = with(density) { size.width.toDp().value.toInt() }
-                    manager.updateAppWidgetOptions(
-                        id,
-                        Bundle().apply {
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, width)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, width)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, liveHeight)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, liveHeight)
-                        }
-                    )
+        Box(
+            Modifier
+                .matchParentSize()
+                .padding(8.dp)
+                .border(
+                    width = if (editing) 2.dp else 0.6.dp,
+                    color = if (editing) Color.Transparent else Lumen.BrandGold.copy(alpha = 0.24f),
+                    shape = shape
+                )
+                .clip(shape)
+        ) {
+            AndroidView(
+                factory = {
+                    host.createView(it, id, info).apply {
+                        setPadding(0, 0, 0, 0)
+                        nativeWidget = this
+                        if (!external) WidgetTextFit.install(this)
+                        WidgetBackgroundStyle.install(this, context, id)
+                    }
+                },
+                update = { WidgetBackgroundStyle.apply(it, context, id) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .onSizeChanged { size ->
+                        nativeWidth = with(density) { size.width.toDp().value.toInt() }
+                    }
+            )
+
+            if (editing) {
+                Box(Modifier.matchParentSize().clickable(onClickLabel = "Widget options") { menuVisible = true })
+            }
+        }
+
+        if (editing) Canvas(Modifier.matchParentSize()) {
+            val inset = 1.dp.toPx()
+            drawRoundRect(
+                color = WidgetSelectGold.copy(alpha = if (dragging) .7f else .38f),
+                topLeft = Offset(inset, inset),
+                size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx())
+            )
+            // Rounded corner grips sit inside measured bounds, with no circular dots.
+            val radius = 12.dp.toPx()
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+            val diameter = androidx.compose.ui.geometry.Size(radius * 2, radius * 2)
+            listOf(
+                Triple(Offset(inset, inset), 180f, 90f),
+                Triple(Offset(size.width - inset - radius * 2, inset), 270f, 90f),
+                Triple(Offset(inset, size.height - inset - radius * 2), 90f, 90f),
+                Triple(Offset(size.width - inset - radius * 2, size.height - inset - radius * 2), 0f, 90f)
+            ).forEach { (origin, start, sweep) ->
+                drawArc(WidgetSelectGold, start, sweep, false, origin, diameter, style = stroke)
+            }
+
+        }
+
+        // Anchor outside the selected widget, leaving the resize border unobstructed.
+        if (editing && menuVisible && !resizing && !dragging) {
+            val gap = with(density) { 10.dp.roundToPx() }
+            val popupPosition = remember(gap) {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+                        layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                        val x = (anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2)
+                            .coerceIn(gap, (windowSize.width - popupContentSize.width - gap).coerceAtLeast(gap))
+                        val below = anchorBounds.bottom + gap
+                        val y = if (below + popupContentSize.height <= windowSize.height - gap) below
+                            else (anchorBounds.top - popupContentSize.height - gap).coerceAtLeast(gap)
+                        return IntOffset(x, y)
+                    }
                 }
-        )
+            }
+            Popup(
+                popupPositionProvider = popupPosition,
+                // Outside taps on the gold border must resize — never end edit from the popup.
+                onDismissRequest = { menuVisible = false },
+                properties = PopupProperties(focusable = false, dismissOnClickOutside = false)
+            ) {
+                WidgetEditPopup(
+                    title = if (external) info.loadLabel(context.packageManager).toString() else kind.title,
+                    showSettings = showSettings,
+                    transparent = transparent,
+                    wide = liveColumns == 2,
+                    canChangeWidth = allowHalfWidth && (external || !kind.wide),
+                    onRemove = onRemove,
+                    onResize = { showSettings = false; menuVisible = false },
+                    onOpenSettings = { showSettings = true },
+                    onBack = { showSettings = false },
+                    onToggleBackground = {
+                        transparent = !transparent
+                        WidgetHostStore.setTransparent(context, id, transparent)
+                        nativeWidget?.let { WidgetBackgroundStyle.apply(it, context, id) }
+                    },
+                    onToggleWidth = {
+                        if (!allowHalfWidth || (kind.wide && !external)) return@WidgetEditPopup
+                        liveColumns = if (liveColumns == 2) 1 else 2
+                        lastPersistedColumns = liveColumns
+                        lastPersistedHeight = displayHeight
+                        latestResize(liveColumns, displayHeight)
+                    },
+                    onDone = onDone
+                )
+            }
+        }
 
         if (editing) {
-            // Suppress native widget actions in arrange mode. The canvas handles
-            // dragging in stable coordinates, independently of the moving widget.
-            Box(Modifier.matchParentSize().clickable(onClickLabel = "Hold to move widget") {})
+            WidgetResizeHandles(
+                id = id,
+                kind = kind,
+                cardWidthPx = cardWidthPx,
+                liveColumns = liveColumns,
+                liveHeight = liveHeight,
+                allowHalfWidth = allowHalfWidth && (external || !kind.wide),
+                onResizing = { active ->
+                    resizing = active
+                    if (active) menuVisible = false
+                },
+                onLive = { cols, height ->
+                    // Width snaps only between 1 and 2 columns — never continuous mm widths.
+                    val nextCols = WidgetContentRules.columns(cols)
+                        .coerceAtLeast(if (kind.wide && !external) 2 else 1)
+                    liveColumns = nextCols
+                    liveHeight = height
+                    val rounded = height.roundToInt()
+                    val widthChanged = nextCols != lastPersistedColumns
+                    val heightChanged = kotlin.math.abs(rounded - lastPersistedHeight) >= 1
+                    if (widthChanged || heightChanged) {
+                        lastPersistedColumns = nextCols
+                        lastPersistedHeight = rounded
+                        latestResize(nextCols, rounded)
+                    }
+                },
+                onCommit = { cols, height ->
+                    val nextHeight = WidgetHostStore.constrainHeight(context, id, height.roundToInt(), kind)
+                    val nextCols = WidgetContentRules.columns(cols)
+                        .coerceAtLeast(if (kind.wide && !external) 2 else 1)
+                    liveHeight = nextHeight.toFloat()
+                    liveColumns = nextCols
+                    lastPersistedHeight = nextHeight
+                    lastPersistedColumns = nextCols
+                    latestResize(nextCols, nextHeight)
+                    resizing = false
+                    // Stay selected with gold frame; tap empty space to exit (SL-style).
+                    menuVisible = false
+                }
+            )
+        }
+    }
+}
 
-            // Remove — small, out of the way of the resize handle.
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f))
-                    .clickable(onClickLabel = "Remove widget", onClick = onRemove),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Close, "Remove widget", tint = Lumen.Text, modifier = Modifier.size(16.dp))
+@Composable
+private fun WidgetEditPopup(
+    title: String,
+    showSettings: Boolean,
+    transparent: Boolean,
+    wide: Boolean,
+    canChangeWidth: Boolean,
+    onRemove: () -> Unit,
+    onResize: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onBack: () -> Unit,
+    onToggleBackground: () -> Unit,
+    onToggleWidth: () -> Unit,
+    onDone: (() -> Unit)?
+) {
+    val card = RoundedCornerShape(22.dp)
+    Column(
+        Modifier
+            .width(224.dp)
+            .shadow(18.dp, card, clip = false)
+            .clip(card)
+            .background(Color(0xF21A121C))
+            .border(1.dp, WidgetSelectGold.copy(0.45f), card)
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 10.dp, top = 14.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (showSettings) "Settings" else title,
+                color = Lumen.Text,
+                fontFamily = Outfit,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (onDone != null) {
+                Text(
+                    "Done",
+                    color = WidgetSelectGold,
+                    fontFamily = Outfit,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onDone)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
             }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.White.copy(0.08f))
+        )
+        if (showSettings) {
+            WidgetPopupAction(
+                Icons.Outlined.LayersClear,
+                if (transparent) "Restore background" else "Remove background",
+                onToggleBackground
+            )
+            if (canChangeWidth) {
+                WidgetPopupAction(
+                    if (wide) Icons.Outlined.WidthNormal else Icons.Outlined.WidthWide,
+                    if (wide) "Make compact" else "Make wide",
+                    onToggleWidth
+                )
+            }
+            WidgetPopupAction(Icons.AutoMirrored.Outlined.ArrowBack, "Back", onBack)
+        } else {
+            WidgetPopupAction(Icons.Outlined.AspectRatio, "Resize", onResize)
+            WidgetPopupAction(
+                Icons.Outlined.LayersClear,
+                if (transparent) "Restore background" else "Remove background",
+                onToggleBackground
+            )
+            WidgetPopupAction(Icons.Outlined.Settings, "Settings", onOpenSettings)
+            WidgetPopupAction(Icons.Outlined.Delete, "Remove", onRemove, danger = true)
+        }
+        Spacer(Modifier.height(6.dp))
+    }
+}
 
-            // Corner resize handle — drag to change height and width.
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(40.dp)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Lumen.BrandGold.copy(alpha = 0.85f))
-                    .pointerInput(id, kind) {
-                        var accumX = 0f
-                        var startHeight = heightDp
-                        var startColumns = columns
-                        detectDragGestures(
-                            onDragStart = {
-                                accumX = 0f
-                                startHeight = liveHeight
-                                startColumns = liveColumns
-                            },
-                            onDragEnd = {
-                                liveHeight = WidgetContentRules.snapHeight(liveHeight, kind)
-                                liveColumns = WidgetContentRules.columns(liveColumns)
-                                latestResize(liveColumns, liveHeight)
-                            },
-                            onDragCancel = {
-                                liveHeight = WidgetContentRules.snapHeight(liveHeight, kind)
-                                latestResize(liveColumns, liveHeight)
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                accumX += dragAmount.x
-                                val heightDelta = with(density) { dragAmount.y.toDp().value }.roundToInt()
-                                startHeight = WidgetContentRules.height(startHeight + heightDelta, kind)
-                                val nextHeight = WidgetContentRules.snapHeight(startHeight, kind)
-                                val nextColumns = when {
-                                    accumX > cardWidthPx * 0.28f -> 2
-                                    accumX < -cardWidthPx * 0.18f -> 1
-                                    else -> startColumns
-                                }
-                                if (nextHeight != liveHeight || nextColumns != liveColumns) {
-                                    liveHeight = nextHeight
-                                    liveColumns = nextColumns
-                                    latestResize(liveColumns, liveHeight)
-                                }
-                            }
+@Composable
+private fun WidgetPopupAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    danger: Boolean = false
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (danger) Color(0xFFFF8A80) else WidgetSelectGold,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            label,
+            color = if (danger) Color(0xFFFF8A80) else Lumen.Text,
+            fontFamily = Outfit,
+            fontSize = 15.sp
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.WidgetResizeHandles(
+    id: Int,
+    kind: WidgetKind,
+    cardWidthPx: Float,
+    liveColumns: Int,
+    liveHeight: Float,
+    allowHalfWidth: Boolean,
+    onResizing: (Boolean) -> Unit,
+    onLive: (columns: Int, heightDp: Float) -> Unit,
+    onCommit: (columns: Int, heightDp: Float) -> Unit
+) {
+    val density = LocalDensity.current
+    val context = LocalContext.current
+    val minimum = WidgetHostStore.minimum(context, id, kind).toFloat()
+    val maximum = WidgetHostStore.maximum(context, id).toFloat()
+    val colsRef = rememberUpdatedState(liveColumns)
+    val heightRef = rememberUpdatedState(liveHeight)
+    val widthRef = rememberUpdatedState(cardWidthPx)
+    val onLiveRef = rememberUpdatedState(onLive)
+    val onCommitRef = rememberUpdatedState(onCommit)
+    val onResizingRef = rememberUpdatedState(onResizing)
+    val hit = 36.dp
+    // All grips visible; horizontal drag only snaps between half/full columns.
+    val edges = listOf(
+        Alignment.CenterStart to WidgetResizeEdge.Left,
+        Alignment.CenterEnd to WidgetResizeEdge.Right,
+        Alignment.TopCenter to WidgetResizeEdge.Top,
+        Alignment.BottomCenter to WidgetResizeEdge.Bottom,
+        Alignment.TopStart to WidgetResizeEdge.TopLeft,
+        Alignment.TopEnd to WidgetResizeEdge.TopRight,
+        Alignment.BottomStart to WidgetResizeEdge.BottomLeft,
+        Alignment.BottomEnd to WidgetResizeEdge.BottomRight
+    )
+    edges.forEach { (align, edge) ->
+        Box(
+            Modifier
+                .align(align)
+                .zIndex(12f)
+                .then(when (edge) {
+                    WidgetResizeEdge.Left, WidgetResizeEdge.Right -> Modifier.width(hit).fillMaxHeight()
+                    WidgetResizeEdge.Top, WidgetResizeEdge.Bottom -> Modifier.height(hit).fillMaxWidth()
+                    else -> Modifier.size(hit)
+                })
+                .pointerInput(id, kind, edge, allowHalfWidth) {
+                    var accumX = 0f
+                    var heightFloat = heightRef.value
+                    var cols = colsRef.value
+                    awaitEachGesture {
+                        val down = awaitFirstDown(
+                            requireUnconsumed = false,
+                            pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial
                         )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("⌟", color = Lumen.OnAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        down.consume()
+                        onResizingRef.value(true)
+                        accumX = 0f
+                        heightFloat = heightRef.value
+                        cols = colsRef.value
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent(
+                                    androidx.compose.ui.input.pointer.PointerEventPass.Initial
+                                )
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                val amount = change.position - change.previousPosition
+                                change.consume()
+                                if (!change.pressed) break
+                                val dy = with(density) { amount.y.toDp().value }
+                                when (edge) {
+                                    WidgetResizeEdge.Top, WidgetResizeEdge.TopLeft, WidgetResizeEdge.TopRight ->
+                                        heightFloat = (heightFloat - dy).coerceIn(minimum, maximum)
+                                    WidgetResizeEdge.Bottom, WidgetResizeEdge.BottomLeft, WidgetResizeEdge.BottomRight ->
+                                        heightFloat = (heightFloat + dy).coerceIn(minimum, maximum)
+                                    else -> Unit
+                                }
+                                when (edge) {
+                                    WidgetResizeEdge.Left, WidgetResizeEdge.TopLeft, WidgetResizeEdge.BottomLeft ->
+                                        accumX -= amount.x
+                                    WidgetResizeEdge.Right, WidgetResizeEdge.TopRight, WidgetResizeEdge.BottomRight ->
+                                        accumX += amount.x
+                                    else -> Unit
+                                }
+                                // Discrete half ↔ full only (no continuous width).
+                                if (allowHalfWidth &&
+                                    edge != WidgetResizeEdge.Top && edge != WidgetResizeEdge.Bottom
+                                ) {
+                                    cols = when {
+                                        accumX > widthRef.value * 0.22f -> 2
+                                        accumX < -widthRef.value * 0.16f -> 1
+                                        else -> colsRef.value
+                                    }
+                                } else if (!allowHalfWidth) {
+                                    cols = colsRef.value.coerceAtLeast(if (kind.wide) 2 else 1)
+                                }
+                                onLiveRef.value(cols, heightFloat)
+                            }
+                        } finally {
+                            onCommitRef.value(cols, heightFloat)
+                            onResizingRef.value(false)
+                        }
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            if (edge == WidgetResizeEdge.Left || edge == WidgetResizeEdge.Right ||
+                edge == WidgetResizeEdge.Top || edge == WidgetResizeEdge.Bottom) {
+                val vertical = edge == WidgetResizeEdge.Left || edge == WidgetResizeEdge.Right
+                Box(Modifier
+                    .align(align)
+                    .size(width = if (vertical) 3.dp else 24.dp,
+                        height = if (vertical) 24.dp else 3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(WidgetSelectGold))
             }
         }
     }

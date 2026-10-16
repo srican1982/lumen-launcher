@@ -51,6 +51,7 @@ open class LumenWidgetProvider(private val kind: WidgetKind) : AppWidgetProvider
         val prefs = context.getSharedPreferences("lumen_widget_quotes", Context.MODE_PRIVATE).edit()
         appWidgetIds.forEach { prefs.remove("quote_$it") }
         appWidgetIds.forEach { WidgetContacts.remove(context, it) }
+        WidgetWorldCities.remove(context, appWidgetIds)
         prefs.apply()
         WidgetHostStore.remove(context, appWidgetIds.toSet())
     }
@@ -59,13 +60,20 @@ open class LumenWidgetProvider(private val kind: WidgetKind) : AppWidgetProvider
         const val REFRESH_QUOTE = "com.lumen.launcher.widgets.REFRESH_QUOTE"
         internal val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         fun component(context: Context, kind: WidgetKind) = ComponentName(context, when (kind) {
+            WidgetKind.ClockWeather -> ClockWeatherWidget::class.java
+            WidgetKind.WorldClock -> WorldClockWidget::class.java
+            WidgetKind.ClockFeatured -> ClockFeaturedWidget::class.java
+            WidgetKind.CalendarDay -> CalendarDayWidget::class.java
+            WidgetKind.MomentClock -> MomentClockWidget::class.java
+
+            WidgetKind.MediaContinue -> MediaContinueWidget::class.java
+            WidgetKind.MediaPlayer -> MediaPlayerWidget::class.java
+            WidgetKind.MediaNowPlaying -> MediaNowPlayingWidget::class.java
+            WidgetKind.MediaShortcuts -> MediaShortcutsWidget::class.java
+
             WidgetKind.Trip -> TripWidget::class.java
-            WidgetKind.TripUpcoming -> TripUpcomingWidget::class.java
-            WidgetKind.TripCompleted -> TripCompletedWidget::class.java
-            WidgetKind.TripCompact -> TripCompactWidget::class.java
-            WidgetKind.TripSmall -> TripSmallWidget::class.java
-            WidgetKind.TripActions -> TripActionsWidget::class.java
-            WidgetKind.TripCollage -> TripCollageWidget::class.java
+            WidgetKind.TripComplete -> TripCompleteWidget::class.java
+            WidgetKind.TravelDocs -> TravelDocsWidget::class.java
 
             WidgetKind.Scribble -> ScribbleWidget::class.java
             WidgetKind.Quote -> QuoteWidget::class.java
@@ -79,14 +87,10 @@ open class LumenWidgetProvider(private val kind: WidgetKind) : AppWidgetProvider
 
             WidgetKind.Focus -> FocusWidget::class.java
             WidgetKind.Contacts -> ContactsWidget::class.java
-            WidgetKind.ContactsRecent -> ContactsRecentWidget::class.java
             WidgetKind.ContactsSingle -> ContactsSingleWidget::class.java
             WidgetKind.ContactsRow -> ContactsRowWidget::class.java
-            WidgetKind.ContactsQuick -> ContactsQuickWidget::class.java
-            WidgetKind.ContactsFamily -> ContactsFamilyWidget::class.java
 
             WidgetKind.Hush -> HushWidget::class.java
-            WidgetKind.TravelDocs -> TravelDocsWidget::class.java
             WidgetKind.Battery -> BatteryWidget::class.java
         })
         fun quoteRefresh(context: Context, id: Int) = PendingIntent.getBroadcast(context, id,
@@ -102,7 +106,21 @@ open class LumenWidgetProvider(private val kind: WidgetKind) : AppWidgetProvider
     }
 }
 
+class ClockWeatherWidget : LumenWidgetProvider(WidgetKind.ClockWeather)
+class WorldClockWidget : LumenWidgetProvider(WidgetKind.WorldClock)
+class ClockFeaturedWidget : LumenWidgetProvider(WidgetKind.ClockFeatured)
+class CalendarDayWidget : LumenWidgetProvider(WidgetKind.CalendarDay)
+class MomentClockWidget : LumenWidgetProvider(WidgetKind.MomentClock)
+
+class MediaContinueWidget : LumenWidgetProvider(WidgetKind.MediaContinue)
+class MediaPlayerWidget : LumenWidgetProvider(WidgetKind.MediaPlayer)
+class MediaNowPlayingWidget : LumenWidgetProvider(WidgetKind.MediaNowPlaying)
+class MediaShortcutsWidget : LumenWidgetProvider(WidgetKind.MediaShortcuts)
+
 class TripWidget : LumenWidgetProvider(WidgetKind.Trip)
+class TripCompleteWidget : LumenWidgetProvider(WidgetKind.TripComplete)
+class TravelDocsWidget : LumenWidgetProvider(WidgetKind.TravelDocs)
+
 class ScribbleWidget : LumenWidgetProvider(WidgetKind.Scribble)
 class QuoteWidget : LumenWidgetProvider(WidgetKind.Quote)
 class PhotosWidget : LumenWidgetProvider(WidgetKind.Photos)
@@ -111,23 +129,12 @@ class TasksWidget : LumenWidgetProvider(WidgetKind.Tasks)
 class FocusWidget : LumenWidgetProvider(WidgetKind.Focus)
 class ContactsWidget : LumenWidgetProvider(WidgetKind.Contacts)
 class HushWidget : LumenWidgetProvider(WidgetKind.Hush)
-class TravelDocsWidget : LumenWidgetProvider(WidgetKind.TravelDocs)
 class BatteryWidget : LumenWidgetProvider(WidgetKind.Battery)
-
-class TripUpcomingWidget : LumenWidgetProvider(WidgetKind.TripUpcoming)
-class TripCompletedWidget : LumenWidgetProvider(WidgetKind.TripCompleted)
-class TripCompactWidget : LumenWidgetProvider(WidgetKind.TripCompact)
-class TripSmallWidget : LumenWidgetProvider(WidgetKind.TripSmall)
-class TripActionsWidget : LumenWidgetProvider(WidgetKind.TripActions)
-class TripCollageWidget : LumenWidgetProvider(WidgetKind.TripCollage)
 
 class TasksOverviewWidget : LumenWidgetProvider(WidgetKind.TasksOverview)
 class TasksFiltersWidget : LumenWidgetProvider(WidgetKind.TasksFilters)
 class TasksNextWidget : LumenWidgetProvider(WidgetKind.TasksNext)
 class TasksManagerWidget : LumenWidgetProvider(WidgetKind.TasksManager)
 
-class ContactsRecentWidget : LumenWidgetProvider(WidgetKind.ContactsRecent)
 class ContactsSingleWidget : LumenWidgetProvider(WidgetKind.ContactsSingle)
 class ContactsRowWidget : LumenWidgetProvider(WidgetKind.ContactsRow)
-class ContactsQuickWidget : LumenWidgetProvider(WidgetKind.ContactsQuick)
-class ContactsFamilyWidget : LumenWidgetProvider(WidgetKind.ContactsFamily)

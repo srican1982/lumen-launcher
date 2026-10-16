@@ -38,6 +38,11 @@ fun AiPrivacyControls(state: LauncherUiState, viewModel: LauncherViewModel) {
     val context = LocalContext.current
     var gemini by remember { mutableStateOf(AiModels.gemini) }
     var router by remember { mutableStateOf(AiModels.openRouter) }
+    // Keep fields in sync if defaults were upgraded (e.g. flash → flash-lite).
+    LaunchedEffect(Unit) {
+        gemini = AiModels.gemini
+        router = AiModels.openRouter
+    }
     var error by remember { mutableStateOf(false) }
     OutlinedTextField(gemini, { gemini = it; error = false }, label = { Text("Gemini model") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(router, { router = it; error = false }, label = { Text("OpenRouter model") }, singleLine = true, modifier = Modifier.fillMaxWidth())

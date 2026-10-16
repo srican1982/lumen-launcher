@@ -15,8 +15,10 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import com.lumen.launcher.inbox.LumenNotificationListener
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 /** What is currently playing on the phone (Spotify, YouTube Music, podcasts…). */
@@ -96,23 +98,38 @@ object NowPlayingRepository {
 
     /** Safe to call repeatedly; silently does nothing until notification access is granted. */
     fun start(context: Context) {
-        main.post {
-            if (manager != null) {
-                refreshFromManager()
-                return@post
-            }
-            val app = context.applicationContext
-            val m = app.getSystemService(MediaSessionManager::class.java) ?: return@post
-            val comp = ComponentName(app, LumenNotificationListener::class.java)
-            try {
-                m.addOnActiveSessionsChangedListener(sessionsListener, comp, main)
-                manager = m
-                component = comp
-                choose(merge(m.getActiveSessions(comp), fromNotifications))
-            } catch (_: SecurityException) {
-                // Session list not allowed here; notification tokens still work.
-                refreshFromManager()
-            }
+        val app = context.applicationContext
+        if (Looper.myLooper() == Looper.getMainLooper()) attach(app)
+        else main.post { attach(app) }
+    }
+
+    /**
+     * Attach on the main thread and return the current session after it has been chosen.
+     * Widgets used to call [start] from a background thread then read [state] immediately —
+     * the attach was still queued, so YouTube looked like "nothing playing".
+     */
+    suspend fun current(context: Context): NowPlaying? = withContext(Dispatchers.Main.immediate) {
+        attach(context.applicationContext)
+        state.value
+    }
+
+    private fun attach(app: Context) {
+        if (manager != null) {
+            refreshFromManager()
+            return
+        }
+        val m = app.getSystemService(MediaSessionManager::class.java) ?: return
+        val comp = ComponentName(app, LumenNotificationListener::class.java)
+        try {
+            m.addOnActiveSessionsChangedListener(sessionsListener, comp, main)
+            manager = m
+            component = comp
+            choose(merge(m.getActiveSessions(comp), fromNotifications))
+        } catch (_: SecurityException) {
+            // Session list not allowed here; notification tokens still work.
+            manager = m
+            component = comp
+            refreshFromManager()
         }
     }
 
@@ -220,24 +237,34 @@ object NowPlayingRepository {
         val ps = c.playbackState
         val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE)
             ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_DESCRIPTION)
             ?: ""
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM)
             ?: ""
         val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
         val state = ps?.state
+        val playing = isPlaying(state)
+        // Keep a visible row even when YouTube/Music briefly omit metadata.
+        val shownTitle = title.ifBlank {
+            when {
+                playing -> "Playing now"
+                else -> ""
+            }
+        }
         _state.value = NowPlaying(
             packageName = c.packageName,
-            title = title,
+            title = shownTitle,
             artist = artist,
             art = art?.let(::thumbnail),
             artUri = md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_ART_URI)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
-            playing = isPlaying(state),
+            playing = playing,
             positionMs = ps?.position ?: 0L,
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
             positionUpdatedAt = ps?.lastPositionUpdateTime?.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(),

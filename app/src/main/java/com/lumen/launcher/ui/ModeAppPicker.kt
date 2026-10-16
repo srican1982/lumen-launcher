@@ -39,7 +39,8 @@ import com.lumen.launcher.vm.LauncherUiState
 
 @Composable
 fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Unit, onSave: (List<String>) -> Unit, welcome: Boolean = false, initialKeys: List<String>? = null, onUsage: (() -> Unit)? = null, editing: Boolean = false) {
-    val maxApps = com.lumen.launcher.data.ModeAppsResolver.MAX_APPS
+    val unlimited = state.activeSpace == com.lumen.launcher.data.SpaceKind.Home
+    val maxApps = if (unlimited) Int.MAX_VALUE else com.lumen.launcher.data.ModeAppsResolver.MAX_APPS
     var selected by remember(state.activeSpace, initialKeys) { mutableStateOf((initialKeys ?: state.homeApps.map { it.key }).take(maxApps).toSet()) }
     val gridState = rememberLazyGridState()
     var query by remember { mutableStateOf("") }
@@ -64,7 +65,7 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 }
                 IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Cancel", tint = Color.White.copy(alpha = 0.7f)) }
             }
-            Text(if (welcome) "We picked ${(initialKeys ?: state.homeApps.map { it.key }).take(maxApps).size} to start \u00b7 Up to $maxApps apps" else if (editing) "Remove apps from this mode or search to add more." else "Choose up to $maxApps apps for this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
+            Text(if (unlimited) "Choose the apps you want on Home." else if (welcome) "We picked ${(initialKeys ?: state.homeApps.map { it.key }).take(maxApps).size} to start \u00b7 Up to $maxApps apps" else if (editing) "Remove apps from this mode or search to add more." else "Choose up to $maxApps apps for this space.", color = Color.White.copy(alpha = 0.6f), fontFamily = Outfit, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
             TextField(
                 value = query, onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -80,7 +81,7 @@ fun ModeAppPicker(state: LauncherUiState, icons: IconCache, onDismiss: () -> Uni
                 )
             )
             Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${selected.size} of $maxApps selected", color = accent, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(if (unlimited) "${selected.size} selected" else "${selected.size} of $maxApps selected", color = accent, fontFamily = Outfit, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = { selected = emptySet() }, enabled = selected.isNotEmpty()) { Text("Clear", color = if (selected.isEmpty()) Color.Gray else accent) }
             }
             if (apps.isEmpty()) {

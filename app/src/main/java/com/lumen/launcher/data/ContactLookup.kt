@@ -51,6 +51,30 @@ class ContactLookup(private val context: Context) {
         return cache.map { it.first }.distinct().take(limit)
     }
 
+    /** Named contacts for search empty-state People row (skip number-as-name entries). */
+    fun top(limit: Int = 5): List<ContactMatch> {
+        refresh()
+        return cache
+            .asSequence()
+            .filterNot { looksLikePhoneLabel(it.first) }
+            .distinctBy { it.first.lowercase() }
+            .take(limit)
+            .map { (name, phone) -> ContactMatch(name, phone, 1000) }
+            .toList()
+    }
+
+    /** True when DISPLAY_NAME is basically a phone number (common for unnamed contacts). */
+    private fun looksLikePhoneLabel(name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return true
+        val digits = trimmed.count { it.isDigit() }
+        val letters = trimmed.count { it.isLetter() }
+        if (letters == 0 && digits >= 3) return true
+        if (digits >= 7 && letters <= 2) return true
+        if (trimmed.startsWith("+") && digits >= 6 && letters <= 1) return true
+        return false
+    }
+
     fun hasAccess(): Boolean {
         return context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -72,15 +96,24 @@ class ContactLookup(private val context: Context) {
         runCatching {
             context.contentResolver.query(
                 Phone.CONTENT_URI,
-                arrayOf(Phone.DISPLAY_NAME, Phone.NUMBER, Phone.NORMALIZED_NUMBER, Phone.IS_SUPER_PRIMARY),
+                arrayOf(
+                    Phone.DISPLAY_NAME,
+                    Phone.NUMBER,
+                    Phone.NORMALIZED_NUMBER,
+                    Phone.IS_SUPER_PRIMARY,
+                    Phone.STARRED
+                ),
                 null,
                 null,
-                "${Phone.DISPLAY_NAME} COLLATE NOCASE"
+                "${Phone.STARRED} DESC, ${Phone.DISPLAY_NAME} COLLATE NOCASE"
             )?.use { cursor ->
                 val nameIdx = cursor.getColumnIndex(Phone.DISPLAY_NAME)
                 val numberIdx = cursor.getColumnIndex(Phone.NUMBER)
                 val normalizedIdx = cursor.getColumnIndex(Phone.NORMALIZED_NUMBER)
                 val primaryIdx = cursor.getColumnIndex(Phone.IS_SUPER_PRIMARY)
+                val starredIdx = cursor.getColumnIndex(Phone.STARRED)
+                data class Row(val name: String, val phone: String, val starred: Boolean, val primary: Boolean)
+                val rows = mutableListOf<Row>()
                 while (cursor.moveToNext()) {
                     val name = cursor.getString(nameIdx)?.trim().orEmpty()
                     if (name.isBlank()) continue
@@ -89,11 +122,16 @@ class ContactLookup(private val context: Context) {
                     val phone = (normalized ?: raw)?.trim().orEmpty()
                     if (phone.isBlank()) continue
                     val primary = primaryIdx >= 0 && cursor.getInt(primaryIdx) == 1
-                    if (primary) {
-                        found.add(0, name to phone)
-                    } else {
-                        found += name to phone
-                    }
+                    val starred = starredIdx >= 0 && cursor.getInt(starredIdx) == 1
+                    rows += Row(name, phone, starred, primary)
+                }
+                // Starred / primary first; keep all rows for voice matching.
+                rows.sortedWith(
+                    compareByDescending<Row> { it.starred }
+                        .thenByDescending { it.primary }
+                        .thenBy { it.name.lowercase() }
+                ).forEach { rowsItem ->
+                    found += rowsItem.name to rowsItem.phone
                 }
             }
         }

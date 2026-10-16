@@ -60,7 +60,23 @@ class WidgetCommandReceiver : BroadcastReceiver() {
                                 repo.isLocationServicesEnabled() && com.lumen.launcher.travel.TripViewModel.hasMediaPermission(context)) repo.startTrip()
                             if (command == "EndTrip" && active != null && active.id.toString() == item) repo.endTrip()
                         }
+                        "PlayPause" -> {
+                            com.lumen.launcher.media.NowPlayingRepository.current(context)
+                            com.lumen.launcher.media.NowPlayingRepository.playPause(context)
+                        }
+                        "MediaNext" -> {
+                            com.lumen.launcher.media.NowPlayingRepository.current(context)
+                            com.lumen.launcher.media.NowPlayingRepository.next(context)
+                        }
+                        "MediaPrevious" -> {
+                            com.lumen.launcher.media.NowPlayingRepository.current(context)
+                            com.lumen.launcher.media.NowPlayingRepository.previous(context)
+                        }
                     }
+                    }
+                    // Give the player a beat to publish metadata before redrawing.
+                    if (command in setOf("PlayPause", "MediaNext", "MediaPrevious")) {
+                        kotlinx.coroutines.delay(450)
                     }
                     LumenWidgetProvider.refreshAll(context)
                 }
@@ -76,15 +92,20 @@ class WidgetCommandReceiver : BroadcastReceiver() {
         internal fun allowed(kind: WidgetKind, command: String): Boolean = when (kind) {
             WidgetKind.Tasks, WidgetKind.TasksOverview, WidgetKind.TasksFilters, WidgetKind.TasksNext, WidgetKind.TasksManager -> command in setOf("CompleteTask", "CompleteListedTask", "SetTaskFilter")
             WidgetKind.Focus -> command in setOf("StartFocus", "PauseFocus", "ResumeFocus")
-            WidgetKind.Trip, WidgetKind.TripUpcoming, WidgetKind.TripCompleted, WidgetKind.TripCompact, WidgetKind.TripSmall, WidgetKind.TripActions, WidgetKind.TripCollage -> command in setOf("StartTrip", "EndTrip")
+            WidgetKind.Trip, WidgetKind.TripComplete, WidgetKind.TravelDocs ->
+                command in setOf("StartTrip", "EndTrip")
+            WidgetKind.MediaContinue, WidgetKind.MediaPlayer, WidgetKind.MediaNowPlaying ->
+                command in setOf("PlayPause", "MediaNext", "MediaPrevious")
             else -> false
         }
-        fun pending(context: Context, id: Int, kind: WidgetKind, command: String, item: String = ""): PendingIntent =
-            PendingIntent.getBroadcast(context, id, Intent(context, WidgetCommandReceiver::class.java)
+        fun pending(context: Context, id: Int, kind: WidgetKind, command: String, item: String = ""): PendingIntent {
+            val requestCode = 31 * id + (kind.name + '/' + command + '/' + item).hashCode()
+            return PendingIntent.getBroadcast(context, requestCode, Intent(context, WidgetCommandReceiver::class.java)
                 .setAction(ACTION).setData(Uri.Builder().scheme("lumen-widget").authority("command")
                     .appendPath(id.toString()).appendPath(command).appendPath(item).build())
                 .putExtra("id", id).putExtra("kind", kind.name).putExtra("command", command)
                 .putExtra("item", item).putExtra("token", WidgetActions.token(context)),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        }
     }
 }

@@ -1,52 +1,90 @@
 package com.lumen.launcher.widgets
 
+/** Groups shown in the in-app widget picker. */
+enum class WidgetCategory(val title: String) {
+    Clock("Clock"),
+    Media("Media"),
+    Contacts("Contacts"),
+    Tasks("Tasks"),
+    Travel("Travel"),
+    Focus("Focus"),
+    Creative("Creative"),
+    Phone("Phone");
+}
+
 /** Stable keys are shared by the Android picker and Lumen's widget page. */
-enum class WidgetKind(val title: String, val description: String, val wide: Boolean = false) {
-    Trip("Active Trip", "Your current journey, photos and next stop", true),
-    TripUpcoming("Upcoming Trip", "Your saved destination and itinerary", false),
-    TripCompleted("Trip Complete", "Relive your latest completed journey", false),
-    TripCompact("Compact Trip", "Your trip at a glance", false),
-    TripSmall("Small Trip", "Trip progress and next destination", true),
-    TripActions("Trip Quick Actions", "Photo, place, note and documents", true),
-    TripCollage("Trip Photo Collage", "Four memories from your trip", false),
+enum class WidgetKind(
+    val title: String,
+    val description: String,
+    val wide: Boolean = false,
+    val category: WidgetCategory
+) {
+    // Clock — home screen moments
+    ClockWeather("Clock & Weather", "Time, weather and a daily greeting", false, WidgetCategory.Clock),
+    WorldClock("World Time", "Analog clock with cities you choose", true, WidgetCategory.Clock),
+    ClockFeatured("Featured Clock", "Time, weather and your next event", true, WidgetCategory.Clock),
+    CalendarDay("Calendar Day", "Today's date with a week strip", false, WidgetCategory.Clock),
+    MomentClock("Moment", "A quiet quote with the time", false, WidgetCategory.Clock),
 
-    Scribble("Scribble", "Turn a quick sketch into a sticker"),
-    Quote("Quote", "A little calm, with a fresh thought on tap", true),
-    Photos("Photos", "Your recent Lumen photos and cutouts"),
-    Social("Social Today", "Today's time across your social apps"),
-    Tasks("Today Tasks", "Today's task list and a little motivation", true),
-    TasksOverview("Task Progress", "Your to-do, done and overdue counts", false),
-    TasksFilters("Task Quick Filters", "Today, inbox and important tasks", true),
-    TasksNext("Next Up", "Focus on your next task and mark it done", false),
-    TasksManager("Task Manager", "Today, this week and all your tasks", true),
+    // Media — now playing + shortcuts
+    MediaContinue("Continue Watching", "Resume the video or track that's playing", false, WidgetCategory.Media),
+    MediaPlayer("Media Player", "Full player with artwork and controls", true, WidgetCategory.Media),
+    MediaNowPlaying("Now Playing", "Track info with a live visualizer", false, WidgetCategory.Media),
+    MediaShortcuts("Media Controls", "Quick open YouTube, Spotify, Music, Podcasts", false, WidgetCategory.Media),
 
-    Focus("Focus", "A quiet moment, one session at a time"),
-    Contacts("Favorite Contacts", "Choose four people. Tap a face to call."),
-    ContactsRecent("Recent Contacts", "Recent calls to your chosen people", true),
-    ContactsSingle("Single Contact", "One person with call and message actions", false),
-    ContactsRow("People", "Your four chosen contacts in one row", true),
-    ContactsQuick("Quick Contact", "Find contacts and reach your chosen people", true),
-    ContactsFamily("Family", "Your chosen people with call and message actions", true),
+    // Travel — few Apple-style cards
+    Trip("Trip", "Your trip, photos and album", true, WidgetCategory.Travel),
+    TripComplete("Trip Complete", "A finished trip with memories to revisit", false, WidgetCategory.Travel),
+    TravelDocs("Travel Docs", "Boarding passes and bookings", false, WidgetCategory.Travel),
 
-    Hush("Hush", "A quiet overview of your notifications"),
-    TravelDocs("Travel Docs", "Boarding passes, bookings and saved documents"),
-    Battery("Battery", "Your phone's real battery and charging status");
+    Scribble("Scribble", "Turn a quick sketch into a sticker", false, WidgetCategory.Creative),
+    Quote("Quote", "A little calm, with a fresh thought on tap", true, WidgetCategory.Creative),
+    Photos("Photos", "Your recent Lumen photos and cutouts", false, WidgetCategory.Creative),
+    Social("Social Today", "Today's time across your social apps", false, WidgetCategory.Creative),
+    Tasks("Today Tasks", "Today's task list and a little motivation", true, WidgetCategory.Tasks),
+    TasksOverview("Task Progress", "Your to-do, done and overdue counts", false, WidgetCategory.Tasks),
+    TasksFilters("Task Quick Filters", "Today, inbox and important tasks", true, WidgetCategory.Tasks),
+    TasksNext("Next Up", "Focus on your next task and mark it done", false, WidgetCategory.Tasks),
+    TasksManager("Task Manager", "Today, this week and all your tasks", true, WidgetCategory.Tasks),
+
+    Focus("Focus", "A quiet moment, one session at a time", false, WidgetCategory.Focus),
+    Contacts("Favorites", "Favorite contacts in a glass grid.", false, WidgetCategory.Contacts),
+    ContactsSingle("Single Contact", "Single contact with quick actions.", false, WidgetCategory.Contacts),
+    ContactsRow("People", "Favorite contacts row.", true, WidgetCategory.Contacts),
+
+    Hush("Hush", "A quiet overview of your notifications", false, WidgetCategory.Focus),
+    Battery("Battery", "Your phone's real battery and charging status", false, WidgetCategory.Phone);
 
     companion object {
         fun parse(key: String?): WidgetKind? = entries.firstOrNull { it.name == key }
+
+        /** Picker order: category sections, then kinds inside each. */
+        fun pickerSections(): List<Pair<WidgetCategory, List<WidgetKind>>> =
+            WidgetCategory.entries.mapNotNull { category ->
+                val kinds = entries.filter { it.category == category }
+                if (kinds.isEmpty()) null else category to kinds
+            }
     }
 
-    val isContact: Boolean get() = this in setOf(Contacts, ContactsRecent, ContactsSingle, ContactsRow, ContactsQuick, ContactsFamily)
+    val isContact: Boolean get() = this in setOf(Contacts, ContactsSingle, ContactsRow)
     val isTask: Boolean get() = this in setOf(Tasks, TasksOverview, TasksFilters, TasksNext, TasksManager)
-    val isTrip: Boolean get() = this in setOf(Trip, TripUpcoming, TripCompleted, TripCompact, TripSmall, TripActions, TripCollage)
+    val isTrip: Boolean get() = this in setOf(Trip, TripComplete, TravelDocs)
+    val isClock: Boolean get() = this in setOf(ClockWeather, WorldClock, ClockFeatured, CalendarDay, MomentClock)
+    val isMedia: Boolean get() = this in setOf(MediaContinue, MediaPlayer, MediaNowPlaying, MediaShortcuts)
     val heightDp: Int get() = when (this) {
         Tasks, TasksFilters, TasksManager -> 240
         TasksOverview, TasksNext -> 180
-        Contacts -> 240
-        ContactsRecent, ContactsFamily -> 240
-        ContactsSingle, ContactsRow, ContactsQuick -> 180
-        Trip -> 240
-        TripUpcoming, TripCompleted, TripCollage -> 180
+        Contacts -> 220
+        ContactsSingle, ContactsRow -> 180
+        Trip -> 200
+        TripComplete -> 280
+        TravelDocs -> 220
+        ClockWeather, MomentClock -> 200
+        CalendarDay -> 230
+        WorldClock, ClockFeatured -> 240
+        MediaContinue, MediaNowPlaying -> 220
+        MediaShortcuts -> 230
+        MediaPlayer -> 240
         Quote -> 96
         else -> 132
     }

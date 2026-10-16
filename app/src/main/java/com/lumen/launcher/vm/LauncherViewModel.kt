@@ -1169,12 +1169,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (current.visibleApps.none { it.key == app.key } || current.dock.any { it.packageName == app.packageName }) return
         val home = current.copy(spaceOverride = SpaceKind.Home).homeApps.map { it.key }
         val next = if (app.key in home) home - app.key
-            else if (home.size < com.lumen.launcher.data.ModeAppsResolver.MAX_APPS) home + app.key else return
+            else home + app.key
         saveModeApps(SpaceKind.Home, next)
     }
 
     fun saveModeApps(space: SpaceKind, keys: List<String>) {
-        val next = _state.value.modeApps + (space.name to keys.distinct().take(com.lumen.launcher.data.ModeAppsResolver.MAX_APPS))
+        val selection = keys.distinct().let { if (space == SpaceKind.Home) it else it.take(com.lumen.launcher.data.ModeAppsResolver.MAX_APPS) }
+        val next = _state.value.modeApps + (space.name to selection)
         _state.update { it.copy(modeApps = next) }
         viewModelScope.launch { preferences.setModeApps(next) }
     }
@@ -1641,6 +1642,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         _state.update { it.copy(drawerFilter = filter) }
     }
 
+    fun previewContacts(limit: Int = 5): List<com.lumen.launcher.data.ContactMatch> =
+        contacts.top(limit)
+
+    fun hasContactsAccess(): Boolean = contacts.hasAccess()
+
     fun submitSearch() {
         val hits = _state.value.hits
         val first = hits.firstOrNull { it !is SearchHit.Math }
@@ -1687,7 +1693,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun runBlankGesture(kind: String) {
-        val spec = when (kind) {
+        val spec = GestureAction.resolveDefault(when (kind) {
             "tap" -> _state.value.tapAction.ifBlank { GestureAction.VOICE }
             "double" -> _state.value.doubleAction
             "triple" -> _state.value.tripleAction
@@ -1697,7 +1703,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             "swipeLeft" -> _state.value.swipeLeftAction
             "swipeRight" -> _state.value.swipeRightAction
             else -> GestureAction.NONE
-        }
+        }, _state.value.apps)
         if (kind == "double" && spec.isBlank()) {
             runModeAction()
             return
@@ -1711,6 +1717,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             return
         }
         when (spec) {
+            GestureAction.DEFAULT_CAMERA, GestureAction.DEFAULT_MAPS, GestureAction.DEFAULT_MUSIC -> {
+                val intent = when (spec) {
+                    GestureAction.DEFAULT_CAMERA -> Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+                    GestureAction.DEFAULT_MAPS -> Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0"))
+                    else -> Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC)
+                }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (runCatching { getApplication<Application>().startActivity(intent) }.isFailure) openSearch()
+            }
             GestureAction.NONE, GestureAction.OFF -> Unit
             GestureAction.LOCK -> lockScreen()
             GestureAction.DRAWER -> openDrawer()
@@ -1756,17 +1770,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun openWidgets() {
-        closeSheet()
-        if (_state.value.activeSpace == SpaceKind.Focus) selectSpace(SpaceKind.Home)
-        _state.update { it.copy(privatePageActive = false) }
-        goToPage(3)
+        _state.update { it.copy(privatePageActive = false, sheet = Sheet.WidgetPicker) }
     }
 
     fun openWidgetDestination(destination: String, item: String) {
         closeSheet()
         _state.update { it.copy(privatePageActive = false) }
         when (destination) {
-            "Tasks", "Social", "Trip", "Hush", "Focus", "Photo", "TripToggle" ->
+            "Tasks", "Social", "Hush", "Focus", "Photo", "TripToggle" ->
                 _state.update { it.copy(sheet = Sheet.WidgetTool, widgetTool = destination, widgetItem = item) }
             "TasksOverview", "TasksFilters", "TasksNext", "TasksManager" ->
                 _state.update { it.copy(sheet = Sheet.WidgetTool, widgetTool = "Tasks", widgetItem = item) }
@@ -1790,15 +1801,33 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 if (uris.isNotEmpty()) com.lumen.launcher.travel.share.TripShareManager.shareImages(getApplication(), uris)
                 else _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = tripId) }
             }
-            "TripUpcoming", "TripCompleted", "TripCompact", "TripSmall", "TripActions", "TripCollage" ->
-                _state.update { it.copy(sheet = Sheet.TripAlbums) }
+            "Trip" -> _state.update { it.copy(sheet = Sheet.TripAlbums) }
+            "TripComplete" -> _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = item.toLongOrNull()) }
             "TripAlbums" -> _state.update { it.copy(sheet = Sheet.TripAlbums, searchTripId = item.toLongOrNull()) }
-            "TravelDocs" -> _state.update { it.copy(sheet = Sheet.TravelDocs, searchDocumentUri = null, searchTravelCategory = null) }
+            "TravelDocs" -> _state.update {
+                it.copy(
+                    sheet = Sheet.TravelDocs,
+                    searchDocumentUri = null,
+                    searchTravelCategory = item.takeIf { key -> key.isNotBlank() }
+                        ?.let { key -> com.lumen.launcher.data.TravelCategory.entries.find { c -> c.name == key } }
+                )
+            }
             "StartFocus", "FocusSetup" -> {
                 _state.update { it.copy(sheet = Sheet.WidgetTool, widgetTool = "Focus", widgetItem = "start") }
             }
             "UsageAccess" -> startIntent(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
             "Battery" -> startIntent(Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
+            "Calendar", "CalendarDay", "ClockFeatured" ->
+                startIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALENDAR))
+            "ClockWeather", "MomentClock", "WorldClock" -> Unit
+            "OpenMedia", "MediaContinue", "MediaPlayer", "MediaNowPlaying" -> {
+                com.lumen.launcher.media.NowPlayingRepository.start(getApplication())
+                if (!com.lumen.launcher.media.NowPlayingRepository.openPlayer(getApplication())) {
+                    startIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC))
+                }
+            }
+            "MediaShortcuts", "MediaStore" ->
+                startIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC))
             "Contacts" -> startIntent(Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI))
             "Person" -> item.toLongOrNull()?.takeIf { it > 0 }?.let { id ->
                 viewModelScope.launch {
@@ -2533,7 +2562,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 }
 
-enum class Sheet { WidgetTool, SearchDetail, TravelDocs, TripAlbums, None, Search, Drawer, Menu, Settings, AppActions, AppPicker, Voice, Folder, FolderEditor, Capture }
+enum class Sheet { WidgetTool, WidgetPicker, SearchDetail, TravelDocs, TripAlbums, None, Search, Drawer, Menu, Settings, AppActions, AppPicker, Voice, Folder, FolderEditor, Capture }
 
 enum class DrawerFilter { Az, MostUsed, Categories }
 
@@ -2593,10 +2622,10 @@ data class LauncherUiState(
     val doubleAction: String = "",
     val tripleAction: String = "",
     val longAction: String = GestureAction.PRIVATE,
-    val swipeUpAction: String = "",
-    val swipeDownAction: String = "",
-    val swipeLeftAction: String = "",
-    val swipeRightAction: String = "",
+    val swipeUpAction: String = GestureAction.DEFAULT_CAMERA,
+    val swipeDownAction: String = GestureAction.PRIVATE,
+    val swipeLeftAction: String = GestureAction.DEFAULT_MAPS,
+    val swipeRightAction: String = GestureAction.DEFAULT_MUSIC,
     val pickerKind: String = "",
     val iconBusy: Boolean = false,
     val touchpadHaptics: String = TouchpadHaptics.STANDARD,

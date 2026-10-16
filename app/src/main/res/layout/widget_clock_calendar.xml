@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Calendar day focus -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/clock_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <ImageView
+        android:id="@+id/clock_widget_cover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/travel_evening_valley"
+        android:contentDescription="@null" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_trip_scrim_strong" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <TextView
+            android:id="@+id/clock_widget_weekday"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="@font/outfit_medium"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/clock_widget_day"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="48sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/clock_widget_month"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#D9FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/outfit_medium"
+            android:includeFontPadding="false" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp"
+            android:background="@drawable/widget_clock_capsule"
+            android:orientation="horizontal">
+            <LinearLayout android:id="@+id/clock_widget_week_0" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_0" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_1" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_1" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_2" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_2" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_3" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_3" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_4" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_4" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_4" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_5" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_5" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_5" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/clock_widget_week_6" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center">
+                <TextView android:id="@+id/clock_widget_week_label_6" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#99FFFFFF" android:textSize="9sp" android:includeFontPadding="false" />
+                <TextView android:id="@+id/clock_widget_week_day_6" android:layout_width="24dp" android:layout_height="24dp" android:gravity="center" android:textColor="#FFFFFF" android:textSize="11sp" android:fontFamily="@font/outfit_medium" android:includeFontPadding="false" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

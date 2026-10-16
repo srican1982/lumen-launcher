@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- F · Visited places -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/trip_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_trip_glass_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/widget_trip_gold_place"
+            android:contentDescription="@null" />
+        <TextView
+            android:id="@+id/trip_widget_label"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Visited Places"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:fontFamily="@font/outfit_semibold"
+            android:maxLines="1"
+            android:includeFontPadding="false" />
+        <TextView
+            android:id="@+id/trip_widget_chevron"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:text="›"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:background="@drawable/widget_trip_icon_circle"
+            android:includeFontPadding="false" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="10dp"
+        android:gravity="center">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
+            <ImageView
+                android:id="@+id/trip_widget_photo1"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/widget_trip_photo_frame"
+                android:contentDescription="Place" />
+            <TextView
+                android:id="@+id/trip_widget_place1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:minHeight="28dp"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:gravity="center"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
+            <ImageView
+                android:id="@+id/trip_widget_photo2"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/widget_trip_photo_frame"
+                android:contentDescription="Place" />
+            <TextView
+                android:id="@+id/trip_widget_place2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:minHeight="28dp"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:gravity="center"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="4dp">
+            <ImageView
+                android:id="@+id/trip_widget_photo3"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/widget_trip_photo_frame"
+                android:contentDescription="Place" />
+            <TextView
+                android:id="@+id/trip_widget_place3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:minHeight="28dp"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:fontFamily="@font/outfit_medium"
+                android:gravity="center"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:includeFontPadding="false" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/trip_widget_stats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#B8FFFFFF"
+        android:textSize="11sp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:includeFontPadding="false" />
+</LinearLayout>
