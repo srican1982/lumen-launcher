@@ -261,10 +261,10 @@ internal fun SearchOrbMark(modifier: Modifier = Modifier, prominent: Boolean = f
                     )
                 }
                 // Signature Lumen gold leads; a soft violet accent keeps it alive.
-                blob(20f, GoldBright, 0.26f, 0.64f, 0.78f)
-                blob(280f, GoldFlare, 0.24f, 0.54f, 0.72f)
+                blob(20f, Color(0xFF4285FF), 0.36f, 0.76f, 0.92f)
+                blob(280f, Color(0xFFB943FF), 0.34f, 0.64f, 0.90f)
                 blob(150f, Color(0xFFC9A0FF), 0.34f, 0.48f, 0.42f)
-                blob(90f + morph * 40f, Color(0xFFFFE7B0), 0.14f, 0.44f, 0.48f)
+                blob(90f + morph * 40f, Color(0xFFFFC4FA), 0.14f, 0.44f, 0.82f)
                 blob(200f, Gold, 0.30f, 0.38f, 0.40f)
 
 

@@ -8,6 +8,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Person
+import coil.compose.AsyncImage
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -35,40 +44,49 @@ import com.lumen.launcher.ui.theme.Lumen
 import com.lumen.launcher.ui.theme.Outfit
 
 @Composable
-internal fun SpaceTrack(selected: SpaceKind, onSelect: (SpaceKind) -> Unit, icon: (SpaceKind) -> ImageVector) {
-    val spaces = remember { SpaceKind.entries.filter { it != SpaceKind.Private } }
-    val context = LocalContext.current
-    val showIntroLabels = remember(context) {
-        val installed = context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
-        System.currentTimeMillis() - installed < java.util.concurrent.TimeUnit.DAYS.toMillis(3)
-    }
+internal fun SpaceTrack(selected: SpaceKind, onSelect: (SpaceKind) -> Unit, icon: (SpaceKind) -> ImageVector,
+    meEnabled: Boolean = false, meSelected: Boolean = false, avatar: String = "", meProgress: (() -> Float)? = null, onMe: () -> Unit = {}) {
+    val spaces = remember(meEnabled) { (if (meEnabled) listOf<SpaceKind?>(null) else emptyList()) + SpaceKind.entries.filter { it != SpaceKind.Private } }
+    val showIntroLabels = true
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
-    val activeIndex = spaces.indexOf(selected).coerceAtLeast(0)
+    val activeIndex = (if (meProgress == null && meSelected && meEnabled) 0 else spaces.indexOf(selected)).coerceAtLeast(0)
     var trackWidth by remember { mutableFloatStateOf(1f) }
     var dragX by remember { mutableStateOf<Float?>(null) }
     var dragIndex by remember { mutableStateOf<Int?>(null) }
     val widths = spaces.map { space ->
-        animateFloatAsState(if (showIntroLabels) 1f else if (space == selected) 2f else 1f,
+        animateFloatAsState(if (meEnabled && space == null) 1.25f else if (showIntroLabels) 1f else if (space == selected) 2f else 1f,
             animationSpec = spring(dampingRatio = .88f, stiffness = 420f),
-            label = "space-width-${space.name}").value
+            label = "space-width-${space?.name ?: "me"}").value
     }
+    val motionDuration = rememberMeMotionDuration()
+    val selectionAlpha by animateFloatAsState(if (meSelected) 0f else 1f,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = if (motionDuration == 0) 0 else motionDuration,
+            easing = androidx.compose.animation.core.CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+        ), label = "me-space-highlight")
     val total = widths.sum()
-    val latestSelect by rememberUpdatedState(onSelect)
+    val latestSelect by rememberUpdatedState<(SpaceKind?) -> Unit>({ space -> if (space == null) onMe() else onSelect(space) })
     val latestWidths by rememberUpdatedState(widths)
     val latestWidth by rememberUpdatedState(trackWidth)
     val shape = RoundedCornerShape(28.dp)
-    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 14.dp).height(52.dp).clip(shape)
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 14.dp).height(if (meEnabled) 64.dp else 52.dp).clip(shape)
         .background(Brush.verticalGradient(listOf(Color.White.copy(.16f), Color.White.copy(.06f))))
         .border(.8.dp, Brush.verticalGradient(listOf(Color.White.copy(.42f), Color.White.copy(.12f))), shape)
-        .padding(4.dp)) {
+        .padding(3.dp)) {
         val start = widths.take(activeIndex).sum() / total * maxWidth.value
         val pillWidth = widths[activeIndex] / total * maxWidth.value
         val pillX = dragX?.let { (it / density.density - pillWidth / 2).coerceIn(0f, (maxWidth.value - pillWidth).coerceAtLeast(0f)) } ?: start
         val animatedPillX by animateFloatAsState(pillX,
-            animationSpec = if (dragX != null) androidx.compose.animation.core.snap()
+            animationSpec = if (dragX != null || motionDuration == 0) androidx.compose.animation.core.snap()
                 else spring(dampingRatio = .9f, stiffness = 450f), label = "space-pill-position")
-        Box(Modifier.offset(x = animatedPillX.dp).width(pillWidth.dp).fillMaxHeight()
+        Box(Modifier.graphicsLayer { alpha = meProgress?.let { 1f - it() } ?: selectionAlpha }
+            .offset {
+                val p = meProgress?.invoke() ?: 0f
+                val startPx = if (p > 0f) pillX.dp.toPx() else animatedPillX.dp.toPx()
+                IntOffset((startPx * (1f - p)).roundToInt(), 0)
+            }
+            .width(pillWidth.dp).fillMaxHeight()
             .shadow(8.dp, RoundedCornerShape(23.dp), spotColor = Lumen.BrandGold.copy(.35f))
             .clip(RoundedCornerShape(23.dp)).background(Lumen.AccentFill)
             .border(.7.dp, Lumen.BrandGold.copy(.65f), RoundedCornerShape(23.dp)))
@@ -105,20 +123,52 @@ internal fun SpaceTrack(selected: SpaceKind, onSelect: (SpaceKind) -> Unit, icon
                 )
             }, verticalAlignment = Alignment.CenterVertically) {
             spaces.forEachIndexed { index, space ->
-                val active = index == activeIndex
-                val tint = if (active) Lumen.OnBrandGold else Color.White.copy(.88f)
+                val active = if (space == null) meSelected else !meSelected && index == activeIndex
+                val tint = when {
+                    meSelected && space != null -> Color.White
+                    active -> Lumen.OnBrandGold
+                    else -> Color.White.copy(.88f)
+                }
                 Row(Modifier.weight(widths[index]).fillMaxHeight().clip(RoundedCornerShape(23.dp))
-                    .semantics { contentDescription = space.title; this.selected = active }
+                    .semantics { contentDescription = space?.title ?: "Me"; this.selected = active }
                     .clickable {
                         if (!active) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(space)
+                        if (space == null) onMe() else onSelect(space)
                     }, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(icon(space), null, tint = tint, modifier = Modifier.size(18.dp))
-                    if (active || showIntroLabels) {
-                        Spacer(Modifier.width(5.dp))
-                        Text(space.title, color = tint, fontFamily = Outfit,
-                            fontSize = if (showIntroLabels) 11.sp else 13.sp,
-                            fontWeight = FontWeight.Medium, maxLines = 1)
+                    if (space == null) {
+                        val ring = if (meSelected) Lumen.BrandGold else Color.White.copy(.40f)
+                        Box(
+                            Modifier
+                                .sizeIn(maxWidth = 56.dp, maxHeight = 56.dp).aspectRatio(1f)
+                                .then(
+                                    if (meSelected) Modifier.shadow(12.dp, CircleShape, spotColor = Lumen.BrandGold.copy(.55f), ambientColor = Lumen.BrandGold.copy(.28f))
+                                    else Modifier
+                                )
+                                .border(if (meSelected) 2.2.dp else 1.dp, ring, CircleShape)
+                                .padding(2.5.dp)
+                                .border(.6.dp, Color.White.copy(if (meSelected) .35f else .18f), CircleShape)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(.08f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (avatar.isNotBlank()) AsyncImage(
+                                java.io.File(avatar), "Me",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                            else Icon(
+                                Icons.Outlined.Person, null,
+                                tint = if (meSelected) Lumen.BrandGold else Color.White.copy(.92f),
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(icon(space), null, tint = tint, modifier = Modifier.size(if (meEnabled) 19.dp else 18.dp))
+                            Text(space.title, color = tint, fontFamily = Outfit,
+                                fontSize = if (meEnabled) 9.sp else 11.sp,
+                                fontWeight = FontWeight.Medium, maxLines = 1)
+                        }
                     }
                 }
             }

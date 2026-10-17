@@ -1192,6 +1192,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { preferences.updateTravelAttachments(remove = item) }
     }
 
+    fun saveTravelStop(stop: com.lumen.launcher.data.TripStop) {
+        viewModelScope.launch { preferences.updateTravelStops(add = listOf(stop)) }
+    }
+
+    fun removeTravelStop(id: String) {
+        viewModelScope.launch { preferences.updateTravelStops(removeId = id) }
+    }
+
     fun saveTravel(destination: String, ticket: String) {
         _state.update { it.copy(travelDestination = destination.trim(), travelTicket = ticket) }
         viewModelScope.launch { preferences.setTravel(destination.trim(), ticket) }

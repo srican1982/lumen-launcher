@@ -904,3 +904,38 @@ object GestureAction {
         else -> "Tap"
     }
 }
+
+
+/** Personal profile preferences share the existing launcher DataStore; no Space or Room migration. */
+data class MeProfile(
+    val enabled: Boolean = true, val startup: Boolean = false,
+    val cover: String = "", val zoom: Float = 1f, val x: Float = 0f, val y: Float = 0f,
+    val name: String = "", val favorites: List<String> = emptyList(), val favoritesSet: Boolean = false,
+    val nextUp: Boolean = true, val tasks: Boolean = true, val steps: Boolean = false,
+    val location: Boolean = false
+)
+class MePreferences(private val context: Context) {
+    private val key = stringPreferencesKey("me_profile_v1")
+    val profile: Flow<MeProfile> = context.launcherStore.data.map { prefs ->
+        runCatching {
+            val j = org.json.JSONObject(prefs[key] ?: "{}")
+            val a = j.optJSONArray("favorites")
+            MeProfile(j.optBoolean("enabled", true), j.optBoolean("startup"), j.optString("cover"),
+                j.optDouble("zoom", 1.0).toFloat().coerceIn(1f, 4f),
+                j.optDouble("x", 0.0).toFloat().coerceIn(-1f, 1f), j.optDouble("y", 0.0).toFloat().coerceIn(-1f, 1f),
+                j.optString("name"), (0 until (a?.length() ?: 0)).map { a!!.getString(it) }.distinct().take(6),
+                j.optBoolean("favoritesSet"), j.optBoolean("nextUp", true), j.optBoolean("tasks", true),
+                j.optBoolean("steps"), j.optBoolean("location"))
+        }.getOrDefault(MeProfile())
+    }
+    suspend fun save(p: MeProfile) {
+        context.launcherStore.edit { prefs ->
+            prefs[key] = org.json.JSONObject().apply {
+                put("enabled", p.enabled); put("startup", p.startup); put("cover", p.cover)
+                put("zoom", p.zoom); put("x", p.x); put("y", p.y); put("name", p.name.take(50))
+                put("favorites", org.json.JSONArray(p.favorites.distinct().take(6))); put("favoritesSet", p.favoritesSet)
+                put("nextUp", p.nextUp); put("tasks", p.tasks); put("steps", p.steps); put("location", p.location)
+            }.toString()
+        }
+    }
+}

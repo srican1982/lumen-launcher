@@ -211,6 +211,7 @@ fun AppActionsSheet(app: AppInfo, state: LauncherUiState, viewModel: LauncherVie
 fun SettingsSheet(state: LauncherUiState, viewModel: LauncherViewModel) {
     BottomMenu("Lumen", "Fine-tune home, search, and the TouchPad", onDismiss = viewModel::closeSheet) {
         Column(modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState())) {
+        MeSettingsEntry(state, viewModel)
         Text(
             "Icon size",
             color = Lumen.Muted,

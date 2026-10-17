@@ -80,85 +80,17 @@ internal fun TravelHeroPanel(state: LauncherUiState, vm: LauncherViewModel, trip
                 toggle(true)
             }
         }
-        val shape = RoundedCornerShape(26.dp)
-        Column(Modifier.fillMaxWidth().clip(shape).background(Color.White.copy(.09f))
-            .border(.8.dp, Color.White.copy(.23f), shape).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    val days = start?.let { ChronoUnit.DAYS.between(today, it) }
-                    Text(when {
-                        active != null -> "ON TRIP"
-                        planned && days != null && days > 0 -> "NEXT TRIP - IN $days DAYS"
-                        planned -> "YOUR TRIP IS READY"
-                        else -> "YOUR NEXT CHAPTER"
-                    }, color = Lumen.Muted, fontFamily = Outfit, fontSize = 10.sp, letterSpacing = 1.4.sp)
-                    Text(when {
-                        active != null -> {
-                            val day = ChronoUnit.DAYS.between(Instant.ofEpochMilli(active.startTime)
-                                .atZone(ZoneId.systemDefault()).toLocalDate(), today).coerceAtLeast(0) + 1
-                            "Day $day - ${active.primaryCity ?: destination.ifBlank { active.displayTitle }}"
-                        }
-                        planned -> destination
-                        else -> "Where to next?"
-                    }, color = Lumen.Text, fontFamily = Outfit, fontSize = 23.sp,
-                        fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clickable { if (active != null) openTrip(active) else edit = true })
-                    if (planned) Text(
-                        "${start.format(DateTimeFormatter.ofPattern("MMM d"))} - ${end.format(DateTimeFormatter.ofPattern("MMM d"))}",
-                        color = Lumen.Muted, fontFamily = Outfit, fontSize = 12.sp)
-                }
-                Switch(checked = tripState.tripModeEnabled, enabled = !tripState.isLoading,
-                    onCheckedChange = { enabled ->
-                        if (!enabled) prefs.edit().putBoolean("attempted", true).apply()
-                        toggle(enabled)
-                    }, colors = SwitchDefaults.colors(checkedTrackColor = Lumen.BrandGold,
-                        checkedThumbColor = Lumen.OnBrandGold, checkedBorderColor = Color.Transparent,
-                        uncheckedTrackColor = Color.White.copy(.15f)))
-            }
-            when {
-                active != null -> {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        todaysPhotos.take(3).forEach { photo ->
-                            AsyncImage(photo.contentUri, "Photo from today", contentScale = ContentScale.Crop,
-                                modifier = Modifier.weight(1f).height(68.dp).clip(RoundedCornerShape(12.dp))
-                                    .clickable { openTrip(active) })
-                        }
-                    }
-                    Text(if (todaysPhotos.isEmpty()) "Today's memories will appear here." else
-                        "${todaysPhotos.size} photos today" + todaysPhotos.mapNotNull { it.city }.distinct()
-                            .takeIf { it.isNotEmpty() }?.joinToString(prefix = " - ").orEmpty(),
-                        color = Lumen.Muted, fontFamily = Outfit, fontSize = 12.sp)
-                    val next = state.travelStops.filter { it.at == null || it.at >= System.currentTimeMillis() }
-                        .sortedWith(compareByDescending<com.lumen.launcher.data.TripStop> { it.markedNext }.thenBy { it.at ?: Long.MAX_VALUE })
-                        .firstOrNull()
-                    Text(next?.let { "Next: ${it.place}" + (it.at?.let { at -> " - " + Instant.ofEpochMilli(at)
-                        .atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a")) } ?: "") }
-                        ?: "Add your next plan to Itinerary", color = Lumen.Text, fontFamily = Outfit, fontSize = 13.sp,
-                        modifier = Modifier.fillMaxWidth().clickable { collection = TravelCategory.Itinerary }.padding(vertical = 6.dp))
-                }
-                planned -> {
-                    BoardingStub(prefs, onClick = { edit = true })
-                    Text(if (prefs.getBoolean("automatic", false))
-                        "Trip mode starts when you open Travel on or after ${start!!.format(DateTimeFormatter.ofPattern("MMM d"))}. The switch is your override."
-                        else "Turn on Trip mode when you're ready.", color = Lumen.Muted, fontFamily = Outfit, fontSize = 11.sp)
-                }
-                else -> {
-                    Text("Keep tickets, plans and trip albums together. Photos stay on your device; location is used only while Trip mode is on.",
-                        color = Lumen.Muted, fontFamily = Outfit, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { edit = true }, modifier = Modifier.weight(1f)) { Text("Add trip", color = Lumen.BrandGold) }
-                        OutlinedButton(onClick = { collection = TravelCategory.Flights }, modifier = Modifier.weight(1f)) { Text("Boarding pass", color = Lumen.Text) }
-                    }
-                }
-            }
-            if (planned || active != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Edit trip", color = Lumen.BrandGold, fontFamily = Outfit, fontSize = 11.sp,
-                    modifier = Modifier.clickable { edit = true }.padding(vertical = 6.dp))
-                Text("Boarding pass", color = Lumen.BrandGold, fontFamily = Outfit, fontSize = 11.sp,
-                    modifier = Modifier.clickable { collection = TravelCategory.Flights }.padding(vertical = 6.dp))
-            }
-        }
+        TravelDashboardContent(
+            state = state, vm = vm, tripState = tripState, photos = photos,
+            destination = destination, start = if (planned) start else null, end = if (planned) end else null,
+            onToggle = { enabled ->
+                if (!enabled) prefs.edit().putBoolean("attempted", true).apply()
+                toggle(enabled)
+            },
+            onEdit = { edit = true },
+            onOpenTrip = { if (active != null) openTrip(active) else edit = true }
+        )
+
     })
     collection?.let { TravelCollection(state, vm, it) { collection = null } }
     if (edit) TripPlanDialog(prefs, onDismiss = { edit = false })

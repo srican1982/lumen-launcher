@@ -68,6 +68,8 @@ import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -143,14 +145,80 @@ fun HomeScreen(
     isActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val meContext = androidx.compose.ui.platform.LocalContext.current
+    val meStore = remember { com.lumen.launcher.data.MePreferences(meContext.applicationContext) }
+    val meProfile by meStore.profile.collectAsStateWithLifecycle(initialValue = null)
+    var meSelected by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var meInitialized by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var meEditing by remember { mutableStateOf(false) }
+    val profile = meProfile ?: com.lumen.launcher.data.MeProfile()
+    LaunchedEffect(meProfile) {
+        val loaded = meProfile ?: return@LaunchedEffect
+        if (!meInitialized) {
+            meInitialized = true
+            if (loaded.enabled) { viewModel.selectSpace(SpaceKind.Home); meSelected = loaded.startup }
+        }
+        if (!loaded.enabled) meSelected = false
+    }
+    var observedSpace by remember { mutableStateOf(state.activeSpace) }
+    LaunchedEffect(state.activeSpace) {
+        if (state.activeSpace != observedSpace) { meSelected = false; observedSpace = state.activeSpace }
+    }
+    var meContentState by remember { mutableStateOf(state) }
+    val meMotionDuration = rememberMeMotionDuration()
+    val meAnimation = remember { androidx.compose.animation.core.Animatable(0f) }
+    val meProgress: () -> Float = remember(meAnimation) { { meAnimation.value } }
+    val meVisible by remember { derivedStateOf { meSelected || meAnimation.value > 0f } }
+    val meReady by remember { derivedStateOf { meAnimation.value >= .999f && !meAnimation.isRunning } }
+    // Prepare Me while it is hidden; freeze its source only while leaving it.
+    LaunchedEffect(state, meSelected, meVisible) {
+        if (meSelected || !meVisible) meContentState = state
+    }
+    LaunchedEffect(meSelected, profile.enabled, meMotionDuration) {
+        val target = if (meSelected && profile.enabled) 1f else 0f
+        if (meMotionDuration == 0) meAnimation.snapTo(target)
+        else {
+            // Let the destination compose while fully hidden, rather than changing modes mid-collapse.
+            val remaining = kotlin.math.abs(target - meAnimation.value)
+            if (target == 0f && meAnimation.value == 1f) {
+                withFrameNanos { }
+                withFrameNanos { }
+            }
+            meAnimation.animateTo(target, androidx.compose.animation.core.tween(
+                (meMotionDuration * remaining).roundToInt().coerceAtLeast(1),
+                easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
+    androidx.activity.compose.BackHandler(enabled = isActive && meSelected && !meEditing && state.sheet == com.lumen.launcher.vm.Sheet.None) {
+        meSelected = false
+    }
+    fun leaveMeTo(space: SpaceKind) {
+        meSelected = false
+        viewModel.selectSpace(space)
+    }
+    if (meEditing) MeEditor(state, viewModel) { meEditing = false }
     var modeEditing by remember { mutableStateOf(false) }
     if (modeEditing) AppEditPage(state, viewModel, onDismiss = { modeEditing = false })
     val completedFocus by com.lumen.launcher.focus.FocusSessionManager.get(androidx.compose.ui.platform.LocalContext.current).completion.collectAsStateWithLifecycle()
-    val focusCompleted = state.activeSpace == SpaceKind.Focus && !state.focusing && completedFocus != null
-    BoxWithConstraints(modifier.fillMaxSize().background(if (state.activeSpace == SpaceKind.Focus) Brush.linearGradient(if (LumenPalette.whiteGlass) listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14)) else listOf(Color(0xFF081522), Color(0xFF071017), Color(0xFF09101A))) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)))) {
-        if (state.activeSpace == SpaceKind.Focus) com.lumen.launcher.ui.focus.FocusRainBackdrop(active = state.focusing)
-        if (state.activeSpace == SpaceKind.Personal) SocialBackdrop()
-        if (state.activeSpace == SpaceKind.Travel) TravelBackdrop()
+    val focusCompleted = !meVisible && state.activeSpace == SpaceKind.Focus && !state.focusing && completedFocus != null
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        // Base Space scenery stays stable. Me's backdrop is blended by the same animation clock.
+        when (state.activeSpace) {
+            SpaceKind.Home -> if (state.spaceWallpaper == null) HomeAuroraBackdrop()
+            SpaceKind.Personal -> SocialBackdrop()
+            SpaceKind.Travel -> TravelBackdrop()
+            SpaceKind.Focus -> Box(Modifier.fillMaxSize().background(Brush.linearGradient(
+                if (LumenPalette.whiteGlass) listOf(Color(0xFF0B0E14), Color(0xFF10131C), Color(0xFF0B0E14))
+                else listOf(Color(0xFF081522), Color(0xFF071017), Color(0xFF09101A))))) {
+                com.lumen.launcher.ui.focus.FocusRainBackdrop(active = state.focusing)
+            }
+            else -> Unit
+        }
+        if (profile.enabled || meVisible) Box(Modifier.fillMaxSize().graphicsLayer { alpha = meProgress() }) {
+            HomeAuroraBackdrop()
+        }
+        val meExpandedHeight = (maxHeight * .32f).coerceIn(190.dp, 290.dp)
+        if (profile.enabled || meVisible) MeCover(profile, meProgress, meExpandedHeight + 94.dp)
         // Shared wallpaper scrim keeps the greeting and glass mode tabs readable.
         Box(
             Modifier.fillMaxWidth().height(300.dp).background(
@@ -167,7 +235,7 @@ fun HomeScreen(
         val cellWidth = ((gridWidth - gridGap * (state.gridColumns - 1)) / state.gridColumns).coerceAtLeast(1.dp)
         // Dock chrome uses 8.dp horizontal padding (Apple-like tight inset).
         val dockWidth = ((gridWidth - 16.dp - 6.dp * (state.dockCapacity - 1)) / state.dockCapacity).coerceAtLeast(1.dp)
-        val homeIconSize = minOf(state.iconSizeDp.dp, cellWidth - 8.dp, dockWidth - 8.dp).coerceAtLeast(1.dp)
+        val homeIconSize = minOf(state.iconSizeDp.dp, cellWidth - 8.dp).coerceAtLeast(1.dp)
         val widgetEditSession = LocalWidgetEditSession.current
         var widgetDragging by remember { mutableStateOf(false) }
         val mixedAppDrop = remember { arrayOf<(String, Offset) -> Boolean>({ _, _ -> false }) }
@@ -389,26 +457,27 @@ fun HomeScreen(
                             } else viewModel.openMenu()
                         },
                         onDoubleTap = {}, onTripleTap = {},
-                        onLongPress = { modeEditing = true }
+                        onLongPress = { if (meSelected) meEditing = true else modeEditing = true }
                     )
             ) {
             Spacer(Modifier.height(6.dp))
             if (!focusCompleted) {
-            HomeGreeting(
-                greeting = copy.greeting,
-                recentsOpen = recentsOpen,
-                weather = state.weather,
-                onRecents = { viewModel.setRecentsOpen(!recentsOpen) },
-                modifier = restBlur
-            )
+            MeHeader(profile, meProgress, meExpandedHeight, meSelected, meReady, copy.greeting, state.weather?.place,
+                onEdit = { meEditing = true },
+                onTravel = { leaveMeTo(SpaceKind.Travel) }) {
+                HomeGreeting(
+                    greeting = copy.greeting, recentsOpen = recentsOpen, weather = state.weather,
+                    onRecents = { viewModel.setRecentsOpen(!recentsOpen) }, modifier = restBlur)
+            }
             if (!recentsOpen) {
-                SpaceRow(
-                    selected = state.activeSpace,
-                    automatic = state.spaceAutomatic,
-                    onSelect = { space ->
-                        viewModel.selectSpace(space)
-                    }
-                )
+                SpaceTrack(state.activeSpace,
+                    onSelect = { space -> leaveMeTo(space) },
+                    icon = ::spaceIcon, meEnabled = profile.enabled, meSelected = meSelected,
+                    avatar = profile.cover, meProgress = meProgress,
+                    onMe = {
+                        meContentState = state
+                        meSelected = true
+                    })
             }
             }
             if (!state.isDefaultHome) {
@@ -436,8 +505,12 @@ fun HomeScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(state.gridColumns),
                     state = gridState,
-                    modifier = Modifier.fillMaxSize().gridEdgeGestures(
-                        enabled = !widgetEditSession.active && !editing && !widgetDragging && !recentsOpen,
+                    modifier = Modifier.fillMaxSize().meStableViewport(meExpandedHeight, meProgress).graphicsLayer {
+                        val p = meProgress()
+                        alpha = 1f - p
+                        translationY = -p * 12.dp.toPx()
+                    }.gridEdgeGestures(
+                        enabled = !meSelected && !widgetEditSession.active && !editing && !widgetDragging && !recentsOpen,
                         gridState = gridState,
                         scrollEnabled = gridNeedsScroll,
                         onOpenSearch = viewModel::openModeSearch,
@@ -447,7 +520,7 @@ fun HomeScreen(
                         top = if (state.activeSpace == SpaceKind.Focus) 4.dp else 12.dp,
                         bottom = if (gridNeedsScroll) 28.dp else 0.dp
                     ),
-                    userScrollEnabled = !widgetEditSession.active && !editing && !widgetDragging && gridNeedsScroll,
+                    userScrollEnabled = !meSelected && !widgetEditSession.active && !editing && !widgetDragging && gridNeedsScroll,
                     horizontalArrangement = Arrangement.spacedBy(gridGap),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -511,8 +584,15 @@ fun HomeScreen(
                     }
                 }
                 }
+                if (meSelected) Box(Modifier.fillMaxSize().clickable(onClick = {}))
+                if (profile.enabled || meVisible) Box(Modifier.fillMaxSize().meStableViewport(
+                    meExpandedHeight, meProgress, personal = true, placeContent = meVisible).graphicsLayer {
+                    val p = meProgress()
+                    alpha = p
+                    translationY = (1f - p) * 12.dp.toPx()
+                }) { MeContent(meContentState, viewModel, profile, active = meVisible) { meEditing = true } }
             }
-            DockScrollHint(gridState, state.activeSpace, enabled = gridNeedsScroll && !editing && !recentsOpen && !state.focusing)
+            DockScrollHint(gridState, state.activeSpace, enabled = !meSelected && gridNeedsScroll && !editing && !recentsOpen && !state.focusing)
             Spacer(Modifier.height(14.dp))
             TransformingLumenDock(
                 state = state,
@@ -642,11 +722,11 @@ private fun HomeGreeting(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RecentsArrow(open = recentsOpen, onClick = onRecents)
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 12.dp, end = 20.dp)
+                .padding(end = 12.dp)
+                .clickable(onClickLabel = "Recent apps", onClick = onRecents)
         ) {
             FittingGreeting(greeting)
             Text(
@@ -659,14 +739,11 @@ private fun HomeGreeting(
             )
         }
         if (weather != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    weatherIcon(weather.summary),
-                    contentDescription = weather.summary,
-                    tint = Color.White.copy(alpha = 0.92f),
-                    modifier = Modifier.size(22.dp)
-                )
-                Column(modifier = Modifier.padding(start = 8.dp), horizontalAlignment = Alignment.Start) {
+            Column(horizontalAlignment = Alignment.End) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
                     Text(
                         weather.temperatureLabel(),
                         color = Lumen.Text,
@@ -674,14 +751,25 @@ private fun HomeGreeting(
                         fontFamily = Outfit,
                         fontWeight = FontWeight.Light
                     )
-                    Text(
-                        weather.summary,
-                        color = Lumen.Faint,
-                        fontSize = 11.sp,
-                        fontFamily = Outfit,
-                        maxLines = 1
+                    Icon(
+                        weatherIcon(weather.summary),
+                        contentDescription = weather.summary,
+                        tint = Lumen.BrandGold,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
+                Text(
+                    listOf(weather.summary, weather.place)
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .joinToString(" · "),
+                    color = Lumen.Faint,
+                    fontSize = 11.sp,
+                    fontFamily = Outfit,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 140.dp)
+                )
             }
         }
     }
@@ -937,7 +1025,7 @@ private fun RecentsArrow(open: Boolean, onClick: () -> Unit, modifier: Modifier 
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = "Create and share",
-            tint = Color.White.copy(alpha = 0.92f),
+            tint = Lumen.BrandGold,
             modifier = Modifier
                 .size(20.dp)
                 .graphicsLayer { rotationZ = rotation }

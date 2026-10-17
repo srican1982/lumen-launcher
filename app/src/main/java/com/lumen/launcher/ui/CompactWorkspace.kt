@@ -46,8 +46,11 @@ fun CompactWorkspace(state: LauncherUiState, vm: LauncherViewModel) {
     if (state.activeSpace == SpaceKind.Travel) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             TravelHeroPanel(state, vm)
-            TravelShortcutRow(state, vm)
         }
+        return
+    }
+    if (state.activeSpace in setOf(SpaceKind.Home, SpaceKind.Work) && !state.focusing) {
+        HomeNextUpCard(state, vm)
         return
     }
     val context = LocalContext.current
